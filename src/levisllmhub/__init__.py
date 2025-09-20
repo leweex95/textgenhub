@@ -1,8 +1,12 @@
 import subprocess
 from pathlib import Path
 import sys
+import shutil
 
 def _ensure_node_deps():
+    if not shutil.which("npm"):
+        raise RuntimeError("npm is not installed or not in PATH")
+
     root = Path(__file__).parent
     node_modules = root / "node_modules"
 
@@ -11,11 +15,9 @@ def _ensure_node_deps():
             subprocess.run(
                 ["npm", "install"],
                 cwd=root,
-                check=True
+                check=True,
+                shell=True  # required on Windows
             )
-        except FileNotFoundError:
-            print("Error: npm is not installed or not in PATH", file=sys.stderr)
-            raise
         except subprocess.CalledProcessError as e:
             print(f"npm install failed: {e}", file=sys.stderr)
             raise
