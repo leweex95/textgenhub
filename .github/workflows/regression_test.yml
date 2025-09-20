@@ -29,10 +29,8 @@ jobs:
       - name: Install levisllmhub
         run: |
           poetry install
-          poetry run pip install .
 
       - name: Run regression pipeline
         run: |
-          # run headless mode and exit on any error
-          python -m levisLLMhub.chatgpt.chatgpt --headless True
+          python -m levisllmhub.chatgpt.chatgpt --headless True
         shell: pwsh
