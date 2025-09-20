@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "levisllmhub"
-version = "0.3.0"
+version = "0.3.1"
 description = "My personal LLM hub to connect to web-based LLMs"
 readme = "README.md"
 authors = ["Levente Csibi <csibi.levente14@gmail.com>"]
