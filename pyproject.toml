@@ -3,7 +3,7 @@ name = "levisllmhub"
 version = "0.2.6"
 description = "My personal LLM hub to connect to web-based LLMs"
 readme = "README.md"
-authors = ["Levente Csibi <csibi.levente14@gmail.com"]
+authors = ["Levente Csibi <csibi.levente14@gmail.com>"]
 license = "MIT"
 
 homepage = "https://github.com/leweex95/levisllmhub"
