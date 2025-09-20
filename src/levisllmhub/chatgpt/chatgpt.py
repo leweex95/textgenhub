@@ -20,9 +20,17 @@ def ask_chatgpt(prompt: str, headless: bool = True, remove_cache: bool = True) -
         "--remove-cache", str(remove_cache).lower()
     ]
 
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=CHATGPT_CLI.parent) as proc:
-        for line in proc.stdout:
-            print(line, end="")  # shows all Node logs live
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=CHATGPT_CLI.parent) as proc:
+        # first, read bytes directly and attempt to encode them in UTF-8
+        raw_bytes = proc.stdout.read()
+        try:
+            text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as e:
+            print(f"UnicodeDecodeError at byte {e.start}, replacing invalid bytes")
+            text = raw_bytes.decode("utf-8", errors="replace")
+
+        for line in text.splitlines():
+            print(line)  # shows all Node logs live
             if line.strip().startswith('{"response":'):
                 stdout_json_line = line.strip()
 
