@@ -22,15 +22,27 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20"
-
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+  
       - name: Install Poetry
         run: python -m pip install --upgrade poetry==1.5.1
 
-      - name: Install levisllmhub
+      - name: Install dependencies
         run: |
           poetry install
+        shell: pwsh
 
+      - name: Validate levisllmhub installation
+        run: |
+          poetry run pip show levisllmhub
+        shell: pwsh
+  
       - name: Run regression pipeline
         run: |
-          python -m levisllmhub.chatgpt.chatgpt --headless True
+          poetry run python -m levisllmhub.chatgpt.chatgpt --headless True
         shell: pwsh
