@@ -1,23 +1,20 @@
-[project]
+[tool.poetry]
 name = "levisllmhub"
-version = "0.2.4"
+version = "0.2.5"
 description = "My personal LLM hub to connect to web-based LLMs"
-authors = [
-    {name = "leweex95",email = "csibi.levente14@gmail.com"}
-]
+
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-]
+
 
 packages = [{include = "levisllmhub", from = "src"}]
 
+
 include = [
-    { path = "src/levisLLMhub/chatgpt", format = "dir" }, 
-    { path = "src/levisLLMhub/core", format = "dir" }, 
-    { path = "package.json", format = "file" }, 
-    { path = "package-lock.json", format = "file" }
+    "package.json",
+    "package-lock.json",
+    "src/levisLLMhub/**/*.js"
 ]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

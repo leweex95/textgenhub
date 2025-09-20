@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 import json
 import sys
-from levisLLMhub.utils.scrape_response import extract_response_json
+from levisllmhub.utils.scrape_response import extract_response_json
 
 NODE_PATH = "node"
 CHATGPT_CLI = Path(__file__).parent / "chatgpt_cli.js"
