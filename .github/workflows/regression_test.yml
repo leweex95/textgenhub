@@ -59,4 +59,4 @@ jobs:
           else:
               print("Regression test passed: expected {expected_date}, ChatGPT output: {result}")
           EOF
-        shell: pwsh
+        shell: bash
