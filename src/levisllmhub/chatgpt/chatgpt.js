@@ -1,0 +1,925 @@
+/**
+ * ChatGPT Provider - Browser automation for ChatGPT web interface
+ * Uses Puppeteer to interact with ChatGPT when API access is not available
+ */
+
+'use strict';
+
+const path = require('path');
+const BaseLLMProvider = require('../core/base-provider');
+const BrowserManager = require('../core/browser-manager');
+
+class ChatGPTProvider extends BaseLLMProvider {
+  constructor(config = {}) {
+    super('chatgpt', config);
+
+    this.browserManager = null;
+    this.isLoggedIn = false;
+    this.sessionTimeout = config.sessionTimeout || 3600000; // 1 hour
+    this.lastSessionCheck = 0;
+
+    // ChatGPT-specific selectors (may need updates as UI changes)
+    this.selectors = {
+      loginButton: '[data-testid="login-button"]',
+      emailInput: '#username',
+      passwordInput: '#password',
+      submitButton: 'button[type="submit"]',
+      textArea:
+        '#prompt-textarea, [data-testid="composer-text-input"], textarea[placeholder*="Message"], textarea[data-id="root"]',
+      sendButton:
+        '[data-testid="send-button"], button[data-testid="send-button"], [aria-label*="Send"], button[aria-label*="Send"], button[type="submit"]:not([disabled]), button:has(svg):last-child',
+      messageContainer:
+        '[data-testid*="conversation-turn"], [data-testid="conversation-turn"], .group, .flex.flex-col, div[class*="conversation"]',
+      responseText:
+        '[data-testid*="conversation-turn"] .markdown, [data-testid*="conversation-turn"] div[class*="markdown"], .prose, div[class*="prose"], .whitespace-pre-wrap',
+      regenerateButton:
+        '[data-testid="regenerate-button"], button[aria-label*="Regenerate"]',
+      ...config.selectors,
+    };
+
+    this.urls = {
+      login: 'https://chatgpt.com/auth/login',
+      chat: 'https://chatgpt.com/',
+      ...config.urls,
+    };
+
+    // ChatGPT-specific configuration with configurable headless mode
+    this.config.headless =
+      config.headless !== undefined ? config.headless : true; // Default to headless
+    this.config.timeout = config.timeout || 60000;
+    this.config.sessionTimeout = config.sessionTimeout || 3600000;
+    this.config.userDataDir =
+      this.config.userDataDir || path.join(process.cwd(), 'temp', 'chatgpt-session');
+  }
+
+  /**
+   * Initialize the ChatGPT provider
+   */
+  async initialize() {
+    try {
+      this.logger.info('Initializing ChatGPT provider...');
+      const browserConfig = {
+        headless: this.config.headless,
+        timeout: this.config.timeout,
+        userDataDir: this.config.userDataDir,
+      };
+      this.browserManager = new BrowserManager(browserConfig);
+      await this.browserManager.initialize();
+
+      // Navigate to ChatGPT
+      this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat });
+      await this.browserManager.navigateToUrl(this.urls.chat);
+      this.logger.info('ChatGPT navigation completed');
+
+      // Try to find the text area, if not found, fail fast instead of hanging
+      try {
+        this.logger.info('Waiting for ChatGPT text area...');
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 10000, // Reduced timeout for faster failure
+        });
+        this.isLoggedIn = true;
+        this.logger.info('ChatGPT text area found, session is logged in.');
+      } catch (e) {
+        this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.');
+        throw new Error('ChatGPT login required. Run with --debug flag for manual login or ensure you have a valid session.');
+      }
+      this.isInitialized = true;
+      this.logger.info('ChatGPT provider initialized successfully');
+    } catch (error) {
+      throw this.handleError(error, 'initialization');
+    }
+  }
+
+  /**
+   * Generate content using ChatGPT
+   * @param {string} prompt - The prompt to send
+   * @param {Object} options - Generation options
+   */
+  async generateContent(prompt, options = {}) {
+    await this.applyRateLimit();
+    const startTime = Date.now();
+    try {
+      this.logger.debug('Starting content generation', {
+        promptLength: prompt.length,
+      });
+      this.logger.debug('Validating prompt...');
+      this.validatePrompt(prompt);
+      this.logger.debug('Prompt validated successfully');
+      this.logger.debug('Ensuring session is valid...');
+      await this.ensureSessionValid();
+      this.logger.debug('Session validation completed');
+      this.logger.info('Sending prompt to ChatGPT', {
+        promptLength: prompt.length,
+        options,
+      });
+
+      const currentUrl = await this.browserManager.getCurrentUrl();
+      this.logger.debug('Current URL before navigation check', { currentUrl });
+      if (!currentUrl.includes('chatgpt.com')) {
+        this.logger.debug('Navigating to chat URL', { url: this.urls.chat });
+        await this.browserManager.navigateToUrl(this.urls.chat);
+      }
+
+      // Try to find text area, reset browser state if not found
+      this.logger.debug('Waiting for text area', {
+        selector: this.selectors.textArea,
+      });
+      try {
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 10000,
+        });
+        this.logger.debug('Text area found');
+      } catch (error) {
+        this.logger.warn('Text area not found, resetting browser state', {
+          error: error.message,
+        });
+        await this.resetBrowserState();
+        // Try one more time after reset
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 15000,
+        });
+        this.logger.debug('Text area found after browser reset');
+      }
+
+      // Check for modal before typing prompt
+      await this.handleContinueManuallyPrompt();
+
+      // Clear any existing text and type the prompt
+      this.logger.debug('Typing prompt into text area');
+      try {
+        await this.browserManager.setTextValue(this.selectors.textArea, prompt);
+        this.logger.debug('Prompt set using direct value method');
+      } catch (error) {
+        this.logger.error('Failed to set prompt text', {
+          error: error.message,
+        });
+        throw new Error(`Cannot input prompt: ${error.message}`);
+      }
+      this.logger.debug('Prompt input completed successfully');
+
+      // Check for modal after typing prompt
+      await this.handleContinueManuallyPrompt();
+
+      // Send the message
+      this.logger.debug('Attempting to send message via send button', {
+        selector: this.selectors.sendButton,
+      });
+      const sendButtonSelectors = [
+        '[data-testid="send-button"]',
+        'button[data-testid="send-button"]',
+        '[aria-label*="Send"]',
+        'button[aria-label*="Send"]',
+        'button[type="submit"]:not([disabled])',
+      ];
+
+      let sendButtonFound = false;
+      for (const selector of sendButtonSelectors) {
+        try {
+          await this.browserManager.waitForElement(selector, { timeout: 5000 });
+          await this.browserManager.clickElement(selector);
+          this.logger.debug('Send button clicked successfully', { selector });
+          sendButtonFound = true;
+          break;
+        } catch (error) {
+          this.logger.debug('Send button selector failed, trying next', {
+            selector,
+            error: error.message,
+          });
+        }
+      }
+
+      if (!sendButtonFound) {
+        this.logger.warn('All send button selectors failed, trying Enter key fallback');
+        try {
+          // Focus on text area and press Enter
+          await this.browserManager.page.focus(this.selectors.textArea);
+          await this.browserManager.delay(500);
+          await this.browserManager.page.keyboard.press('Enter');
+          this.logger.debug('Message sent via Enter key');
+          sendButtonFound = true;
+        } catch (error) {
+          this.logger.error('Enter key fallback also failed', { error: error.message });
+        }
+      }
+
+      if (!sendButtonFound) {
+        this.logger.error(
+          'All send methods failed - ChatGPT interface may have changed'
+        );
+        throw new Error(
+          'Cannot send message - ChatGPT interface may have changed'
+        );
+      }
+
+      // Check for modal after clicking send (in case it appears late)
+      await this.handleContinueManuallyPrompt();
+
+      // Wait for response to appear
+      this.logger.debug('Waiting for response...');
+      const response = await this.waitForResponse(options);
+      console.log(JSON.stringify({ response }));
+      
+      const duration = Date.now() - startTime;
+      const validatedResponse = this.validateResponse(response);
+      this.logRequest(prompt, validatedResponse, duration, options);
+      return validatedResponse;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Content generation failed', {
+        duration,
+        error: error.message,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
+      throw this.handleError(error, 'content generation');
+    }
+  }
+
+  /**
+   * Wait for ChatGPT response to appear
+   * @param {Object} options - Wait options
+   */
+  async waitForResponse(options = {}) {
+    const timeout = options.timeout || 60000; // 1 minute default
+    const startTime = Date.now();
+
+    this.logger.debug('Waiting for ChatGPT response...');
+
+    try {
+      // Wait for the response container to appear and be populated
+      await this.browserManager.waitForElement(
+        this.selectors.messageContainer,
+        {
+          timeout: timeout,
+        }
+      );
+
+      // Wait for typing animation to complete
+      await this.waitForTypingComplete();
+
+      // Reduce extra wait after typing complete
+      await this.browserManager.delay(300);
+
+      // Debug: Let's see what's actually on the page
+      const pageInfo = await this.browserManager.page.evaluate(() => {
+        return {
+          title: document.title,
+          url: window.location.href,
+          hasConversation: !!document.querySelector(
+            '[data-testid*="conversation-turn"]'
+          ),
+          conversationTurns: document.querySelectorAll(
+            '[data-testid*="conversation-turn"]'
+          ).length,
+          lastTurnContent: document
+            .querySelector('[data-testid*="conversation-turn"]:last-child')
+            ?.textContent?.substring(0, 200),
+        };
+      });
+
+      this.logger.debug('Page analysis for response extraction', pageInfo);
+
+      // Try multiple extraction strategies
+      const extractionStrategies = [
+        {
+          name: 'conversation-turn-assistant',
+          selector:
+            '[data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"]',
+        },
+        {
+          name: 'conversation-turn-last',
+          selector:
+            '[data-testid*="conversation-turn"]:last-child .markdown, [data-testid*="conversation-turn"]:last-child .prose',
+        },
+        {
+          name: 'assistant-message',
+          selector: '[data-message-author-role="assistant"]:last-child',
+        },
+        {
+          name: 'markdown-content',
+          selector: '.markdown:last-child, .prose:last-child',
+        },
+        {
+          name: 'original-selectors',
+          selector: this.selectors.responseText,
+        },
+      ];
+
+      let extractedResponse = null;
+      let usedStrategy = null;
+
+      for (const strategy of extractionStrategies) {
+        try {
+          this.logger.debug(`Trying extraction strategy: ${strategy.name}`, {
+            selector: strategy.selector,
+          });
+
+          const elements = await this.browserManager.page.$$eval(
+            strategy.selector,
+            (elements) =>
+              elements
+                .map((el) => ({
+                  text: el.textContent || el.innerText || '',
+                  html: el.innerHTML?.substring(0, 200) || '',
+                  tagName: el.tagName,
+                  className: el.className,
+                }))
+                .filter((item) => item.text.trim().length > 10)
+          );
+
+          this.logger.debug(`Strategy ${strategy.name} results`, {
+            count: elements.length,
+            elements: elements.map((e) => ({
+              textPreview: e.text.substring(0, 100),
+              tagName: e.tagName,
+              className: e.className,
+            })),
+          });
+
+          if (elements.length > 0) {
+            // Get the last element (most recent response)
+            const lastElement = elements[elements.length - 1];
+
+            // Filter out obviously wrong content (page scripts, etc.)
+            if (
+              !lastElement.text.includes('window.__') &&
+              !lastElement.text.includes('document.') &&
+              !lastElement.text.includes('__oai_') &&
+              lastElement.text.trim().length > 5
+            ) {
+              extractedResponse = lastElement.text.trim();
+              usedStrategy = strategy.name;
+              this.logger.debug('Successfully extracted response', {
+                strategy: strategy.name,
+                responseLength: extractedResponse.length,
+              });
+              break;
+            } else {
+              this.logger.debug('Filtered out invalid content', {
+                strategy: strategy.name,
+                contentPreview: lastElement.text.substring(0, 100),
+                reason: 'Contains page scripts or too short',
+              });
+            }
+          }
+        } catch (error) {
+          this.logger.debug(`Strategy ${strategy.name} failed`, {
+            error: error.message,
+          });
+        }
+      }
+
+      if (!extractedResponse) {
+        // Last resort: try to get any text content from conversation turns
+        this.logger.warn(
+          'All extraction strategies failed, trying last resort...'
+        );
+
+        const lastResortContent = await this.browserManager.page.evaluate(
+          () => {
+            const turns = document.querySelectorAll(
+              '[data-testid*="conversation-turn"]'
+            );
+            if (turns.length >= 2) {
+              // Get the last turn (should be assistant response)
+              const lastTurn = turns[turns.length - 1];
+              const allText = lastTurn.textContent || lastTurn.innerText || '';
+
+              // Try to filter out obviously wrong content
+              const lines = allText
+                .split('\n')
+                .filter(
+                  (line) =>
+                    line.trim().length > 5 &&
+                    !line.includes('window.__') &&
+                    !line.includes('document.') &&
+                    !line.includes('__oai_')
+                );
+
+              return {
+                fullText: allText,
+                filteredLines: lines,
+                bestContent: lines.length > 0 ? lines.join('\n') : allText,
+              };
+            }
+            return null;
+          }
+        );
+
+        if (lastResortContent && lastResortContent.bestContent) {
+          extractedResponse = lastResortContent.bestContent;
+          usedStrategy = 'last-resort';
+          this.logger.debug('Last resort extraction succeeded', {
+            strategy: 'last-resort',
+            responseLength: extractedResponse.length,
+          });
+        }
+      }
+
+      if (!extractedResponse) {
+        throw new Error(
+          'No valid response text found with any extraction strategy'
+        );
+      }
+
+      const duration = Date.now() - startTime;
+      this.logger.info('Response extracted successfully', {
+        responseLength: extractedResponse.length,
+        extractionTime: `${duration}ms`,
+      });
+
+      return extractedResponse;
+    } catch (error) {
+      // Take screenshot for debugging
+      await this.browserManager.takeScreenshot(
+        `chatgpt-error-${Date.now()}.png`
+      );
+      throw new Error(`Failed to get response: ${error.message}`);
+    }
+  }
+
+  /**
+   * Wait for typing animation to complete
+   */
+  async waitForTypingComplete() {
+    const maxWait = 60000; // Max 60s
+    const pollInterval = 150;
+    const start = Date.now();
+
+    this.logger.debug('Waiting for typing animation to complete...');
+
+    while (Date.now() - start < maxWait) {
+      try {
+        // Check if there's a typing indicator or if send button is disabled
+        const isTyping = await this.browserManager.page.evaluate(() => {
+          // Look for common typing indicators
+          const typingIndicators = [
+            '[data-testid*="typing"]',
+            '.typing-indicator',
+            '[aria-label*="typing"]',
+            '[data-testid="stop-button"]', // Stop button appears during generation
+          ];
+
+          for (const selector of typingIndicators) {
+            if (document.querySelector(selector)) {
+              return true;
+            }
+          }
+
+          // Check if send button is disabled (indication of processing)
+          const sendButton = document.querySelector(
+            '[data-testid="send-button"]'
+          );
+          if (sendButton && sendButton.disabled) {
+            return true;
+          }
+
+          // Check if there's actual content in the last response area
+          const responseAreas = document.querySelectorAll(
+            '[data-testid*="conversation-turn"]'
+          );
+          if (responseAreas.length > 0) {
+            const lastResponse = responseAreas[responseAreas.length - 1];
+            const content = lastResponse.textContent || lastResponse.innerText;
+            if (content && content.trim().length > 10) {
+              // Wait for substantial content
+              return false; // Content is there, not typing anymore
+            }
+          }
+
+          return true; // Still waiting for content
+        });
+
+        if (!isTyping) {
+          this.logger.debug('Typing animation completed');
+          return;
+        }
+
+        this.logger.debug('Still generating response...');
+        await this.browserManager.delay(pollInterval);
+      } catch (error) {
+        this.logger.warn('Error checking typing status', {
+          error: error.message,
+        });
+        await this.browserManager.delay(pollInterval);
+      }
+    }
+
+    this.logger.warn('Typing animation check timed out');
+  }
+
+  /**
+   * Ensure user is logged in to ChatGPT
+   */
+  async ensureLoggedIn() {
+    if (this.isLoggedIn && this.isSessionValid()) {
+      return;
+    }
+
+    this.logger.info('Checking ChatGPT login status...');
+
+    try {
+      // Navigate to chat page first
+      await this.browserManager.navigateToUrl(this.urls.chat);
+
+      // Check if we're already logged in by looking for the text area
+      try {
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 5000,
+        });
+        this.isLoggedIn = true;
+        this.lastSessionCheck = Date.now();
+        this.logger.info('Already logged in to ChatGPT');
+        return;
+      } catch (error) {
+        this.logger.info('Not logged in, need to authenticate');
+      }
+
+      // If we have credentials, attempt automatic login
+      if (this.config.email && this.config.password) {
+        await this.performLogin();
+      } else {
+        // Manual login required
+        this.logger.warn('No credentials provided. Manual login required.');
+        this.logger.info('Please login manually and then continue...');
+
+        // Wait for manual login (detect when text area appears)
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 300000, // 5 minutes for manual login
+        });
+
+        this.isLoggedIn = true;
+        this.lastSessionCheck = Date.now();
+        this.logger.info('Manual login completed');
+      }
+    } catch (error) {
+      throw this.handleError(error, 'login process');
+    }
+  }
+
+  /**
+   * Perform automatic login
+   */
+  async performLogin() {
+    this.logger.info('Attempting automatic login...');
+
+    try {
+      // Navigate to login page
+      await this.browserManager.navigateToUrl(this.urls.login);
+
+      // Wait for and fill email
+      await this.browserManager.waitForElement(this.selectors.emailInput);
+      await this.browserManager.typeText(
+        this.selectors.emailInput,
+        this.config.email
+      );
+
+      // Continue to password
+      await this.browserManager.clickElement(this.selectors.submitButton);
+
+      // Wait for and fill password
+      await this.browserManager.waitForElement(this.selectors.passwordInput);
+      await this.browserManager.typeText(
+        this.selectors.passwordInput,
+        this.config.password
+      );
+
+      // Submit login
+      await this.browserManager.clickElement(this.selectors.submitButton);
+
+      // Wait for successful login (text area appears)
+      await this.browserManager.waitForElement(this.selectors.textArea, {
+        timeout: 30000,
+      });
+
+      this.isLoggedIn = true;
+      this.lastSessionCheck = Date.now();
+      this.logger.info('Automatic login successful');
+    } catch (error) {
+      throw new Error(`Login failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if current session is still valid
+   */
+  isSessionValid() {
+    const now = Date.now();
+    return now - this.lastSessionCheck < this.sessionTimeout;
+  }
+
+  /**
+   * Ensure session is valid, refresh if needed
+   */
+  async ensureSessionValid() {
+    if (!this.isSessionValid()) {
+      this.logger.info('Session expired, refreshing...');
+      this.isLoggedIn = false;
+      await this.ensureLoggedIn();
+    }
+  }
+
+  /**
+   * Check if ChatGPT is healthy and responsive
+   */
+  async isHealthy() {
+    try {
+      if (!this.browserManager || !(await this.browserManager.isHealthy())) {
+        this.logger.debug('Browser manager not healthy');
+        return false;
+      }
+
+      // If we're not initialized yet, we can't be healthy
+      if (!this.isInitialized) {
+        this.logger.debug('Provider not initialized');
+        return false;
+      }
+
+      // Check if we can access the chat interface
+      const currentUrl = await this.browserManager.getCurrentUrl();
+      if (!currentUrl.includes('chatgpt.com')) {
+        this.logger.debug('Not on ChatGPT page', { currentUrl });
+        return false;
+      }
+
+      // If we're logged in and session is valid, we're healthy
+      if (this.isLoggedIn && this.isSessionValid()) {
+        this.logger.debug('Logged in with valid session');
+        return true;
+      }
+
+      // Try to check if text area is available (indicates we're logged in)
+      try {
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 2000, // Short timeout for health check
+        });
+
+        // Update login status if we found the text area
+        this.isLoggedIn = true;
+        this.lastSessionCheck = Date.now();
+        this.logger.debug('Text area found, updating login status');
+        return true;
+      } catch (error) {
+        this.logger.debug('Text area not found', { error: error.message });
+        return false;
+      }
+    } catch (error) {
+      this.logger.error('Health check failed', { error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  async cleanup() {
+    await super.cleanup();
+
+    if (this.browserManager) {
+      await this.browserManager.cleanupCache();
+      await this.browserManager.close();
+      this.browserManager = null;
+    }
+
+    this.isLoggedIn = false;
+    this.lastSessionCheck = 0;
+  }
+
+  /**
+   * Check for and handle "Continue manually" or similar authentication prompts
+   */
+  async handleContinueManuallyPrompt(maxWaitMs = 5000) {
+    try {
+      const pollInterval = 500;
+      const maxTries = Math.ceil(maxWaitMs / pollInterval);
+      
+      for (let attempt = 0; attempt < maxTries; attempt++) {
+        // Check for various popup types
+        const popupInfo = await this.browserManager.page.evaluate(() => {
+          const popups = {
+            loginModal: document.querySelector('[data-testid="login-modal"], .modal, [role="dialog"]'),
+            stayLoggedOut: Array.from(document.querySelectorAll('a')).find(
+              (link) => link.textContent?.toLowerCase().includes('stay logged out') && link.offsetParent !== null
+            ),
+            stayLoggedOutExact: document.querySelector('a.text-token-text-secondary.mt-5.cursor-pointer.text-sm.font-semibold.underline'),
+            continueButton: Array.from(document.querySelectorAll('button')).find(
+              (btn) => btn.textContent?.toLowerCase().includes('continue') && btn.offsetParent !== null
+            ),
+            closeButton: document.querySelector('[data-testid="close-button"], .close, [aria-label*="Close"], [aria-label*="close"]'),
+            dismissButton: Array.from(document.querySelectorAll('button')).find(
+              (btn) => btn.textContent?.toLowerCase().includes('dismiss') && btn.offsetParent !== null
+            ),
+          };
+          
+          return {
+            hasPopup: Object.values(popups).some(popup => popup !== null),
+            popups: Object.fromEntries(
+              Object.entries(popups).map(([key, element]) => [
+                key, 
+                element ? { 
+                  text: element.textContent?.trim(),
+                  tagName: element.tagName,
+                  className: element.className,
+                  isVisible: element.offsetParent !== null
+                } : null
+              ])
+            )
+          };
+        });
+
+        if (popupInfo.hasPopup) {
+          this.logger.debug('Popup detected, attempting to handle', { popupInfo });
+          
+          // Try to click "Stay logged out" link first (exact selector)
+          if (popupInfo.popups.stayLoggedOutExact) {
+            try {
+              await this.browserManager.page.click('a.text-token-text-secondary.mt-5.cursor-pointer.text-sm.font-semibold.underline');
+              this.logger.debug('Clicked "Stay logged out" link (exact selector)');
+              await this.browserManager.delay(300);
+              return true; // Return immediately after successful popup dismissal
+            } catch (error) {
+              this.logger.debug('Failed to click exact "Stay logged out" selector', { error: error.message });
+            }
+          }
+          
+          // Try to click "Stay logged out" link (text-based)
+          if (popupInfo.popups.stayLoggedOut) {
+          try {
+            await this.browserManager.page.evaluate(() => {
+                const link = Array.from(document.querySelectorAll('a')).find(
+                  (link) => link.textContent?.toLowerCase().includes('stay logged out') && link.offsetParent !== null
+                );
+                if (link) link.click();
+              });
+              this.logger.debug('Clicked "Stay logged out" link (text-based)');
+              await this.browserManager.delay(300);
+              return true; // Return immediately after successful popup dismissal
+            } catch (error) {
+              this.logger.debug('Failed to click "Stay logged out" link', { error: error.message });
+            }
+          }
+
+          // Try to click continue button
+          if (popupInfo.popups.continueButton) {
+            try {
+              await this.browserManager.page.evaluate(() => {
+                const btn = Array.from(document.querySelectorAll('button')).find(
+                  (btn) => btn.textContent?.toLowerCase().includes('continue') && btn.offsetParent !== null
+                );
+                if (btn) btn.click();
+              });
+              this.logger.debug('Clicked continue button');
+              await this.browserManager.delay(300);
+              return true; // Return immediately after successful popup dismissal
+            } catch (error) {
+              this.logger.debug('Failed to click continue button', { error: error.message });
+            }
+          }
+
+          // Try to click close/dismiss buttons (including X buttons)
+          if (popupInfo.popups.closeButton || popupInfo.popups.dismissButton) {
+            try {
+              const closeSelectors = [
+                '[data-testid="close-button"]',
+                '.close',
+                '[aria-label*="Close"]',
+                '[aria-label*="close"]',
+                'button[aria-label*="Close"]',
+                'button[aria-label*="close"]',
+                '[role="button"][aria-label*="Close"]',
+                '[role="button"][aria-label*="close"]',
+                'svg[data-icon="x"]',
+                'svg[data-icon="X"]',
+                'button svg[data-icon="x"]',
+                'button svg[data-icon="X"]'
+              ];
+              
+              for (const selector of closeSelectors) {
+                try {
+                  await this.browserManager.page.click(selector);
+                  this.logger.debug('Clicked close button', { selector });
+                  await this.browserManager.delay(300);
+                  return true; // Return immediately after successful popup dismissal
+                } catch (e) {
+                  // Continue to next selector
+                }
+              }
+              
+              // Try JavaScript fallback for X buttons
+              try {
+                await this.browserManager.page.evaluate(() => {
+                  // Look for any button with X icon or close text
+                  const closeButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(btn => {
+                    const text = btn.textContent?.toLowerCase() || '';
+                    const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+                    return text.includes('close') || text.includes('x') || ariaLabel.includes('close') || ariaLabel.includes('x');
+                  });
+                  
+                  if (closeButtons.length > 0) {
+                    closeButtons[0].click();
+                    return true;
+                  }
+                  return false;
+                });
+                this.logger.debug('Clicked close button via JavaScript fallback');
+                await this.browserManager.delay(300);
+                return true;
+              } catch (e) {
+                // Continue to next method
+              }
+            } catch (error) {
+              this.logger.debug('Failed to click close/dismiss buttons', { error: error.message });
+            }
+          }
+
+          // Try to remove popup via JavaScript as last resort
+          try {
+            await this.browserManager.page.evaluate(() => {
+              const modals = document.querySelectorAll('[data-testid="login-modal"], .modal, [role="dialog"]');
+              modals.forEach(modal => {
+                if (modal.style) {
+                  modal.style.display = 'none';
+                  modal.style.visibility = 'hidden';
+                }
+                if (modal.remove) {
+                  modal.remove();
+                }
+              });
+            });
+            this.logger.debug('Removed popup via JavaScript');
+            await this.browserManager.delay(300);
+            return true; // Return immediately after successful popup dismissal
+          } catch (error) {
+            this.logger.debug('Failed to remove popup via JavaScript', { error: error.message });
+          }
+        }
+
+        // Check if we can proceed (no popup blocking us)
+        const canProceed = await this.browserManager.page.evaluate(() => {
+          const textarea = document.querySelector('textarea[data-id="root"]');
+          return textarea && textarea.offsetParent !== null;
+        });
+
+        if (canProceed) {
+          this.logger.debug('No popup blocking, can proceed');
+          return true;
+        }
+
+        await this.browserManager.delay(pollInterval);
+      }
+
+      // Only log timeout if we actually had a popup that couldn't be dismissed
+      const finalPopupCheck = await this.browserManager.page.evaluate(() => {
+        return document.querySelector('[data-testid="login-modal"], .modal, [role="dialog"]') !== null;
+      });
+      
+      if (finalPopupCheck) {
+        this.logger.warn('Popup handling timeout reached', { maxWaitMs });
+      }
+      return false;
+    } catch (error) {
+      this.logger.error('Error handling popup', { error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Reset browser state by opening a fresh ChatGPT tab
+   */
+  async resetBrowserState() {
+    this.logger.info('Resetting browser state - opening fresh ChatGPT tab');
+    try {
+      // Close current page and open fresh one
+      if (this.browserManager.page) {
+        await this.browserManager.page.close();
+      }
+
+      // Create new page
+      this.browserManager.page = await this.browserManager.browser.newPage();
+
+      // Set user agent again
+      await this.browserManager.page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      );
+
+      // Set timeouts
+      this.browserManager.page.setDefaultTimeout(
+        this.browserManager.config.timeout
+      );
+      this.browserManager.page.setDefaultNavigationTimeout(
+        this.browserManager.config.timeout
+      );
+
+      // Navigate to ChatGPT
+      await this.browserManager.navigateToUrl(this.urls.chat);
+
+      this.logger.info('Browser state reset completed');
+    } catch (error) {
+      this.logger.error('Failed to reset browser state', {
+        error: error.message,
+      });
+      throw new Error(`Browser reset failed: ${error.message}`);
+    }
+  }
+}
+
+module.exports = ChatGPTProvider;
