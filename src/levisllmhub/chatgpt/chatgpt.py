@@ -8,7 +8,7 @@ NODE_PATH = "node"
 CHATGPT_CLI = Path(__file__).parent / "chatgpt_cli.js"
 
 
-def ask_chatgpt(prompt: str, headless: bool = True) -> str:
+def ask_chatgpt(prompt: str, headless: bool = True, remove_cache: bool = True) -> str:
     import subprocess
     stdout_json_line = None
 
@@ -17,7 +17,7 @@ def ask_chatgpt(prompt: str, headless: bool = True) -> str:
         str(CHATGPT_CLI),
         "--prompt", prompt,
         "--headless", str(headless).lower(),
-        "--remove-cache", str(args.remove_cache).lower()
+        "--remove-cache", str(remove_cache).lower()
     ]
 
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=CHATGPT_CLI.parent) as proc:
@@ -43,5 +43,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    resp = ask_chatgpt(args.prompt, headless=args.headless)
-    print("Response returned from chatgpt.ask_chatgpt method: ", resp)
+    resp = ask_chatgpt(args.prompt, headless=args.headless, remove_cache=args.remove_cache)
+    print("Response returned from ask_chatgpt method: ", resp)
