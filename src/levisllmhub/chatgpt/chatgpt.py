@@ -16,7 +16,8 @@ def ask_chatgpt(prompt: str, headless: bool = True) -> str:
         NODE_PATH,
         str(CHATGPT_CLI),
         "--prompt", prompt,
-        "--headless", str(headless).lower()
+        "--headless", str(headless).lower(),
+        "--remove-cache", str(args.remove_cache).lower()
     ]
 
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=CHATGPT_CLI.parent) as proc:
@@ -37,8 +38,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="ChatGPT CLI via Node.js wrapper")
     parser.add_argument("--prompt", type=str, required=True, help="Prompt to send to ChatGPT")
-    parser.add_argument("--headless", action="store_true", help="Run Node in headless mode")
+    parser.add_argument("--headless", type=lambda x: x.lower() == "true", default=True, help="Run Node in headless mode")
+    parser.add_argument("--remove-cache", type=lambda x: x.lower() == "true", default=True, help="Remove cache on cleanup")
+
     args = parser.parse_args()
 
     resp = ask_chatgpt(args.prompt, headless=args.headless)
-    print(resp)
+    print("Response returned from chatgpt.ask_chatgpt method: ", resp)

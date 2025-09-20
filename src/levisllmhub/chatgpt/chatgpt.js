@@ -18,6 +18,8 @@ class ChatGPTProvider extends BaseLLMProvider {
     this.sessionTimeout = config.sessionTimeout || 3600000; // 1 hour
     this.lastSessionCheck = 0;
 
+    this.removeCache = config.removeCache !== undefined ? config.removeCache : true;
+
     // ChatGPT-specific selectors (may need updates as UI changes)
     this.selectors = {
       loginButton: '[data-testid="login-button"]',
@@ -675,14 +677,14 @@ class ChatGPTProvider extends BaseLLMProvider {
     await super.cleanup();
 
     if (this.browserManager) {
-      await this.browserManager.cleanupCache();
-      await this.browserManager.close();
-      this.browserManager = null;
+        if (this.removeCache) await this.browserManager.cleanupCache();
+        await this.browserManager.close();
+        this.browserManager = null;
     }
 
     this.isLoggedIn = false;
     this.lastSessionCheck = 0;
-  }
+}
 
   /**
    * Check for and handle "Continue manually" or similar authentication prompts
