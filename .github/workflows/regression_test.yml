@@ -57,6 +57,6 @@ jobs:
           if result != expected_date:
               raise ValueError(f"Regression test failed: expected {expected_date}, got ChatGPT output: {result}")
           else:
-              print("Regression test passed: expected {expected_date}, ChatGPT output: {result}")
+              print(f"Regression test passed: expected {expected_date}, ChatGPT output: {result}")
           EOF
         shell: bash
