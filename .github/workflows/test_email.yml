@@ -1,10 +1,18 @@
-name: Test Email
+name: Test Email Failure Trigger
 
 on:
   workflow_dispatch:
 
 jobs:
-  send-test-email:
+  fail-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Force failure
+        run: exit 1
+
+  send-email-on-failure:
+    needs: fail-job
+    if: failure()
     runs-on: ubuntu-latest
     steps:
       - name: Send failure email
