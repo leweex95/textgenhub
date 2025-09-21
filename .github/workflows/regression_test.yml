@@ -73,7 +73,7 @@ jobs:
             server_port: 587
             username: ${{ secrets.EMAIL_USERNAME }}
             password: ${{ secrets.EMAIL_PASSWORD }}
-            subject: "🚨 Daily Regression Test Failed"
+            subject: "🚨 [TextGen Github Project] Daily Regression Test Failed"
             body: "The daily regression test has failed. Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             to: ${{ secrets.EMAIL_USERNAME }}
-            from: GitHub Actions <actions@gmail.com>
+            from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
