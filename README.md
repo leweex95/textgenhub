@@ -1,4 +1,4 @@
-[![Daily Regression Test](https://github.com/leweex95/levisLLMhub/actions/workflows/regression_test.yml/badge.svg)](https://github.com/leweex95/levisLLMhub/actions/workflows/regression_test.yml) ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue) ![License](https://img.shields.io/github/license/leweex95/levisLLMhub) ![Last Commit](https://img.shields.io/github/last-commit/leweex95/levisLLMhub)
+[![Daily Regression Test](https://github.com/leweex95/textgenhub/actions/workflows/regression_test.yml/badge.svg)](https://github.com/leweex95/textgenhub/actions/workflows/regression_test.yml) ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue) ![License](https://img.shields.io/github/license/leweex95/textgenhub) ![Last Commit](https://img.shields.io/github/last-commit/leweex95/textgenhub)
 
 # TextGenHub (old name: Levi's LLM Hub)
 
@@ -13,7 +13,7 @@ It consists of:
 
 From the project root, run:
 
-    poetry run python ./src/levisllmhub/chatgpt/chatgpt.py --prompt "What day is it today?" --headless
+    poetry run python ./src/textgenhub/chatgpt/chatgpt.py --prompt "What day is it today?" --headless
 
 ## Daily regression testing
 

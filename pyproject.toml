@@ -1,23 +1,23 @@
 [tool.poetry]
-name = "levisllmhub"
-version = "0.3.2"
+name = "textgenhub"
+version = "0.3.3"
 description = "My personal LLM hub to connect to web-based LLMs"
 readme = "README.md"
 authors = ["Levente Csibi <csibi.levente14@gmail.com>"]
 license = "MIT"
 
-homepage = "https://github.com/leweex95/levisllmhub"
-repository = "https://github.com/leweex95/levisllmhub"
-documentation = "https://github.com/leweex95/levisllmhub#readme"
+homepage = "https://github.com/leweex95/textgenhub"
+repository = "https://github.com/leweex95/textgenhub"
+documentation = "https://github.com/leweex95/textgenhub#readme"
 
 keywords = ["LLM", "AI", "Python", "Node.js", "Puppeteer", "Integration"]
 
-packages = [{include = "levisllmhub", from = "src"}]
+packages = [{include = "textgenhub", from = "src"}]
 
 include = [
     "package.json",
     "package-lock.json",
-    "src/levisllmhub/**/*.js"
+    "src/textgenhub/**/*.js"
 ]
 
 [build-system]
