@@ -1,0 +1,84 @@
+name: Nightly DeepSeek Test
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # Run at 2 AM daily (different from ChatGPT test)
+  workflow_dispatch:
+
+jobs:
+  nightly-deepseek-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+  
+      - name: Install Poetry
+        run: python -m pip install --upgrade poetry==2.2.0
+
+      - name: Install dependencies
+        run: |
+          poetry install
+        shell: pwsh
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+        shell: pwsh
+
+      - name: Validate textgenhub installation
+        run: |
+          poetry run pip show textgenhub
+        shell: pwsh
+  
+      - name: Run DeepSeek regression test
+        run: |
+          $result = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is the date today? Do not respond anything else, just the date in YYYY-MM-DD format. No other words or characters needed, just these 9 characters altogether." --headless | ConvertFrom-Json
+          $expected_date = Get-Date -Format "yyyy-MM-dd"
+          
+          if ($result.response -ne $expected_date) {
+              throw "Regression test failed: expected $expected_date, got DeepSeek output: $($result.response)"
+          } else {
+              Write-Output "Regression test passed: expected $expected_date, DeepSeek output: $($result.response)"
+          }
+        shell: pwsh
+
+  notify:
+      needs: nightly-deepseek-test 
+      if: failure()
+      runs-on: ubuntu-latest
+      steps:
+        - name: Send failure email
+          uses: dawidd6/action-send-mail@v3
+          with:
+            server_address: smtp.gmail.com
+            server_port: 587
+            username: ${{ secrets.EMAIL_USERNAME }}
+            password: ${{ secrets.EMAIL_PASSWORD }}
+            subject: "🚨 [TextGen Github Project] Nightly DeepSeek Test Failed"
+            html_body: |
+              <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:22px; font-weight:bold; color:red;">
+                🚨 Nightly DeepSeek Test Failed!
+              </p>
+              <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
+                Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
+                Workflow Run</a>
+              </p>
+            to: ${{ secrets.EMAIL_USERNAME }}
+            from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
