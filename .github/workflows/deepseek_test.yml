@@ -49,13 +49,14 @@ jobs:
   
       - name: Run DeepSeek regression test
         run: |
-          $result = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is the date today? Do not respond anything else, just the date in YYYY-MM-DD format. No other words or characters needed, just these 9 characters altogether." --headless | ConvertFrom-Json
-          $expected_date = Get-Date -Format "yyyy-MM-dd"
+          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $result = $jsonOutput | ConvertFrom-Json
+          $expected_answer = "20"
           
-          if ($result.response -ne $expected_date) {
-              throw "Regression test failed: expected $expected_date, got DeepSeek output: $($result.response)"
+          if ($result.response.Trim() -ne $expected_answer) {
+              throw "Regression test failed: expected $expected_answer, got DeepSeek output: $($result.response)"
           } else {
-              Write-Output "Regression test passed: expected $expected_date, DeepSeek output: $($result.response)"
+              Write-Output "Regression test passed: expected $expected_answer, DeepSeek output: $($result.response)"
           }
         shell: pwsh
 
@@ -75,6 +76,9 @@ jobs:
             html_body: |
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:22px; font-weight:bold; color:red;">
                 🚨 Nightly DeepSeek Test Failed!
+              </p>
+              <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
+                The DeepSeek math test (7+13=20) failed. This may indicate issues with the DeepSeek Chat interface or response extraction.
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
                 Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
