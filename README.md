@@ -1,6 +1,6 @@
 [![Daily Regression Test](https://github.com/leweex95/textgenhub/actions/workflows/regression_test.yml/badge.svg)](https://github.com/leweex95/textgenhub/actions/workflows/regression_test.yml) ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue) ![License](https://img.shields.io/github/license/leweex95/textgenhub) ![Last Commit](https://img.shields.io/github/last-commit/leweex95/textgenhub)
 
-# TextGenHub (old name: Levi's LLM Hub)
+# TextGenHub
 
 My personal text generation hub for connecting to web-based LLMs in an automated manner. The package is available for both Python and Node.js environments, allowing flexible integration into various projects.
 
