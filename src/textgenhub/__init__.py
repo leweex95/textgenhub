@@ -24,3 +24,14 @@ def _ensure_node_deps():
 
 # Automatically install Node dependencies on first import
 _ensure_node_deps()
+
+# Import providers to make them available at package level
+try:
+    from .chatgpt import ChatGPT, ask_chatgpt
+    from .deepseek import ask_deepseek
+    from .perplexity import Perplexity, ask_perplexity
+    
+    __all__ = ['ChatGPT', 'ask_chatgpt', 'ask_deepseek', 'Perplexity', 'ask_perplexity']
+except ImportError as e:
+    print(f"Warning: Could not import some providers: {e}", file=sys.stderr)
+    __all__ = []

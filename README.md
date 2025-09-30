@@ -13,6 +13,7 @@ It consists of:
 
 - **ChatGPT** - OpenAI's ChatGPT via web interface
 - **DeepSeek** - DeepSeek Chat via web interface (https://chat-deep.ai/deepseek-chat/)
+- **Perplexity** - Perplexity AI via web interface (https://www.perplexity.ai/)
 
 ## Development Notes
 
@@ -70,6 +71,18 @@ response = deepseek.chat("What day is it today?", headless=True)
 print(response)
 ```
 
+#### Perplexity
+```python
+from textgenhub.perplexity import Perplexity
+
+# Create a Perplexity instance
+perplexity = Perplexity()
+
+# Use it in your code
+response = perplexity.chat("What day is it today?", headless=True)
+print(response)
+```
+
 ### Node.js
 
 #### ChatGPT
@@ -96,8 +109,15 @@ deepseek.chat("What day is it today?", { headless: true })
     .then(response => console.log(response));
 ```
 
+#### Perplexity
+```javascript
+const { Perplexity } = require('textgenhub');
+
+// Create a Perplexity instance
+const perplexity = new Perplexity();
+
 // Use it in your code
-chatgpt.chat("What day is it today?", { headless: true })
+perplexity.chat("What day is it today?", { headless: true })
     .then(response => console.log(response));
 ```
 
@@ -124,6 +144,18 @@ From the project root, run:
 node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What day is it today?" --headless
 ```
 
+### Perplexity CLI
+
+From the project root, run:
+
+```bash
+# Python CLI
+poetry run python ./src/textgenhub/perplexity/perplexity.py --prompt "What day is it today?" --headless
+
+# Node.js CLI
+node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What day is it today?" --headless
+```
+
 #### CLI Options
 
 - `--prompt`: The text prompt to send to the LLM
@@ -141,26 +173,30 @@ node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 2+2?" --headles
 
 # With cache removal
 node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "Hello world" --remove-cache
+
+# Perplexity examples
+node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "Explain quantum computing"
+node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2+2?" --headless=false
+node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "Hello world" --remove-cache
 ```
 
 ## Daily regression testing
 
-## Daily regression testing
-
-With such web-based automation solutions it is imperative to continuously monitor any regressions. Even more so, as I actively use this project in downstream agentic workflows I design. A simple UI redesign in which OpenAI or DeepSeek modifies the current CSS selectors would likely crash the current functionality. For this reason, the `regression_test.yml` Github Actions workflow was set up, scheduled for 2 AM each day. To make it even more robust, the tests validate specific functionality for each provider and the output is automatically evaluated.
+With such web-based automation solutions it is imperative to continuously monitor any regressions. Even more so, as I actively use this project in downstream agentic workflows I design. A simple UI redesign in which any of the providers modify their current CSS selectors would likely crash the current functionality. For this reason, the `regression_test.yml` Github Actions workflow was set up, scheduled for 2 AM each day. To make it even more robust, the tests validate specific functionality for each provider and the output is automatically evaluated.
 
 The regression testing includes:
 - **ChatGPT** - Daily date validation test to ensure real-time information access
 - **DeepSeek** - Daily math test (7+13=20) to ensure response generation and extraction
+- **Perplexity** - Daily math test (2+2=4) to ensure response extraction and formatting
 
-Both tests run in parallel and any failure triggers email notifications with detailed information about which provider failed.
+All tests run in parallel and any failure triggers email notifications with detailed information about which provider failed.
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly with both ChatGPT and DeepSeek
+4. Test thoroughly with all providers (ChatGPT, DeepSeek, Perplexity)
 5. Submit a pull request
 
 ## License

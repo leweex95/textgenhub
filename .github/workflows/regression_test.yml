@@ -117,9 +117,64 @@ jobs:
           }
         shell: pwsh
 
+  perplexity-test:
+    name: Perplexity Regression Test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+  
+      - name: Install Poetry
+        run: python -m pip install --upgrade poetry==2.2.0
+
+      - name: Install dependencies
+        run: |
+          poetry install
+        shell: pwsh
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+        shell: pwsh
+
+      - name: Validate textgenhub installation
+        run: |
+          poetry run pip show textgenhub
+        shell: pwsh
+  
+      - name: Run Perplexity regression test
+        run: |
+          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $result = $jsonOutput | ConvertFrom-Json
+          $expected_answer = "4"
+          
+          if ($result.response.Trim() -ne $expected_answer) {
+              throw "Perplexity regression test failed: expected $expected_answer, got Perplexity output: $($result.response)"
+          } else {
+              Write-Output "Perplexity regression test passed: expected $expected_answer, Perplexity output: $($result.response)"
+          }
+        shell: pwsh
+
   notify:
       name: Send Failure Notification
-      needs: [chatgpt-test, deepseek-test] 
+      needs: [chatgpt-test, deepseek-test, perplexity-test] 
       if: failure()
       runs-on: ubuntu-latest
       steps:
@@ -136,11 +191,12 @@ jobs:
                 🚨 LLM Regression Tests Failed!
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
-                One or more LLM providers (ChatGPT, DeepSeek) failed their regression tests.
+                One or more LLM providers (ChatGPT, DeepSeek, Perplexity) failed their regression tests.
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:16px;">
                 <strong>ChatGPT Test:</strong> ${{ needs.chatgpt-test.result }}<br/>
-                <strong>DeepSeek Test:</strong> ${{ needs.deepseek-test.result }}
+                <strong>DeepSeek Test:</strong> ${{ needs.deepseek-test.result }}<br/>
+                <strong>Perplexity Test:</strong> ${{ needs.perplexity-test.result }}
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
                 Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">

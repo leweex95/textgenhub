@@ -46,6 +46,31 @@ class BrowserManager {
       return;
     }
 
+    // Configure additional browser arguments for better stability
+    const browserArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu'
+    ];
+    
+    // In headless mode, add special configuration
+    if (this.config.headless) {
+      // Use new headless mode and add necessary flags
+      this.config.headless = 'new';
+      browserArgs.push(
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins',
+        '--disable-site-isolation-trials',
+        '--window-size=1920,1080',
+        '--allow-running-insecure-content',
+        '--mute-audio'
+      );
+    }
+
     // Check if Chrome is available
     try {
       const { execSync } = require('child_process');
@@ -125,8 +150,9 @@ class BrowserManager {
         logger.info('Launching browser...');
 
         const launchOptions = {
-          headless: this.config.headless,
+          headless: this.config.headless ? 'new' : false,
           defaultViewport: this.config.viewport,
+          args: browserArgs,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -688,6 +714,22 @@ class BrowserManager {
     }
   }
   
+  /**
+   * Check if element is visible on page
+   * @param {string} selector - CSS selector for the element
+   * @param {Object} options - Options for the check
+   * @returns {Promise<boolean>} True if element is visible, false otherwise
+   */
+  async isElementVisible(selector, options = {}) {
+    const { timeout = 1000 } = options;
+    try {
+      await this.page.waitForSelector(selector, { visible: true, timeout });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   /**
    * Close the browser instance
    */
