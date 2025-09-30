@@ -145,11 +145,15 @@ node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "Hello world" --remove-c
 
 ## Daily regression testing
 
-With such web-based automation solutions it is imperative to continuously monitor any regressions. Even more so, as I actively use this project in downstream agentic workflows I design. A simple UI redesign in which OpenAI or DeepSeek modifies the current CSS selectors would likely crash the current functionality. For this reason, the `regression_test.yml` Github Actions action was set up, scheduled for midnight each day. To make it even more robust, the input prompt will be to verify _today's date_ and the output will automatically be evaluated.
+## Daily regression testing
 
-The regression testing covers:
-- **ChatGPT** - Daily automated testing to ensure functionality
-- **DeepSeek** - Nightly automated testing to ensure functionality
+With such web-based automation solutions it is imperative to continuously monitor any regressions. Even more so, as I actively use this project in downstream agentic workflows I design. A simple UI redesign in which OpenAI or DeepSeek modifies the current CSS selectors would likely crash the current functionality. For this reason, the `regression_test.yml` Github Actions workflow was set up, scheduled for 2 AM each day. To make it even more robust, the tests validate specific functionality for each provider and the output is automatically evaluated.
+
+The regression testing includes:
+- **ChatGPT** - Daily date validation test to ensure real-time information access
+- **DeepSeek** - Daily math test (7+13=20) to ensure response generation and extraction
+
+Both tests run in parallel and any failure triggers email notifications with detailed information about which provider failed.
 
 ## Contributing
 
