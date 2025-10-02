@@ -1,7 +1,4 @@
-import subprocess
 from pathlib import Path
-import json
-import sys
 from ..utils.scrape_response import extract_response_json
 
 NODE_PATH = "node"
@@ -22,17 +19,20 @@ def ask_perplexity(prompt: str, headless: bool = True, remove_cache: bool = True
 
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=PERPLEXITY_CLI.parent) as proc:
         # first, read bytes directly and attempt to encode them in UTF-8
-        raw_bytes = proc.stdout.read()
-        try:
-            text = raw_bytes.decode("utf-8")
-        except UnicodeDecodeError as e:
-            print(f"UnicodeDecodeError at byte {e.start}, replacing invalid bytes")
-            text = raw_bytes.decode("utf-8", errors="replace")
+        if proc.stdout is not None:
+            raw_bytes = proc.stdout.read()
+            try:
+                text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError as e:
+                print(f"UnicodeDecodeError at byte {e.start}, replacing invalid bytes")
+                text = raw_bytes.decode("utf-8", errors="replace")
 
-        for line in text.splitlines():
-            print(line)  # shows all Node logs live
-            if line.strip().startswith('{"response":'):
-                stdout_json_line = line.strip()
+            for line in text.splitlines():
+                print(line)  # shows all Node logs live
+                if line.strip().startswith('{"response":'):
+                    stdout_json_line = line.strip()
+        else:
+            raise RuntimeError("Subprocess stdout is None. Failed to capture output.")
 
         proc.wait()
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perplexity AI CLI via Node.js wrapper")
     parser.add_argument("--prompt", type=str, required=True, help="Prompt to send to Perplexity AI")
     parser.add_argument("--headless", type=lambda x: x.lower() == "true", default=True, help="Run Node in headless mode")
-    parser.add_argument("--remove-cache", type=lambda x: x.lower() == "true", default=True, help="Remove cache on cleanup")
+    parser.add_argument("--remove-cache", type=lambda x: x.lower() == "false", default=False, help="Remove cache on cleanup")
 
     args = parser.parse_args()
 
