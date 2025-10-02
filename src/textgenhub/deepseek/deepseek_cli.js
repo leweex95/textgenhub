@@ -9,7 +9,7 @@ const { hideBin } = require('yargs/helpers');
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', demandOption: true })
     .option('headless', { type: 'boolean', default: true })
-    .option('remove-cache', { type: 'boolean', default: true })
+    .option('remove-cache', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: false })
     .argv;
 
