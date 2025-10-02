@@ -676,9 +676,15 @@ class ChatGPTProvider extends BaseLLMProvider {
   async cleanup() {
     await super.cleanup();
 
+    // if (this.browserManager) {
+    //     if (this.removeCache) await this.browserManager.cleanupCache();
+    //     await this.browserManager.close();
+    //     this.browserManager = null;
+    // }
+
     if (this.browserManager) {
-        if (this.removeCache) await this.browserManager.cleanupCache();
         await this.browserManager.close();
+        if (this.removeCache) await this.browserManager.cleanupCache();
         this.browserManager = null;
     }
 
