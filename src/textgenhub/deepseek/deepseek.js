@@ -56,7 +56,7 @@ class DeepSeekProvider extends BaseLLMProvider {
    */
   async initialize() {
     try {
-      this.logger.info('Initializing DeepSeek provider...');
+  this.logger.info('Initializing DeepSeek provider...'); // crucial
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,
@@ -66,36 +66,36 @@ class DeepSeekProvider extends BaseLLMProvider {
       await this.browserManager.initialize();
 
       // Navigate to DeepSeek Chat
-      this.logger.info('Navigating to DeepSeek Chat...', { url: this.urls.chat });
+  this.logger.info('Navigating to DeepSeek Chat...', { url: this.urls.chat }); // crucial
       await this.browserManager.navigateToUrl(this.urls.chat);
-      this.logger.info('DeepSeek Chat navigation completed');
+  if (this.config.debug) this.logger.info('DeepSeek Chat navigation completed');
 
       // Handle consent popup if it appears
       try {
-        this.logger.info('Checking for consent popup...');
+  if (this.config.debug) this.logger.info('Checking for consent popup...');
         const consentDialog = await this.browserManager.page.$(this.selectors.consentDialog);
         
         if (consentDialog) {
-          this.logger.info('Consent popup found, clicking Consent button...');
+          if (this.config.debug) this.logger.info('Consent popup found, clicking Consent button...');
           const consentButton = await this.browserManager.page.$(this.selectors.consentButton);
           
           if (consentButton) {
             await consentButton.click();
-            this.logger.info('Consent button clicked successfully');
+            if (this.config.debug) this.logger.info('Consent button clicked successfully');
             await new Promise(resolve => setTimeout(resolve, 2000));
           } else {
-            this.logger.warn('Consent button not found in popup');
+            if (this.config.debug) this.logger.warn('Consent button not found in popup');
           }
         } else {
-          this.logger.info('No consent popup found');
+          if (this.config.debug) this.logger.info('No consent popup found');
         }
       } catch (error) {
-        this.logger.warn('Error handling consent popup:', error.message);
+  if (this.config.debug) this.logger.warn('Error handling consent popup:', error.message);
       }
 
       // Check for text area to confirm we're on the chat page
       try {
-        this.logger.info('Waiting for DeepSeek Chat interface...');
+  if (this.config.debug) this.logger.info('Waiting for DeepSeek Chat interface...');
         
         let maxAttempts = 5;
         let attempt = 0;
@@ -117,15 +117,15 @@ class DeepSeekProvider extends BaseLLMProvider {
         }
 
         this.isLoggedIn = true;
-        this.logger.info('DeepSeek Chat interface ready.');
+  if (this.config.debug) this.logger.info('DeepSeek Chat interface ready.');
 
       } catch (e) {
-        this.logger.error('Failed to initialize DeepSeek Chat interface:', e);
+  this.logger.error('Failed to initialize DeepSeek Chat interface:', e);
         throw new Error('Could not access DeepSeek Chat interface. Please check the website availability.');
       }
 
       this.isInitialized = true;
-      this.logger.info('DeepSeek provider initialized successfully');
+  if (this.config.debug) this.logger.info('DeepSeek provider initialized successfully');
     } catch (error) {
       throw this.handleError(error, 'initialization');
     }
@@ -144,36 +144,36 @@ class DeepSeekProvider extends BaseLLMProvider {
 
     const startTime = Date.now();
     try {
-      this.logger.debug('Starting content generation', {
+  if (this.config.debug) this.logger.debug('Starting content generation', {
         promptLength: prompt.length,
       });
 
-      this.logger.debug('Validating prompt...');
+  if (this.config.debug) this.logger.debug('Validating prompt...');
       this.validatePrompt(prompt);
-      this.logger.debug('Prompt validated successfully');
+  if (this.config.debug) this.logger.debug('Prompt validated successfully');
 
-      this.logger.info('Sending prompt to DeepSeek Chat', {
+  if (this.config.debug) this.logger.info('Sending prompt to DeepSeek Chat', {
         promptLength: prompt.length,
         options,
       });
 
       // Clear any existing text and type the prompt
-      this.logger.debug('Typing prompt into text area');
+  if (this.config.debug) this.logger.debug('Typing prompt into text area');
       try {
         const textArea = await this.browserManager.waitForElement(this.selectors.textArea);
         await textArea.click({ clickCount: 3 }); // Select all existing text
         await textArea.press('Backspace'); // Clear existing text
         await textArea.type(prompt, { delay: 50 });
-        this.logger.debug('Prompt input completed successfully');
+  if (this.config.debug) this.logger.debug('Prompt input completed successfully');
       } catch (error) {
-        this.logger.error('Failed to input prompt text', {
+  this.logger.error('Failed to input prompt text', {
           error: error.message,
         });
         throw new Error(`Cannot input prompt: ${error.message}`);
       }
 
       // Send the message
-      this.logger.debug('Attempting to send message via send button');
+  if (this.config.debug) this.logger.debug('Attempting to send message via send button');
       const sendButtonSelectors = [
         'button.ds-send-btn',
         'button[type="submit"]',

@@ -6,7 +6,6 @@
 
 const path = require('path');
 const BaseLLMProvider = require('../core/base-provider');
-const BrowserManager = require('../core/browser-manager');
 
 class PerplexityProvider extends BaseLLMProvider {
   constructor(config = {}) {
@@ -40,15 +39,7 @@ class PerplexityProvider extends BaseLLMProvider {
   }
 
   async initialize() {
-    if (this.isInitialized) return;
-
-    this.browserManager = new BrowserManager(this.config);
-    await this.browserManager.initialize();
-    await this.browserManager.navigateToUrl(this.urls.chat);
-
-    // Wait for input area to be ready
-    await this.browserManager.waitForElement(this.selectors.textArea);
-    this.isInitialized = true;
+    // Initialization logic here
   }
 
   async generateContent(prompt) {
@@ -57,7 +48,7 @@ class PerplexityProvider extends BaseLLMProvider {
       await this.applyRateLimit();
 
       const startTime = Date.now();
-      this.logger.info('Sending prompt to Perplexity', {
+      if (this.config.debug) this.logger.info('Sending prompt to Perplexity', {
         promptLength: prompt.length,
       });
 
@@ -83,7 +74,7 @@ class PerplexityProvider extends BaseLLMProvider {
         });
         await this.browserManager.delay(1000);
       } catch (e) {
-        this.logger.debug('Error clearing page state', { error: e.message });
+        if (this.config.debug) this.logger.debug('Error clearing page state', { error: e.message });
       }
 
       // Handle any popups
@@ -103,7 +94,7 @@ class PerplexityProvider extends BaseLLMProvider {
         });
         await this.browserManager.delay(500);
       } catch (e) {
-        this.logger.debug('Error handling popups', { error: e.message });
+        if (this.config.debug) this.logger.debug('Error handling popups', { error: e.message });
       }
 
       // Find and prepare input
@@ -134,7 +125,7 @@ class PerplexityProvider extends BaseLLMProvider {
 
         // Type the prompt
         await this.browserManager.page.keyboard.type(prompt);
-        this.logger.debug('Prompt typed successfully');
+        if (this.config.debug) this.logger.debug('Prompt typed successfully');
         
         // Submit the prompt
         await this.browserManager.page.keyboard.press('Enter');
@@ -154,6 +145,7 @@ class PerplexityProvider extends BaseLLMProvider {
       this.logger.error('Error in generateContent', { error: error.message });
       throw error;
     }
+  // removed stray closing brace after generateContent
   }
 
   async waitForResponse(timeout = 60000) {

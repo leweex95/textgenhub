@@ -59,7 +59,7 @@ class ChatGPTProvider extends BaseLLMProvider {
    */
   async initialize() {
     try {
-      this.logger.info('Initializing ChatGPT provider...');
+      this.logger.info('Initializing ChatGPT provider...'); // crucial
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,
@@ -69,24 +69,24 @@ class ChatGPTProvider extends BaseLLMProvider {
       await this.browserManager.initialize();
 
       // Navigate to ChatGPT
-      this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat });
+  this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat }); // crucial
       await this.browserManager.navigateToUrl(this.urls.chat);
-      this.logger.info('ChatGPT navigation completed');
+  if (this.config.debug) this.logger.info('ChatGPT navigation completed');
 
       // Try to find the text area, if not found, fail fast instead of hanging
       try {
-        this.logger.info('Waiting for ChatGPT text area...');
+  if (this.config.debug) this.logger.info('Waiting for ChatGPT text area...');
         await this.browserManager.waitForElement(this.selectors.textArea, {
           timeout: 10000, // Reduced timeout for faster failure
         });
         this.isLoggedIn = true;
-        this.logger.info('ChatGPT text area found, session is logged in.');
+  if (this.config.debug) this.logger.info('ChatGPT text area found, session is logged in.');
       } catch (e) {
-        this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.');
+  this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.');
         throw new Error('ChatGPT login required. Run with --debug flag for manual login or ensure you have a valid session.');
       }
       this.isInitialized = true;
-      this.logger.info('ChatGPT provider initialized successfully');
+  if (this.config.debug) this.logger.info('ChatGPT provider initialized successfully');
     } catch (error) {
       throw this.handleError(error, 'initialization');
     }
@@ -101,38 +101,38 @@ class ChatGPTProvider extends BaseLLMProvider {
     await this.applyRateLimit();
     const startTime = Date.now();
     try {
-      this.logger.debug('Starting content generation', {
+  if (this.config.debug) this.logger.debug('Starting content generation', {
         promptLength: prompt.length,
       });
-      this.logger.debug('Validating prompt...');
+  if (this.config.debug) this.logger.debug('Validating prompt...');
       this.validatePrompt(prompt);
-      this.logger.debug('Prompt validated successfully');
-      this.logger.debug('Ensuring session is valid...');
+  if (this.config.debug) this.logger.debug('Prompt validated successfully');
+  if (this.config.debug) this.logger.debug('Ensuring session is valid...');
       await this.ensureSessionValid();
-      this.logger.debug('Session validation completed');
-      this.logger.info('Sending prompt to ChatGPT', {
+  if (this.config.debug) this.logger.debug('Session validation completed');
+  if (this.config.debug) this.logger.info('Sending prompt to ChatGPT', {
         promptLength: prompt.length,
         options,
       });
 
       const currentUrl = await this.browserManager.getCurrentUrl();
-      this.logger.debug('Current URL before navigation check', { currentUrl });
+  if (this.config.debug) this.logger.debug('Current URL before navigation check', { currentUrl });
       if (!currentUrl.includes('chatgpt.com')) {
-        this.logger.debug('Navigating to chat URL', { url: this.urls.chat });
+  if (this.config.debug) this.logger.debug('Navigating to chat URL', { url: this.urls.chat });
         await this.browserManager.navigateToUrl(this.urls.chat);
       }
 
       // Try to find text area, reset browser state if not found
-      this.logger.debug('Waiting for text area', {
+  if (this.config.debug) this.logger.debug('Waiting for text area', {
         selector: this.selectors.textArea,
       });
       try {
         await this.browserManager.waitForElement(this.selectors.textArea, {
           timeout: 10000,
         });
-        this.logger.debug('Text area found');
+  if (this.config.debug) this.logger.debug('Text area found');
       } catch (error) {
-        this.logger.warn('Text area not found, resetting browser state', {
+  if (this.config.debug) this.logger.warn('Text area not found, resetting browser state', {
           error: error.message,
         });
         await this.resetBrowserState();
@@ -140,17 +140,17 @@ class ChatGPTProvider extends BaseLLMProvider {
         await this.browserManager.waitForElement(this.selectors.textArea, {
           timeout: 15000,
         });
-        this.logger.debug('Text area found after browser reset');
+  if (this.config.debug) this.logger.debug('Text area found after browser reset');
       }
 
       // Check for modal before typing prompt
       await this.handleContinueManuallyPrompt();
 
       // Clear any existing text and type the prompt
-      this.logger.debug('Typing prompt into text area');
+  if (this.config.debug) this.logger.debug('Typing prompt into text area');
       try {
         await this.browserManager.setTextValue(this.selectors.textArea, prompt);
-        this.logger.debug('Prompt set using direct value method');
+  if (this.config.debug) this.logger.debug('Prompt set using direct value method');
       } catch (error) {
         this.logger.error('Failed to set prompt text', {
           error: error.message,

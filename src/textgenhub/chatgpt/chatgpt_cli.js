@@ -10,9 +10,14 @@ const { hideBin } = require('yargs/helpers');
     .option('prompt', { type: 'string', demandOption: true })
     .option('headless', { type: 'boolean', default: true })
     .option('remove-cache', { type: 'boolean', default: true })
+    .option('debug', { type: 'boolean', default: false })
     .argv;
 
-  const provider = new ChatGPTProvider({ headless: argv.headless, removeCache: argv['remove-cache'] });
+  const provider = new ChatGPTProvider({
+    headless: argv.headless,
+    removeCache: argv['remove-cache'],
+    debug: argv.debug
+  });
 
   try {
     await provider.initialize();

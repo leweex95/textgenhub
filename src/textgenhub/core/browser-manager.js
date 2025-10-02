@@ -7,7 +7,33 @@
 
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const logger = console;
+function createMinimalLogger(debugEnabled) {
+  return {
+    info: (...args) => {
+      // Only show crucial info logs
+      if (
+        args[0]?.includes?.('Browser manager initialized') ||
+        args[0]?.includes?.('Browser initialized successfully') ||
+        args[0]?.includes?.('Navigating to URL') ||
+        args[0]?.includes?.('Navigation successful')
+      ) {
+        console.info('[textgenhub]', ...args);
+      }
+    },
+    error: (...args) => {
+      // Always show errors
+      console.error('[textgenhub]', ...args);
+    },
+    warn: (...args) => {
+      // Only show warnings if debug is enabled
+      if (debugEnabled) console.warn('[textgenhub]', ...args);
+    },
+    debug: (...args) => {
+      // Only show debug logs if debug is enabled
+      if (debugEnabled) console.debug('[textgenhub]', ...args);
+    },
+  };
+}
 
 // Configure stealth plugin
 puppeteer.use(StealthPlugin());
@@ -31,7 +57,8 @@ class BrowserManager {
       ...options,
     };
 
-    logger.info('Browser manager initialized', {
+    this.logger = createMinimalLogger(!!this.config.debug);
+    this.logger.info('Browser manager initialized', {
       headless: this.config.headless,
       timeout: this.config.timeout,
     });
@@ -42,7 +69,7 @@ class BrowserManager {
    */
   async initialize() {
     if (this.isInitialized) {
-      logger.debug('Browser already initialized');
+      this.logger.debug('Browser already initialized');
       return;
     }
 
@@ -100,7 +127,7 @@ class BrowserManager {
               continue;
             }
             chromeFound = true;
-            logger.info('Chrome found at:', chromePath);
+            this.logger.info('Chrome found at:', chromePath);
             break;
           } catch (error) {
             // Continue to next path
@@ -111,31 +138,31 @@ class BrowserManager {
         try {
           execSync('which google-chrome', { stdio: 'ignore' });
           chromeFound = true;
-          logger.info('Chrome found in PATH');
+          this.logger.info('Chrome found in PATH');
         } catch (error) {
           // Chrome not in PATH
         }
       }
       
       if (!chromeFound) {
-        logger.warn('Chrome not found in common locations, Puppeteer will use bundled Chromium');
+  this.logger.warn('Chrome not found in common locations, Puppeteer will use bundled Chromium');
       }
     } catch (error) {
-      logger.warn('Error checking for Chrome:', error.message);
+  this.logger.warn('Error checking for Chrome:', error.message);
     }
 
     try {
       // Try to connect to existing browser instance first if requested
       if (this.config.connectToExisting) {
         try {
-          logger.info('Attempting to connect to existing browser instance...');
+          this.logger.info('Attempting to connect to existing browser instance...');
           this.browser = await puppeteer.connect({
             browserURL: 'http://localhost:9222', // Default Chrome debugging port
           });
           this.page = await this.browser.newPage();
-          logger.info('Connected to existing browser instance');
+          this.logger.info('Connected to existing browser instance');
         } catch (error) {
-          logger.warn(
+          this.logger.warn(
             'Could not connect to existing browser, launching new one',
             {
               error: error.message,
@@ -147,7 +174,7 @@ class BrowserManager {
 
       // Launch new browser if not connected to existing one
       if (!this.browser) {
-        logger.info('Launching browser...');
+  this.logger.info('Launching browser...');
 
         const launchOptions = {
           headless: this.config.headless ? 'new' : false,
@@ -194,17 +221,17 @@ class BrowserManager {
         // Add proxy if configured
         if (this.config.proxy) {
           launchOptions.args.push(`--proxy-server=${this.config.proxy}`);
-          logger.info('Using proxy', { proxy: this.config.proxy });
+          this.logger.info('Using proxy', { proxy: this.config.proxy });
         }
 
         // Add user data directory if configured
         if (this.config.userDataDir) {
           launchOptions.userDataDir = this.config.userDataDir;
-          logger.info('Using user data directory', {
+          this.logger.info('Using user data directory', {
             dir: this.config.userDataDir,
           });
         } else {
-          logger.info(
+          this.logger.info(
             'Using default browser profile (no custom user data directory)'
           );
         }
@@ -213,7 +240,7 @@ class BrowserManager {
           this.browser = await puppeteer.launch(launchOptions);
           this.page = await this.browser.newPage();
         } catch (error) {
-          logger.debug(
+          this.logger.debug(
             'Full browser options failed, using minimal options',
             { error: error.message }
           );
@@ -236,7 +263,7 @@ class BrowserManager {
             this.browser = await puppeteer.launch(minimalOptions);
             this.page = await this.browser.newPage();
           } catch (minimalError) {
-            logger.error('Failed to launch browser with minimal options', { error: minimalError.message });
+            this.logger.error('Failed to launch browser with minimal options', { error: minimalError.message });
             throw new Error(`Browser launch failed: ${minimalError.message}`);
           }
         }
@@ -257,9 +284,9 @@ class BrowserManager {
       }
 
       this.isInitialized = true;
-      logger.info('Browser initialized successfully');
+  this.logger.info('Browser initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize browser', { error: error.message });
+  this.logger.error('Failed to initialize browser', { error: error.message });
       throw new Error(`Browser initialization failed: ${error.message}`);
     }
   }
@@ -280,7 +307,7 @@ class BrowserManager {
 
     for (let attempt = 1; attempt <= this.config.retries; attempt++) {
       try {
-        logger.info('Navigating to URL', { url, attempt });
+  this.logger.info('Navigating to URL', { url, attempt });
 
         await this.page.goto(url, navOptions);
 
@@ -289,10 +316,10 @@ class BrowserManager {
           () => document.readyState === 'complete'
         );
 
-        logger.info('Navigation successful', { url });
+  this.logger.info('Navigation successful', { url });
         return;
       } catch (error) {
-        logger.warn(`Navigation attempt ${attempt} failed`, {
+  this.logger.warn(`Navigation attempt ${attempt} failed`, {
           url,
           error: error.message,
         });
@@ -324,7 +351,7 @@ class BrowserManager {
     };
 
     try {
-      logger.debug('Waiting for element', { selector });
+  this.logger.debug('Waiting for element', { selector });
 
       await this.page.waitForSelector(selector, waitOptions);
 
