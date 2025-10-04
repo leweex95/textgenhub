@@ -187,6 +187,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         '[aria-label*="Send"]',
         'button[aria-label*="Send"]',
         'button[type="submit"]:not([disabled])',
+        'button:has(svg):last-child',
       ];
 
       let sendButtonFound = false;
@@ -483,11 +484,16 @@ class ChatGPTProvider extends BaseLLMProvider {
           }
 
           // Check if send button is disabled (indication of processing)
-          const sendButton = document.querySelector(
-            '[data-testid="send-button"]'
-          );
-          if (sendButton && sendButton.disabled) {
-            return true;
+          const sendButtonSelectors = [
+            '[data-testid="send-button"]',
+            'button[data-testid="send-button"]',
+            'button:has(svg):last-child',
+          ];
+          for (const selector of sendButtonSelectors) {
+            const sendButton = document.querySelector(selector);
+            if (sendButton && sendButton.disabled) {
+              return true;
+            }
           }
 
           // Check if there's actual content in the last response area

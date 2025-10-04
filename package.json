@@ -1,6 +1,6 @@
 {
     "name": "textgenhub",
-    "version": "0.6.3",
+    "version": "0.6.4",
     "description": "Text generation hub supporting multiple LLM providers",
     "main": "index.js",
     "scripts": {
@@ -24,8 +24,12 @@
     "files": [
         "index.js",
         "src/textgenhub/chatgpt/*.js",
+        "src/textgenhub/claude/*.js",
         "src/textgenhub/core/*.js",
-        "src/textgenhub/perplexity/*.js"
+        "src/textgenhub/deepseek/*.js",
+        "src/textgenhub/gemini/*.js",
+        "src/textgenhub/perplexity/*.js",
+        "src/textgenhub/utils/*.js"
     ],
     "devDependencies": {
         "mocha": "^11.7.3"
