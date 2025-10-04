@@ -187,6 +187,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         '[aria-label*="Send"]',
         'button[aria-label*="Send"]',
         'button[type="submit"]:not([disabled])',
+        'button:has(svg):last-child',
       ];
 
       let sendButtonFound = false;
