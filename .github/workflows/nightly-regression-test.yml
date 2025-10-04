@@ -1,8 +1,8 @@
-name: Daily LLM Regression Tests
+name: Nightly regression tests
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # Run at 2 AM daily
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -13,29 +13,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-
-      - name: Run ChatGPT regression test
-        run: |
-          poetry run python - <<'EOF'
-          from datetime import datetime
-          from textgenhub.chatgpt.chatgpt import ask_chatgpt
-          result = ask_chatgpt(
-              "What is the date today? Do not respond anything else, just the date in YYYY-MM-DD format. No other words or characters needed, just these 9 characters altogether."
-          )
-          expected_date = datetime.now().strftime("%Y-%m-%d")
-          if result != expected_date:
-              raise ValueError(f"ChatGPT regression test failed: expected {expected_date}, got ChatGPT output: {result}")
-          else:
-              print(f"ChatGPT regression test passed: expected {expected_date}, ChatGPT output: {result}")
-          EOF
-        shell: bash
-
-      - name: Upload ChatGPT HTML artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chatgpt-html-artifacts
-          path: artifacts/chatgpt_*.html
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -85,6 +62,13 @@ jobs:
           EOF
         shell: bash
 
+      - name: Upload ChatGPT HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-html-artifacts
+          path: artifacts/chatgpt_*.html
+
   deepseek-test:
     name: DeepSeek Regression Test
     runs-on: windows-latest
@@ -93,6 +77,40 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+  
+      - name: Install Poetry
+        run: python -m pip install --upgrade poetry==2.2.0
+
+      - name: Install dependencies
+        run: |
+          poetry install
+        shell: pwsh
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+        shell: pwsh
+
+      - name: Validate textgenhub installation
+        run: |
+          poetry run pip show textgenhub
+        shell: pwsh
+  
       - name: Run DeepSeek regression test
         run: |
           $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
@@ -124,6 +142,14 @@ jobs:
           name: deepseek-html-artifacts
           path: artifacts/deepseek_*.html
 
+  perplexity-test:
+    name: Perplexity Regression Test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -158,38 +184,6 @@ jobs:
           poetry run pip show textgenhub
         shell: pwsh
   
-      - name: Run DeepSeek regression test
-        run: |
-          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
-          if (-not $jsonOutput) {
-            throw "DeepSeek regression test failed: No output from CLI script."
-          }
-          $result = $jsonOutput | ConvertFrom-Json
-          $expected_answer = "20"
-          if (-not $result -or -not $result.response) {
-            Write-Error "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-            throw "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-          }
-          if ([string]::IsNullOrWhiteSpace($result.response)) {
-            Write-Error "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
-            throw "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
-          }
-          if ($result.response.Trim() -ne $expected_answer) {
-            Write-Error "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
-            throw "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
-          } else {
-            Write-Output "DeepSeek regression test passed: expected $expected_answer, DeepSeek output: $($result.response)"
-          }
-        shell: pwsh
-
-  perplexity-test:
-    name: Perplexity Regression Test
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
       - name: Run Perplexity regression test
         run: |
           $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
@@ -220,64 +214,6 @@ jobs:
         with:
           name: perplexity-html-artifacts
           path: artifacts/perplexity_*.html
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "20"
-      
-      - name: Verify Node
-        run: |
-          node -v
-          npm -v
-        shell: pwsh
-  
-      - name: Install Poetry
-        run: python -m pip install --upgrade poetry==2.2.0
-
-      - name: Install dependencies
-        run: |
-          poetry install
-        shell: pwsh
-
-      - name: Install Node.js dependencies
-        run: |
-          npm install
-        shell: pwsh
-
-      - name: Validate textgenhub installation
-        run: |
-          poetry run pip show textgenhub
-        shell: pwsh
-  
-      - name: Run Perplexity regression test
-        run: |
-          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
-          if (-not $jsonOutput) {
-            throw "Perplexity regression test failed: No output from CLI script."
-          }
-          $result = $jsonOutput | ConvertFrom-Json
-          $expected_answer = "4"
-          if (-not $result -or -not $result.response) {
-            Write-Error "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-            throw "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-          }
-          if ([string]::IsNullOrWhiteSpace($result.response)) {
-            Write-Error "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
-            throw "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
-          }
-          if ($result.response.Trim() -ne $expected_answer) {
-            Write-Error "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
-            throw "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
-          } else {
-            Write-Output "Perplexity regression test passed: expected $expected_answer, Perplexity output: $($result.response)"
-          }
-        shell: pwsh
 
   notify:
       name: Send Failure Notification
