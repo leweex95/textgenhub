@@ -30,25 +30,17 @@ jobs:
           fi
           
           cd dist
+          current_tag="${GITHUB_REF_NAME#refs/tags/}"
+          echo "Current tag: $current_tag"
           # Check if there are any files
           if [ "$(ls -A)" ]; then
-            for tag in $(git tag --sort=-creatordate); do
-                # Use nullglob to handle case when no files match
-                shopt -s nullglob
-                files=( *${tag}* )
-                shopt -u nullglob
-                
-                if [ ${#files[@]} -gt 1 ]; then
-                    # keep newest, delete older
-                    newest="${files[-1]}"
-                    echo "Keeping ${newest} for tag ${tag}"
-                    for f in "${files[@]}"; do
-                        if [ "$f" != "$newest" ]; then
-                            echo "Removing ${f}"
-                            rm "$f"
-                        fi
-                    done
-                fi
+            for file in *; do
+              if [[ "$file" != *"$current_tag"* ]]; then
+                echo "Removing $file (not matching current tag $current_tag)"
+                rm "$file"
+              else
+                echo "Keeping $file (matches current tag $current_tag)"
+              fi
             done
           else
             echo "No files in dist directory to clean up"
