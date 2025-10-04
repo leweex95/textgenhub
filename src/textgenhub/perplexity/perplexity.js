@@ -139,11 +139,11 @@ class PerplexityProvider extends BaseLLMProvider {
         return response;
       } catch (error) {
         this.logger.error('Failed to generate content', { error: error.message });
-        throw this.handleError(error, 'content generation');
+        throw await this.handleError(error, 'content generation');
       }
     } catch (error) {
       this.logger.error('Error in generateContent', { error: error.message });
-      throw this.handleError(error, 'content generation');
+      throw await this.handleError(error, 'content generation');
     }
   // removed stray closing brace after generateContent
   }

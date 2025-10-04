@@ -127,7 +127,7 @@ class DeepSeekProvider extends BaseLLMProvider {
       this.isInitialized = true;
   if (this.config.debug) this.logger.info('DeepSeek provider initialized successfully');
     } catch (error) {
-      throw this.handleError(error, 'initialization');
+      throw await this.handleError(error, 'initialization');
     }
   }
 
@@ -139,7 +139,7 @@ class DeepSeekProvider extends BaseLLMProvider {
    */
   async generateContent(prompt, options = {}) {
     if (!this.isInitialized) {
-      throw this.handleError(new Error('DeepSeek provider not initialized. Call initialize() first.'), 'content generation');
+      throw await this.handleError(new Error('DeepSeek provider not initialized. Call initialize() first.'), 'content generation');
     }
 
     const startTime = Date.now();
@@ -230,7 +230,7 @@ class DeepSeekProvider extends BaseLLMProvider {
         error: error.message,
         stack: error.stack?.split('\n').slice(0, 5).join('\n'),
       });
-      throw this.handleError(error, 'content generation');
+      throw await this.handleError(error, 'content generation');
     }
   }
 

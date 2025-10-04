@@ -247,7 +247,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         error: error.message,
         stack: error.stack?.split('\n').slice(0, 5).join('\n'),
       });
-      throw this.handleError(error, 'content generation');
+      throw await this.handleError(error, 'content generation');
     }
   }
 
@@ -569,7 +569,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         this.logger.info('Manual login completed');
       }
     } catch (error) {
-      throw this.handleError(error, 'login process');
+      throw await this.handleError(error, 'login process');
     }
   }
 
