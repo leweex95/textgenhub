@@ -14,6 +14,7 @@ jobs:
         with:
           fetch-depth: 0  # fetch all tags
           token: ${{ secrets.PAT_TOKEN }}
+          ref: master
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -63,12 +64,12 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
+          git checkout master
           git add dist/
           git diff --quiet && git diff --staged --quiet || git commit -m "[Auto-commit] Cleanup dist directory [skip ci]"
           RETRIES=10
           for i in $(seq 1 $RETRIES); do
-            git pull --rebase
-            git push https://x-access-token:$PAT_TOKEN@github.com/${{ github.repository }} HEAD:master && break || {
+            git push https://x-access-token:$PAT_TOKEN@github.com/${{ github.repository }} master && break || {
               echo "Push failed, retrying ($i/$RETRIES)..."
               sleep 3
             }
