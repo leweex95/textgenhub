@@ -32,7 +32,7 @@ jobs:
 
       - name: Upload ChatGPT HTML artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: chatgpt-html-artifacts
           path: artifacts/chatgpt_*.html
@@ -119,7 +119,7 @@ jobs:
 
       - name: Upload DeepSeek HTML artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deepseek-html-artifacts
           path: artifacts/deepseek_*.html
@@ -216,7 +216,7 @@ jobs:
 
       - name: Upload Perplexity HTML artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: perplexity-html-artifacts
           path: artifacts/perplexity_*.html
