@@ -14,6 +14,29 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Run ChatGPT regression test
+        run: |
+          poetry run python - <<'EOF'
+          from datetime import datetime
+          from textgenhub.chatgpt.chatgpt import ask_chatgpt
+          result = ask_chatgpt(
+              "What is the date today? Do not respond anything else, just the date in YYYY-MM-DD format. No other words or characters needed, just these 9 characters altogether."
+          )
+          expected_date = datetime.now().strftime("%Y-%m-%d")
+          if result != expected_date:
+              raise ValueError(f"ChatGPT regression test failed: expected {expected_date}, got ChatGPT output: {result}")
+          else:
+              print(f"ChatGPT regression test passed: expected {expected_date}, ChatGPT output: {result}")
+          EOF
+        shell: bash
+
+      - name: Upload ChatGPT HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: chatgpt-html-artifacts
+          path: artifacts/chatgpt_*.html
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -69,6 +92,37 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+
+      - name: Run DeepSeek regression test
+        run: |
+          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            throw "DeepSeek regression test failed: No output from CLI script."
+          }
+          $result = $jsonOutput | ConvertFrom-Json
+          $expected_answer = "20"
+          if (-not $result -or -not $result.response) {
+            Write-Error "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          if ([string]::IsNullOrWhiteSpace($result.response)) {
+            Write-Error "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+            throw "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+          }
+          if ($result.response.Trim() -ne $expected_answer) {
+            Write-Error "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
+            throw "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
+          } else {
+            Write-Output "DeepSeek regression test passed: expected $expected_answer, DeepSeek output: $($result.response)"
+          }
+        shell: pwsh
+
+      - name: Upload DeepSeek HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deepseek-html-artifacts
+          path: artifacts/deepseek_*.html
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -135,6 +189,37 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+
+      - name: Run Perplexity regression test
+        run: |
+          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            throw "Perplexity regression test failed: No output from CLI script."
+          }
+          $result = $jsonOutput | ConvertFrom-Json
+          $expected_answer = "4"
+          if (-not $result -or -not $result.response) {
+            Write-Error "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          if ([string]::IsNullOrWhiteSpace($result.response)) {
+            Write-Error "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+            throw "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+          }
+          if ($result.response.Trim() -ne $expected_answer) {
+            Write-Error "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
+            throw "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
+          } else {
+            Write-Output "Perplexity regression test passed: expected $expected_answer, Perplexity output: $($result.response)"
+          }
+        shell: pwsh
+
+      - name: Upload Perplexity HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: perplexity-html-artifacts
+          path: artifacts/perplexity_*.html
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -221,8 +306,14 @@ jobs:
                 <strong>Perplexity Test:</strong> ${{ needs.perplexity-test.result }}
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
-                Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
-                Workflow Run</a>
+                Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Workflow Run</a>
+              </p>
+              <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
+                <strong>Debug Artifacts:</strong><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">All Artifacts</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">ChatGPT HTML</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">DeepSeek HTML</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">Perplexity HTML</a>
               </p>
             to: ${{ secrets.EMAIL_USERNAME }}
             from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>

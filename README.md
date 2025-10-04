@@ -191,14 +191,57 @@ The regression testing includes:
 
 All tests run in parallel and any failure triggers email notifications with detailed information about which provider failed.
 
-## Contributing
+## Next steps with nightly regression failures
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly with all providers (ChatGPT, DeepSeek, Perplexity)
-5. Submit a pull request
+1. Persist Session Data Across CI Runs
+How:
 
-## License
+- Use a persistent userDataDir for the browser (e.g., chatgpt-session).
+- Store this directory as a CI artifact after a successful run.
+- Restore it at the start of each CI job.
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+Steps:
+
+- Locally, log in to ChatGPT in non-headless mode and let the browser save cookies/session in userDataDir.
+- Upload the userDataDir folder to a secure location (e.g., as a GitHub Actions artifact or a private storage bucket).
+- In your CI workflow, download and restore this folder before running tests.
+- Configure textgenhub to use this restored userDataDir for browser automation.
+
+Impact:
+
+- No need for manual login in CI.
+- Session persists until ChatGPT logs you out (may need periodic refresh).
+
+2. Automate Login with Credentials (Best for Long-Term)
+How:
+
+- Set ChatGPT credentials (email and password) as CI environment variables.
+- Configure textgenhub to use these for automatic login.
+
+Steps:
+
+- Add your ChatGPT credentials to CI secrets (never hardcode in repo).
+- Update textgenhub config to read credentials from environment variables.
+- On each CI run, textgenhub will log in automatically if session is invalid.
+
+Impact:
+
+- Fully automated, no manual intervention.
+- Credentials must be kept secure.
+
+3. What to Avoid
+
+- Manual login in CI: Not possible, as CI is headless and non-interactive.
+- Relying on ephemeral sessions: Will break as soon as cookies expire or CI environment resets.
+
+Summary Table
+
+Option                 Feasibility   Steps Needed   Impact/Notes
+Persist session data   High          1-4            Works until session expires
+Auto-login w/ creds    High          1-3            Most robust, secure creds
+Manual login in CI     Not feasible  -              Not possible
+
+Recommendation:
+
+- For quick fix: Persist and restore your local session data in CI.
+- For robust solution: Use credentials for automatic login.

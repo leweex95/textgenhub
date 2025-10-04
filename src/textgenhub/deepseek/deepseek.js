@@ -139,12 +139,12 @@ class DeepSeekProvider extends BaseLLMProvider {
    */
   async generateContent(prompt, options = {}) {
     if (!this.isInitialized) {
-      throw new Error('DeepSeek provider not initialized. Call initialize() first.');
+      throw this.handleError(new Error('DeepSeek provider not initialized. Call initialize() first.'), 'content generation');
     }
 
     const startTime = Date.now();
     try {
-  if (this.config.debug) this.logger.debug('Starting content generation', {
+      if (this.config.debug) this.logger.debug('Starting content generation', {
         promptLength: prompt.length,
       });
 

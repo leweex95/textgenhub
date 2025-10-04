@@ -54,9 +54,26 @@ class BaseLLMProvider {
     });
   }
   
-  handleError(error, context = 'unknown') {
+  async handleError(error, context = 'unknown') {
+    // Try to capture the last HTML from the browser for debugging
+    let htmlPath = null;
+    try {
+      if (this.browserManager && this.browserManager.page) {
+        const html = await this.browserManager.page.content();
+        const fs = require('fs');
+        const path = require('path');
+        const artifactDir = path.join(process.cwd(), 'artifacts');
+        if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir);
+        htmlPath = path.join(artifactDir, `${this.name}_last_error_${Date.now()}.html`);
+        fs.writeFileSync(htmlPath, html, 'utf8');
+        this.logger.error(`Saved last HTML to ${htmlPath}`);
+      }
+    } catch (htmlErr) {
+      this.logger.error('Failed to save last HTML artifact', { error: htmlErr.message });
+    }
     const e = new Error(`${this.name} provider error in ${context}: ${error.message}`);
     e.originalError = error;
+    if (htmlPath) e.artifactPath = htmlPath;
     return e;
   }
 
