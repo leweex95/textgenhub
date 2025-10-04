@@ -39,10 +39,36 @@ class PerplexityProvider extends BaseLLMProvider {
   }
 
   async initialize() {
-    // Initialization logic here
+    try {
+      this.logger?.info('Initializing Perplexity provider...');
+      const BrowserManager = require('../core/browser-manager');
+      const browserConfig = {
+        headless: this.config.headless,
+        timeout: this.config.timeout,
+        userDataDir: this.config.userDataDir,
+        debug: this.config.debug,
+      };
+      this.browserManager = new BrowserManager(browserConfig);
+      await this.browserManager.initialize();
+      this.logger?.info('Navigating to Perplexity Chat...', { url: this.urls.chat });
+      await this.browserManager.navigateToUrl(this.urls.chat);
+      // Optionally, check for text area to confirm page load
+      try {
+        await this.browserManager.page.waitForSelector(this.selectors.textArea, { timeout: 15000 });
+        this.logger?.info('Perplexity Chat interface ready.');
+      } catch (e) {
+        this.logger?.warn('Text area not found after navigation.', { error: e.message });
+      }
+      this.isInitialized = true;
+    } catch (error) {
+      throw await this.handleError(error, 'initialization');
+    }
   }
 
   async generateContent(prompt) {
+    if (!this.browserManager || !this.browserManager.page) {
+      throw await this.handleError(new Error('Browser not initialized'), 'content generation');
+    }
     try {
       this.validatePrompt(prompt);
       await this.applyRateLimit();
