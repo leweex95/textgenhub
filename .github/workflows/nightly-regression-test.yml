@@ -1,8 +1,8 @@
-name: Daily LLM Regression Tests
+name: Nightly regression tests
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # Run at 2 AM daily
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -61,6 +61,13 @@ jobs:
               print(f"ChatGPT regression test passed: expected {expected_date}, ChatGPT output: {result}")
           EOF
         shell: bash
+
+      - name: Upload ChatGPT HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-html-artifacts
+          path: artifacts/chatgpt_*.html
 
   deepseek-test:
     name: DeepSeek Regression Test
@@ -128,6 +135,13 @@ jobs:
           }
         shell: pwsh
 
+      - name: Upload DeepSeek HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepseek-html-artifacts
+          path: artifacts/deepseek_*.html
+
   perplexity-test:
     name: Perplexity Regression Test
     runs-on: windows-latest
@@ -194,6 +208,13 @@ jobs:
           }
         shell: pwsh
 
+      - name: Upload Perplexity HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perplexity-html-artifacts
+          path: artifacts/perplexity_*.html
+
   notify:
       name: Send Failure Notification
       needs: [chatgpt-test, deepseek-test, perplexity-test] 
@@ -221,8 +242,14 @@ jobs:
                 <strong>Perplexity Test:</strong> ${{ needs.perplexity-test.result }}
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
-                Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">
-                Workflow Run</a>
+                Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Workflow Run</a>
+              </p>
+              <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
+                <strong>Debug Artifacts:</strong><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">All Artifacts</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">ChatGPT HTML</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">DeepSeek HTML</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">Perplexity HTML</a>
               </p>
             to: ${{ secrets.EMAIL_USERNAME }}
             from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>

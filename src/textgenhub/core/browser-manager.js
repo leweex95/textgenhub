@@ -351,14 +351,14 @@ class BrowserManager {
     };
 
     try {
-  this.logger.debug('Waiting for element', { selector });
+      this.logger.debug('Waiting for element', { selector });
 
       await this.page.waitForSelector(selector, waitOptions);
 
-      logger.debug('Element found', { selector });
+      this.logger.debug('Element found', { selector });
       return await this.page.$(selector);
     } catch (error) {
-      logger.error('Element not found', { selector, error: error.message });
+      this.logger.error('Element not found', { selector, error: error.message });
       throw new Error(`Element not found: ${selector}`);
     }
   }
@@ -375,7 +375,7 @@ class BrowserManager {
     const element = await this.waitForElement(selector);
 
     try {
-      logger.debug('Typing text', { selector, textLength: text.length });
+      this.logger.debug('Typing text', { selector, textLength: text.length });
 
       // Clear existing text
       await element.click({ clickCount: 3 });
@@ -384,9 +384,9 @@ class BrowserManager {
       // Type new text with human-like delay
       await element.type(text, { delay: options.delay || 50 });
 
-      logger.debug('Text typed successfully', { selector });
+      this.logger.debug('Text typed successfully', { selector });
     } catch (error) {
-      logger.error('Failed to type text', { selector, error: error.message });
+      this.logger.error('Failed to type text', { selector, error: error.message });
       throw new Error(`Failed to type text in ${selector}: ${error.message}`);
     }
   }
@@ -403,7 +403,7 @@ class BrowserManager {
     const element = await this.waitForElement(selector);
 
     try {
-      logger.debug('Typing multi-line text safely', {
+  this.logger.debug('Typing multi-line text safely', {
         selector,
         textLength: text.length,
         lineCount: text.split('\n').length,
@@ -436,12 +436,12 @@ class BrowserManager {
         }
       }
 
-      logger.debug('Multi-line text typed successfully', {
+  this.logger.debug('Multi-line text typed successfully', {
         selector,
         linesTyped: lines.length,
       });
     } catch (error) {
-      logger.error('Failed to type multi-line text', {
+  this.logger.error('Failed to type multi-line text', {
         selector,
         error: error.message,
       });
@@ -460,7 +460,7 @@ class BrowserManager {
     await this.ensureInitialized();
 
     try {
-      logger.debug('Setting text value directly', {
+  this.logger.debug('Setting text value directly', {
         selector,
         textLength: text.length,
       });
@@ -524,9 +524,9 @@ class BrowserManager {
       // Give the UI time to update
       await this.delay(100);
 
-      logger.debug('Text value set successfully', { selector });
+  this.logger.debug('Text value set successfully', { selector });
     } catch (error) {
-      logger.error('Failed to set text value', {
+  this.logger.error('Failed to set text value', {
         selector,
         error: error.message,
       });
@@ -547,13 +547,13 @@ class BrowserManager {
     const element = await this.waitForElement(selector);
 
     try {
-      logger.debug('Clicking element', { selector });
+  this.logger.debug('Clicking element', { selector });
 
       await element.click(options);
 
-      logger.debug('Element clicked successfully', { selector });
+  this.logger.debug('Element clicked successfully', { selector });
     } catch (error) {
-      logger.error('Failed to click element', {
+  this.logger.error('Failed to click element', {
         selector,
         error: error.message,
       });
@@ -622,7 +622,7 @@ class BrowserManager {
    * @param {number} ms - Milliseconds to wait
    */
   async delay(ms) {
-    logger.debug('Waiting', { ms });
+  this.logger.debug('Waiting', { ms });
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -641,11 +641,11 @@ class BrowserManager {
   async minimizeBrowserWindow() {
     try {
       if (this.config.headless) {
-        logger.debug('Cannot minimize window in headless mode');
+  this.logger.debug('Cannot minimize window in headless mode');
         return;
       }
 
-      logger.debug('Attempting to minimize browser window...');
+  this.logger.debug('Attempting to minimize browser window...');
 
       // Get all browser pages/windows
       const pages = await this.browser.pages();
@@ -665,10 +665,10 @@ class BrowserManager {
           });
 
           await session.detach();
-          logger.info('Browser window minimized successfully');
+          this.logger.info('Browser window minimized successfully');
           break; // Only minimize the first window
         } catch (error) {
-          logger.debug(
+          this.logger.debug(
             'Failed to minimize window via CDP, trying alternative',
             {
               error: error.message,
@@ -686,17 +686,17 @@ class BrowserManager {
                 window.chrome.app.window.current().minimize();
               }
             });
-            logger.info('Browser window minimized via fallback method');
+            this.logger.info('Browser window minimized via fallback method');
             break;
           } catch (fallbackError) {
-            logger.warn('Could not minimize browser window', {
+            this.logger.warn('Could not minimize browser window', {
               error: fallbackError.message,
             });
           }
         }
       }
     } catch (error) {
-      logger.error('Failed to minimize browser window', {
+  this.logger.error('Failed to minimize browser window', {
         error: error.message,
       });
       // Don't throw - minimization failure shouldn't stop the application
@@ -763,14 +763,14 @@ class BrowserManager {
   async close() {
     if (this.browser) {
       try {
-        logger.info('Closing browser...');
+  this.logger.info('Closing browser...');
         await this.browser.close();
         this.browser = null;
         this.page = null;
         this.isInitialized = false;
-        logger.info('Browser closed successfully');
+  this.logger.info('Browser closed successfully');
       } catch (error) {
-        logger.error('Error closing browser', { error: error.message });
+  this.logger.error('Error closing browser', { error: error.message });
       }
     }
   }
