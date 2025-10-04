@@ -13,12 +13,15 @@ class ChatGPTProvider extends BaseLLMProvider {
   constructor(config = {}) {
     super('chatgpt', config);
 
-    this.browserManager = null;
-    this.isLoggedIn = false;
-    this.sessionTimeout = config.sessionTimeout || 3600000; // 1 hour
-    this.lastSessionCheck = 0;
+  this.browserManager = null;
+  this.isLoggedIn = false;
+  this.sessionTimeout = config.sessionTimeout || 3600000; // 1 hour
+  this.lastSessionCheck = 0;
 
-    this.removeCache = config.removeCache !== undefined ? config.removeCache : true;
+  // Force debug mode for investigation
+  this.config.debug = true;
+
+  this.removeCache = config.removeCache !== undefined ? config.removeCache : true;
 
     // ChatGPT-specific selectors (may need updates as UI changes)
     this.selectors = {
@@ -60,34 +63,47 @@ class ChatGPTProvider extends BaseLLMProvider {
   async initialize() {
     try {
       this.logger.info('Initializing ChatGPT provider...'); // crucial
+      this.logger.debug('Provider config:', this.config);
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,
         userDataDir: this.config.userDataDir,
+        debug: true // Force debug for browser manager
       };
       this.browserManager = new BrowserManager(browserConfig);
       await this.browserManager.initialize();
 
       // Navigate to ChatGPT
-  this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat }); // crucial
+      this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat }); // crucial
       await this.browserManager.navigateToUrl(this.urls.chat);
-  if (this.config.debug) this.logger.info('ChatGPT navigation completed');
+      this.logger.debug('ChatGPT navigation completed');
 
       // Try to find the text area, if not found, fail fast instead of hanging
       try {
-  if (this.config.debug) this.logger.info('Waiting for ChatGPT text area...');
+        this.logger.info('Waiting for ChatGPT text area...');
         await this.browserManager.waitForElement(this.selectors.textArea, {
           timeout: 10000, // Reduced timeout for faster failure
         });
         this.isLoggedIn = true;
-  if (this.config.debug) this.logger.info('ChatGPT text area found, session is logged in.');
+        this.logger.info('ChatGPT text area found, session is logged in.');
       } catch (e) {
-  this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.');
+        this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.', {
+          error: e.message,
+          stack: e.stack
+        });
         throw new Error('ChatGPT login required. Run with --debug flag for manual login or ensure you have a valid session.');
       }
       this.isInitialized = true;
-  if (this.config.debug) this.logger.info('ChatGPT provider initialized successfully');
+      this.logger.info('ChatGPT provider initialized successfully');
     } catch (error) {
+      this.logger.error('Provider initialization failed', {
+        error: error.message,
+        stack: error.stack,
+        originalError: error.originalError ? {
+          message: error.originalError.message,
+          stack: error.originalError.stack
+        } : undefined
+      });
       throw this.handleError(error, 'initialization');
     }
   }
