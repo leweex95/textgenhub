@@ -25,7 +25,13 @@ const { hideBin } = require('yargs/helpers');
     console.log(JSON.stringify({ response }));
     await provider.cleanup();
   } catch (err) {
-    console.error(err);
+    // Always output a JSON error object for CI artifact capture
+    let artifactPath = err.artifactPath || (err.originalError && err.originalError.artifactPath);
+    console.log(JSON.stringify({
+      error: err.message || String(err),
+      stack: err.stack,
+      artifactPath
+    }));
     process.exit(1);
   }
 })();
