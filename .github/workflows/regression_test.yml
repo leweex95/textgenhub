@@ -107,13 +107,24 @@ jobs:
       - name: Run DeepSeek regression test
         run: |
           $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            throw "DeepSeek regression test failed: No output from CLI script."
+          }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "20"
-          
+          if (-not $result -or -not $result.response) {
+            Write-Error "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          if ([string]::IsNullOrWhiteSpace($result.response)) {
+            Write-Error "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+            throw "DeepSeek regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+          }
           if ($result.response.Trim() -ne $expected_answer) {
-              throw "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: $($result.response)"
+            Write-Error "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
+            throw "DeepSeek regression test failed: expected $expected_answer, got DeepSeek output: '$($result.response)'"
           } else {
-              Write-Output "DeepSeek regression test passed: expected $expected_answer, DeepSeek output: $($result.response)"
+            Write-Output "DeepSeek regression test passed: expected $expected_answer, DeepSeek output: $($result.response)"
           }
         shell: pwsh
 
@@ -162,13 +173,24 @@ jobs:
       - name: Run Perplexity regression test
         run: |
           $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            throw "Perplexity regression test failed: No output from CLI script."
+          }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "4"
-          
+          if (-not $result -or -not $result.response) {
+            Write-Error "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          if ([string]::IsNullOrWhiteSpace($result.response)) {
+            Write-Error "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+            throw "Perplexity regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+          }
           if ($result.response.Trim() -ne $expected_answer) {
-              throw "Perplexity regression test failed: expected $expected_answer, got Perplexity output: $($result.response)"
+            Write-Error "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
+            throw "Perplexity regression test failed: expected $expected_answer, got Perplexity output: '$($result.response)'"
           } else {
-              Write-Output "Perplexity regression test passed: expected $expected_answer, Perplexity output: $($result.response)"
+            Write-Output "Perplexity regression test passed: expected $expected_answer, Perplexity output: $($result.response)"
           }
         shell: pwsh
 
