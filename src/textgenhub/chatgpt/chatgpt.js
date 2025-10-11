@@ -22,6 +22,7 @@ class ChatGPTProvider extends BaseLLMProvider {
   this.config.debug = true;
 
   this.removeCache = config.removeCache !== undefined ? config.removeCache : true;
+  this.continuous = config.continuous !== undefined ? config.continuous : false;
 
     // ChatGPT-specific selectors (may need updates as UI changes)
     this.selectors = {

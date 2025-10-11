@@ -59,6 +59,25 @@ response = chatgpt.chat("What day is it today?", headless=True)
 print(response)
 ```
 
+##### ChatGPT Continuous Mode
+For continuous conversations in the same chat session:
+```python
+from textgenhub.chatgpt import create_chatgpt_session
+
+# Create a continuous session
+session = create_chatgpt_session(headless=True)
+
+# Send multiple prompts in the same session
+response1 = session.send_prompt("Hello, how are you?")
+print(response1)
+
+response2 = session.send_prompt("What's the weather like?")
+print(response2)
+
+# Close the session when done
+session.close()
+```
+
 #### DeepSeek
 ```python
 from textgenhub.deepseek import DeepSeek

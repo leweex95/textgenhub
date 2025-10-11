@@ -1,6 +1,6 @@
 {
     "name": "textgenhub",
-    "version": "0.6.4",
+    "version": "0.6.5",
     "main": "base-provider.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
