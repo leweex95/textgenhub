@@ -107,6 +107,9 @@ class ChatGPTSession:
             for line in self.stdout_lines:
                 if line.strip().startswith('{"response":'):
                     self.stdout_lines.remove(line)
+                    if not self.headless:
+                        print("Debug mode (non-headless): Waiting 5 seconds after response is ready for UI inspection...")
+                        time.sleep(5)
                     return extract_response_json(line.strip())
             time.sleep(0.1)
             
