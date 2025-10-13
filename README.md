@@ -47,6 +47,17 @@ yarn add textgenhub
 
 ### Python
 
+All providers now support a unified `ask()` interface for consistency:
+
+```python
+from textgenhub import chatgpt, deepseek, perplexity
+
+# Unified interface - all providers support ask()
+response = chatgpt.ask("What is Python?", headless=True)
+response = deepseek.ask("What is Python?", headless=True)
+response = perplexity.ask("What is Python?", headless=True)
+```
+
 #### ChatGPT
 ```python
 from textgenhub.chatgpt import ChatGPT
@@ -56,6 +67,11 @@ chatgpt = ChatGPT()
 
 # Use it in your code
 response = chatgpt.chat("What day is it today?", headless=True)
+print(response)
+
+# Or use the unified ask() interface
+from textgenhub import chatgpt
+response = chatgpt.ask("What day is it today?", headless=True)
 print(response)
 ```
 
@@ -88,6 +104,11 @@ deepseek = DeepSeek()
 # Use it in your code
 response = deepseek.chat("What day is it today?", headless=True)
 print(response)
+
+# Or use the unified ask() interface
+from textgenhub import deepseek
+response = deepseek.ask("What day is it today?", headless=True)
+print(response)
 ```
 
 #### Perplexity
@@ -99,6 +120,11 @@ perplexity = Perplexity()
 
 # Use it in your code
 response = perplexity.chat("What day is it today?", headless=True)
+print(response)
+
+# Or use the unified ask() interface
+from textgenhub import perplexity
+response = perplexity.ask("What day is it today?", headless=True)
 print(response)
 ```
 
