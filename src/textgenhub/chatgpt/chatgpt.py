@@ -9,6 +9,14 @@ CHATGPT_CLI = Path(__file__).parent / "chatgpt_cli.js"
 def ask_chatgpt(prompt: str, headless: bool = True, remove_cache: bool = True) -> str:
     stdout_json_line = None
 
+    cmd = [
+        NODE_PATH,
+        str(CHATGPT_CLI),
+        "--prompt", prompt,
+        "--headless", str(headless).lower(),
+        "--remove-cache", str(remove_cache).lower()
+    ]
+
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=CHATGPT_CLI.parent) as proc:
         # first, read bytes directly and attempt to encode them in UTF-8
         if proc.stdout is not None:

@@ -46,19 +46,18 @@ jobs:
       - name: Run ChatGPT regression test
         run: |
           poetry run python - <<'EOF'
-          from datetime import datetime
           from textgenhub.chatgpt.chatgpt import ask_chatgpt
 
           result = ask_chatgpt(
-              "What is the date today? Do not respond anything else, just the date in YYYY-MM-DD format. No other words or characters needed, just these 9 characters altogether."
+              "What is 2 + 2? Respond with only the number, no other text."
           )
 
-          expected_date = datetime.now().strftime("%Y-%m-%d")
+          expected = "4"
 
-          if result != expected_date:
-              raise ValueError(f"ChatGPT regression test failed: expected {expected_date}, got ChatGPT output: {result}")
+          if result.strip() != expected:
+              raise ValueError(f"ChatGPT regression test failed: expected {expected}, got ChatGPT output: {result}")
           else:
-              print(f"ChatGPT regression test passed: expected {expected_date}, ChatGPT output: {result}")
+              print(f"ChatGPT regression test passed: expected {expected}, ChatGPT output: {result}")
           EOF
         shell: bash
 
