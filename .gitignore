@@ -4,3 +4,5 @@ node_modules/
 temp/
 tmp/
 *.log
+**/artifacts/
+artifacts/
