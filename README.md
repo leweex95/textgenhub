@@ -58,72 +58,40 @@ response = deepseek.ask("What is Python?", headless=True)
 response = perplexity.ask("What is Python?", headless=True)
 ```
 
+All providers now support a unified `ask()` interface for consistency:
+
+```python
+from textgenhub import chatgpt, deepseek, perplexity
+
+# Unified interface - all providers support ask()
+response = chatgpt.ask("What is Python?", headless=True)
+response = deepseek.ask("What is Python?", headless=True)
+response = perplexity.ask("What is Python?", headless=True)
+```
+
 #### ChatGPT
 ```python
-from textgenhub.chatgpt import ChatGPT
-
-# Create a ChatGPT instance
-chatgpt = ChatGPT()
-
-# Use it in your code
-response = chatgpt.chat("What day is it today?", headless=True)
-print(response)
-
-# Or use the unified ask() interface
 from textgenhub import chatgpt
+
+# Use the unified ask() interface
 response = chatgpt.ask("What day is it today?", headless=True)
 print(response)
 ```
 
-##### ChatGPT Continuous Mode
-For continuous conversations in the same chat session:
-```python
-from textgenhub.chatgpt import create_chatgpt_session
-
-# Create a continuous session
-session = create_chatgpt_session(headless=True)
-
-# Send multiple prompts in the same session
-response1 = session.send_prompt("Hello, how are you?")
-print(response1)
-
-response2 = session.send_prompt("What's the weather like?")
-print(response2)
-
-# Close the session when done
-session.close()
-```
-
 #### DeepSeek
 ```python
-from textgenhub.deepseek import DeepSeek
-
-# Create a DeepSeek instance
-deepseek = DeepSeek()
-
-# Use it in your code
-response = deepseek.chat("What day is it today?", headless=True)
-print(response)
-
-# Or use the unified ask() interface
 from textgenhub import deepseek
+
+# Use the unified ask() interface
 response = deepseek.ask("What day is it today?", headless=True)
 print(response)
 ```
 
 #### Perplexity
 ```python
-from textgenhub.perplexity import Perplexity
-
-# Create a Perplexity instance
-perplexity = Perplexity()
-
-# Use it in your code
-response = perplexity.chat("What day is it today?", headless=True)
-print(response)
-
-# Or use the unified ask() interface
 from textgenhub import perplexity
+
+# Use the unified ask() interface
 response = perplexity.ask("What day is it today?", headless=True)
 print(response)
 ```

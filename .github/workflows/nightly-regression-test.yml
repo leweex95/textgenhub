@@ -46,9 +46,9 @@ jobs:
       - name: Run ChatGPT regression test
         run: |
           poetry run python - <<'EOF'
-          from textgenhub.chatgpt.chatgpt import ask_chatgpt
+          from textgenhub import chatgpt
 
-          result = ask_chatgpt(
+          result = chatgpt.ask(
               "What is 2 + 2? Respond with only the number, no other text."
           )
 

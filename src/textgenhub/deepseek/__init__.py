@@ -1,6 +1,3 @@
-from .deepseek import DeepSeek, ask_deepseek
+from .deepseek import ask
 
-# Unified interface alias
-ask = ask_deepseek
-
-__all__ = ['DeepSeek', 'ask_deepseek', 'ask']
+__all__ = ['ask']

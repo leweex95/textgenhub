@@ -1,6 +1,3 @@
-from .perplexity import Perplexity, ask_perplexity
+from .perplexity import ask
 
-# Unified interface alias
-ask = ask_perplexity
-
-__all__ = ['Perplexity', 'ask_perplexity', 'ask']
+__all__ = ['ask']
