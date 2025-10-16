@@ -180,9 +180,9 @@ class ChatGPTProvider extends BaseLLMProvider {
       if (this.config.debug) this.logger.debug('Typing prompt into text area');
       
       let promptSet = false;
-      const maxAttempts = 3;
+      const maxPromptAttempts = 3;
       
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      for (let attempt = 1; attempt <= maxPromptAttempts; attempt++) {
         try {
           // Ensure text area is still available
           await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -194,7 +194,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           promptSet = true;
           break;
         } catch (error) {
-          if (attempt < maxAttempts) {
+          if (attempt < maxPromptAttempts) {
             this.logger.warn(`Failed to set prompt on attempt ${attempt}, retrying...`, {
               error: error.message,
             });
@@ -206,7 +206,7 @@ class ChatGPTProvider extends BaseLLMProvider {
             this.logger.error('Failed to set prompt text after all attempts', {
               error: error.message,
             });
-            throw new Error(`Cannot input prompt after ${maxAttempts} attempts: ${error.message}`);
+            throw new Error(`Cannot input prompt after ${maxPromptAttempts} attempts: ${error.message}`);
           }
         }
       }
