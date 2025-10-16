@@ -758,6 +758,49 @@ class BrowserManager {
   }
 
   /**
+   * Take a screenshot of the current page
+   * @param {string} filename - Filename for the screenshot
+   * @param {Object} options - Screenshot options
+   * @returns {Promise<void>}
+   */
+  async takeScreenshot(filename, options = {}) {
+    if (!this.isInitialized || !this.page) {
+      this.logger.warn('Cannot take screenshot: browser not initialized');
+      return;
+    }
+
+    try {
+      const path = require('path');
+      const fs = require('fs');
+
+      // Create screenshots directory if it doesn't exist
+      const screenshotDir = options.directory || path.join(process.cwd(), 'screenshots');
+      if (!fs.existsSync(screenshotDir)) {
+        fs.mkdirSync(screenshotDir, { recursive: true });
+      }
+
+      const fullPath = path.join(screenshotDir, filename);
+      
+      this.logger.debug('Taking screenshot', { filename, fullPath });
+      
+      // Take the screenshot with provided options
+      await this.page.screenshot({
+        path: fullPath,
+        fullPage: options.fullPage !== false, // Default to full page screenshot
+        ...options
+      });
+      
+      this.logger.debug('Screenshot saved successfully', { fullPath });
+    } catch (error) {
+      this.logger.warn('Failed to take screenshot', { 
+        filename, 
+        error: error.message 
+      });
+      // Don't throw - screenshot failures shouldn't crash the application
+    }
+  }
+
+  /**
    * Close the browser instance
    */
   async close() {
