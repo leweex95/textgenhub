@@ -142,21 +142,35 @@ class ChatGPTProvider extends BaseLLMProvider {
       if (this.config.debug) this.logger.debug('Waiting for text area', {
         selector: this.selectors.textArea,
       });
-      try {
-        await this.browserManager.waitForElement(this.selectors.textArea, {
-          timeout: 10000,
-        });
-        if (this.config.debug) this.logger.debug('Text area found');
-      } catch (error) {
-        if (this.config.debug) this.logger.warn('Text area not found, resetting browser state', {
-          error: error.message,
-        });
-        await this.resetBrowserState();
-        // Try one more time after reset
-        await this.browserManager.waitForElement(this.selectors.textArea, {
-          timeout: 15000,
-        });
-        if (this.config.debug) this.logger.debug('Text area found after browser reset');
+      
+      let textAreaFound = false;
+      const maxAttempts = 2;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await this.browserManager.waitForElement(this.selectors.textArea, {
+            timeout: 10000,
+          });
+          if (this.config.debug) this.logger.debug('Text area found', { attempt });
+          textAreaFound = true;
+          break;
+        } catch (error) {
+          if (attempt < maxAttempts) {
+            if (this.config.debug) this.logger.warn(`Text area not found on attempt ${attempt}, resetting browser state`, {
+              error: error.message,
+            });
+            await this.resetBrowserState();
+          } else {
+            if (this.config.debug) this.logger.error(`Text area not found after ${maxAttempts} attempts`, {
+              error: error.message,
+            });
+            throw error;
+          }
+        }
+      }
+      
+      if (!textAreaFound) {
+        throw new Error('Text area not found after multiple attempts');
       }
 
       // Check for modal before typing prompt
@@ -164,15 +178,43 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Clear any existing text and type the prompt
       if (this.config.debug) this.logger.debug('Typing prompt into text area');
-      try {
-        await this.browserManager.setTextValue(this.selectors.textArea, prompt);
-        if (this.config.debug) this.logger.debug('Prompt set using direct value method');
-      } catch (error) {
-        this.logger.error('Failed to set prompt text', {
-          error: error.message,
-        });
-        throw new Error(`Cannot input prompt: ${error.message}`);
+      
+      let promptSet = false;
+      const maxAttempts = 3;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          // Ensure text area is still available
+          await this.browserManager.waitForElement(this.selectors.textArea, {
+            timeout: 5000,
+          });
+          
+          await this.browserManager.setTextValue(this.selectors.textArea, prompt);
+          if (this.config.debug) this.logger.debug('Prompt set using direct value method', { attempt });
+          promptSet = true;
+          break;
+        } catch (error) {
+          if (attempt < maxAttempts) {
+            this.logger.warn(`Failed to set prompt on attempt ${attempt}, retrying...`, {
+              error: error.message,
+            });
+            // Check for popups that might have appeared
+            await this.handleContinueManuallyPrompt();
+            // Small delay before retry
+            await this.browserManager.delay(1000);
+          } else {
+            this.logger.error('Failed to set prompt text after all attempts', {
+              error: error.message,
+            });
+            throw new Error(`Cannot input prompt after ${maxAttempts} attempts: ${error.message}`);
+          }
+        }
       }
+      
+      if (!promptSet) {
+        throw new Error('Failed to set prompt text');
+      }
+      
       this.logger.debug('Prompt input completed successfully');
 
       // Check for modal after typing prompt
@@ -635,10 +677,44 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Ensure session is valid, refresh if needed
    */
   async ensureSessionValid() {
+    // First check time-based expiration
     if (!this.isSessionValid()) {
-      this.logger.info('Session expired, refreshing...');
+      this.logger.info('Session expired (time-based), refreshing...');
       this.isLoggedIn = false;
       await this.ensureLoggedIn();
+      return;
+    }
+
+    // Also check if text area is still accessible (element-based validation)
+    try {
+      await this.browserManager.waitForElement(this.selectors.textArea, {
+        timeout: 3000,
+      });
+      this.logger.debug('Session valid - text area accessible');
+      // Update last check time since element is available
+      this.lastSessionCheck = Date.now();
+    } catch (error) {
+      this.logger.warn('Session invalid - text area not found, refreshing session', {
+        error: error.message,
+      });
+      this.isLoggedIn = false;
+      // Try to recover by navigating back to chat page
+      await this.browserManager.navigateToUrl(this.urls.chat);
+      
+      // Wait for text area to appear after navigation
+      try {
+        await this.browserManager.waitForElement(this.selectors.textArea, {
+          timeout: 10000,
+        });
+        this.isLoggedIn = true;
+        this.lastSessionCheck = Date.now();
+        this.logger.info('Session recovered after navigation');
+      } catch (recoveryError) {
+        this.logger.error('Session recovery failed, need full re-login', {
+          error: recoveryError.message,
+        });
+        await this.ensureLoggedIn();
+      }
     }
   }
 
@@ -759,20 +835,21 @@ class ChatGPTProvider extends BaseLLMProvider {
         if (popupInfo.hasPopup) {
           this.logger.debug('Popup detected, attempting to handle', { popupInfo });
           
+          let popupDismissed = false;
+          
           // Try to click "Stay logged out" link first (exact selector)
           if (popupInfo.popups.stayLoggedOutExact) {
             try {
               await this.browserManager.page.click('a.text-token-text-secondary.mt-5.cursor-pointer.text-sm.font-semibold.underline');
               this.logger.debug('Clicked "Stay logged out" link (exact selector)');
-              await this.browserManager.delay(300);
-              return true; // Return immediately after successful popup dismissal
+              popupDismissed = true;
             } catch (error) {
               this.logger.debug('Failed to click exact "Stay logged out" selector', { error: error.message });
             }
           }
           
           // Try to click "Stay logged out" link (text-based)
-          if (popupInfo.popups.stayLoggedOut) {
+          if (!popupDismissed && popupInfo.popups.stayLoggedOut) {
           try {
             await this.browserManager.page.evaluate(() => {
                 const link = Array.from(document.querySelectorAll('a')).find(
@@ -781,15 +858,14 @@ class ChatGPTProvider extends BaseLLMProvider {
                 if (link) link.click();
               });
               this.logger.debug('Clicked "Stay logged out" link (text-based)');
-              await this.browserManager.delay(300);
-              return true; // Return immediately after successful popup dismissal
+              popupDismissed = true;
             } catch (error) {
               this.logger.debug('Failed to click "Stay logged out" link', { error: error.message });
             }
           }
 
           // Try to click continue button
-          if (popupInfo.popups.continueButton) {
+          if (!popupDismissed && popupInfo.popups.continueButton) {
             try {
               await this.browserManager.page.evaluate(() => {
                 const btn = Array.from(document.querySelectorAll('button')).find(
@@ -798,15 +874,14 @@ class ChatGPTProvider extends BaseLLMProvider {
                 if (btn) btn.click();
               });
               this.logger.debug('Clicked continue button');
-              await this.browserManager.delay(300);
-              return true; // Return immediately after successful popup dismissal
+              popupDismissed = true;
             } catch (error) {
               this.logger.debug('Failed to click continue button', { error: error.message });
             }
           }
 
           // Try to click close/dismiss buttons (including X buttons)
-          if (popupInfo.popups.closeButton || popupInfo.popups.dismissButton) {
+          if (!popupDismissed && (popupInfo.popups.closeButton || popupInfo.popups.dismissButton)) {
             try {
               const closeSelectors = [
                 '[data-testid="close-button"]',
@@ -827,34 +902,37 @@ class ChatGPTProvider extends BaseLLMProvider {
                 try {
                   await this.browserManager.page.click(selector);
                   this.logger.debug('Clicked close button', { selector });
-                  await this.browserManager.delay(300);
-                  return true; // Return immediately after successful popup dismissal
+                  popupDismissed = true;
+                  break;
                 } catch (e) {
                   // Continue to next selector
                 }
               }
               
               // Try JavaScript fallback for X buttons
-              try {
-                await this.browserManager.page.evaluate(() => {
-                  // Look for any button with X icon or close text
-                  const closeButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(btn => {
-                    const text = btn.textContent?.toLowerCase() || '';
-                    const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
-                    return text.includes('close') || text.includes('x') || ariaLabel.includes('close') || ariaLabel.includes('x');
+              if (!popupDismissed) {
+                try {
+                  const clicked = await this.browserManager.page.evaluate(() => {
+                    // Look for any button with X icon or close text
+                    const closeButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(btn => {
+                      const text = btn.textContent?.toLowerCase() || '';
+                      const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+                      return text.includes('close') || text.includes('x') || ariaLabel.includes('close') || ariaLabel.includes('x');
+                    });
+                    
+                    if (closeButtons.length > 0) {
+                      closeButtons[0].click();
+                      return true;
+                    }
+                    return false;
                   });
-                  
-                  if (closeButtons.length > 0) {
-                    closeButtons[0].click();
-                    return true;
+                  if (clicked) {
+                    this.logger.debug('Clicked close button via JavaScript fallback');
+                    popupDismissed = true;
                   }
-                  return false;
-                });
-                this.logger.debug('Clicked close button via JavaScript fallback');
-                await this.browserManager.delay(300);
-                return true;
-              } catch (e) {
-                // Continue to next method
+                } catch (e) {
+                  // Continue to next method
+                }
               }
             } catch (error) {
               this.logger.debug('Failed to click close/dismiss buttons', { error: error.message });
@@ -862,50 +940,80 @@ class ChatGPTProvider extends BaseLLMProvider {
           }
 
           // Try to remove popup via JavaScript as last resort
-          try {
-            await this.browserManager.page.evaluate(() => {
-              const modals = document.querySelectorAll('[data-testid="login-modal"], .modal, [role="dialog"]');
-              modals.forEach(modal => {
-                if (modal.style) {
-                  modal.style.display = 'none';
-                  modal.style.visibility = 'hidden';
-                }
-                if (modal.remove) {
-                  modal.remove();
-                }
+          if (!popupDismissed) {
+            try {
+              await this.browserManager.page.evaluate(() => {
+                const modals = document.querySelectorAll('[data-testid="login-modal"], .modal, [role="dialog"]');
+                modals.forEach(modal => {
+                  if (modal.style) {
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                  }
+                  if (modal.remove) {
+                    modal.remove();
+                  }
+                });
               });
-            });
-            this.logger.debug('Removed popup via JavaScript');
-            await this.browserManager.delay(300);
-            return true; // Return immediately after successful popup dismissal
-          } catch (error) {
-            this.logger.debug('Failed to remove popup via JavaScript', { error: error.message });
+              this.logger.debug('Removed popup via JavaScript');
+              popupDismissed = true;
+            } catch (error) {
+              this.logger.debug('Failed to remove popup via JavaScript', { error: error.message });
+            }
           }
-        }
 
-        // Check if we can proceed (no popup blocking us)
-        const canProceed = await this.browserManager.page.evaluate(() => {
-          const textarea = document.querySelector('textarea[data-id="root"]');
-          return textarea && textarea.offsetParent !== null;
-        });
+          // After dismissing popup, wait for textarea to be accessible
+          if (popupDismissed) {
+            await this.browserManager.delay(500); // Give time for popup to disappear
+            
+            // Verify textarea is now accessible
+            try {
+              await this.browserManager.waitForElement(this.selectors.textArea, {
+                timeout: 3000,
+              });
+              this.logger.debug('Popup dismissed and textarea is now accessible');
+              return true;
+            } catch (error) {
+              this.logger.warn('Popup dismissed but textarea still not accessible', {
+                error: error.message,
+              });
+              // Continue polling
+            }
+          }
+        } else {
+          // No popup, check if we can proceed (textarea is available)
+          const canProceed = await this.browserManager.page.evaluate(() => {
+            const textarea = document.querySelector('textarea[data-id="root"], #prompt-textarea, [data-testid="composer-text-input"]');
+            return textarea && textarea.offsetParent !== null;
+          });
 
-        if (canProceed) {
-          this.logger.debug('No popup blocking, can proceed');
-          return true;
+          if (canProceed) {
+            this.logger.debug('No popup blocking, textarea accessible');
+            return true;
+          }
         }
 
         await this.browserManager.delay(pollInterval);
       }
 
-      // Only log timeout if we actually had a popup that couldn't be dismissed
-      const finalPopupCheck = await this.browserManager.page.evaluate(() => {
-        return document.querySelector('[data-testid="login-modal"], .modal, [role="dialog"]') !== null;
+      // Final check: is textarea accessible now?
+      const finalCheck = await this.browserManager.page.evaluate(() => {
+        const textarea = document.querySelector('textarea[data-id="root"], #prompt-textarea, [data-testid="composer-text-input"]');
+        const hasPopup = document.querySelector('[data-testid="login-modal"], .modal, [role="dialog"]') !== null;
+        return {
+          textareaAccessible: textarea && textarea.offsetParent !== null,
+          hasPopup: hasPopup
+        };
       });
       
-      if (finalPopupCheck) {
-        this.logger.warn('Popup handling timeout reached', { maxWaitMs });
+      if (finalCheck.hasPopup) {
+        this.logger.warn('Popup handling timeout - popup still present', { maxWaitMs });
       }
-      return false;
+      
+      if (!finalCheck.textareaAccessible) {
+        this.logger.warn('Popup handling timeout - textarea not accessible', { maxWaitMs });
+      }
+      
+      return finalCheck.textareaAccessible;
     } catch (error) {
       this.logger.error('Error handling popup', { error: error.message });
       return false;
@@ -918,6 +1026,10 @@ class ChatGPTProvider extends BaseLLMProvider {
   async resetBrowserState() {
     this.logger.info('Resetting browser state - opening fresh ChatGPT tab');
     try {
+      // Get current cookies before closing page to preserve session
+      const cookies = await this.browserManager.page.cookies();
+      this.logger.debug('Saved session cookies', { count: cookies.length });
+      
       // Close current page and open fresh one
       if (this.browserManager.page) {
         await this.browserManager.page.close();
@@ -925,6 +1037,12 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Create new page
       this.browserManager.page = await this.browserManager.browser.newPage();
+
+      // Restore cookies to preserve session
+      if (cookies.length > 0) {
+        await this.browserManager.page.setCookie(...cookies);
+        this.logger.debug('Restored session cookies');
+      }
 
       // Set user agent again
       await this.browserManager.page.setUserAgent(
@@ -941,6 +1059,9 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Navigate to ChatGPT
       await this.browserManager.navigateToUrl(this.urls.chat);
+      
+      // Wait for page to stabilize
+      await this.browserManager.delay(1000);
 
       this.logger.info('Browser state reset completed');
     } catch (error) {

@@ -456,8 +456,19 @@ class BrowserManager {
         textLength: text.length,
       });
 
-      await this.page.$eval(
-        selector,
+      // First, ensure the element exists
+      await this.waitForElement(selector, { timeout: 5000 });
+
+      // Use evaluateHandle to avoid JavaScript world issues
+      // This approach works better with iframes and cross-origin content
+      const elementHandle = await this.page.$(selector);
+      
+      if (!elementHandle) {
+        throw new Error(`Element not found: ${selector}`);
+      }
+
+      // Execute the value setting in the element's context
+      await this.page.evaluate(
         (element, newText) => {
           // Focus the element first
           element.focus();
@@ -509,8 +520,12 @@ class BrowserManager {
             element.dispatchEvent(new Event('change', { bubbles: true }));
           }
         },
+        elementHandle,
         text
       );
+
+      // Dispose the element handle
+      await elementHandle.dispose();
 
       // Give the UI time to update
       await this.delay(100);
