@@ -9,6 +9,22 @@ It consists of:
 - **Node.js backend** – handles direct interactions with LLMs using Puppeteer and related tools.
 - **Python wrapper** – allows seamless integration into Python applications and agents.
 
+## Recent Improvements (v0.6.9+)
+
+🎉 **Major Session Management Improvements for ChatGPT Provider**
+
+We've implemented critical fixes to address session management issues that were causing failures in automated pipelines:
+
+- ✅ **Fixed JavaScript Context Errors**: Resolved "Argument should belong to the same JavaScript world" errors
+- ✅ **Enhanced Session Validation**: Now validates element availability, not just time-based expiration
+- ✅ **Improved Popup Handling**: Better detection and dismissal of authentication popups
+- ✅ **Session Persistence**: Browser state reset now preserves cookies for better session continuity
+- ✅ **Retry Logic**: Added automatic retries for element detection and text input operations
+
+These improvements make the ChatGPT provider significantly more reliable for production use in automated translation pipelines and sequential API calls.
+
+📖 **[Read the detailed documentation](docs/SESSION_MANAGEMENT_IMPROVEMENTS.md)**
+
 ## Supported LLMs
 
 - **ChatGPT** - OpenAI's ChatGPT via web interface
