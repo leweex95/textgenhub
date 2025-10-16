@@ -53,7 +53,7 @@ class BrowserManager {
       proxy: options.proxy || null,
       viewport: options.viewport || { width: 1920, height: 1080 },
       connectToExisting: options.connectToExisting || false,
-      minimizeWindow: options.minimizeWindow || false,
+      minimizeWindow: options.minimizeWindow !== undefined ? options.minimizeWindow : true, // Default to true for non-headless mode
       ...options,
     };
 
@@ -95,6 +95,11 @@ class BrowserManager {
         '--window-size=1920,1080',
         '--allow-running-insecure-content',
         '--mute-audio'
+      );
+    } else {
+      // In non-headless mode, configure window to open maximized and positioned properly
+      browserArgs.push(
+        '--start-maximized'
       );
     }
 
@@ -178,43 +183,8 @@ class BrowserManager {
 
         const launchOptions = {
           headless: this.config.headless ? 'new' : false,
-          defaultViewport: this.config.viewport,
+          defaultViewport: this.config.headless ? this.config.viewport : null, // Only set viewport in headless mode
           args: browserArgs,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            // '--disable-gpu',
-            // '--disable-web-security',
-            // '--disable-features=VizDisplayCompositor',
-            // '--no-first-run',
-            // '--disable-extensions',
-            // '--disable-plugins',
-            // '--disable-background-timer-throttling',
-            // '--disable-backgrounding-occluded-windows',
-            // '--disable-renderer-backgrounding',
-            // '--disable-field-trial-config',
-            // '--disable-ipc-flooding-protection',
-            // '--disable-hang-monitor',
-            // '--disable-prompt-on-repost',
-            // '--disable-client-side-phishing-detection',
-            // '--disable-component-update',
-            // '--disable-default-apps',
-            // '--disable-sync',
-            // '--disable-translate',
-            // '--hide-scrollbars',
-            // '--mute-audio',
-            // '--no-default-browser-check',
-            // '--no-experiments',
-            // '--no-pings',
-            // '--disable-background-networking',
-            // '--disable-breakpad',
-            // '--disable-component-extensions-with-background-pages',
-            // '--enable-features=NetworkService,NetworkServiceLogging',
-            // '--force-color-profile=srgb',
-            // '--metrics-recording-only',
-            // '--use-mock-keychain',
-          ],
           ignoreDefaultArgs: ['--enable-automation'],
         };
 
@@ -277,6 +247,11 @@ class BrowserManager {
       // Set default timeouts
       this.page.setDefaultTimeout(this.config.timeout);
       this.page.setDefaultNavigationTimeout(this.config.timeout);
+
+      // Maximize browser window first (only in non-headless mode)
+      if (!this.config.headless) {
+        await this.maximizeBrowserWindow();
+      }
 
       // Minimize browser window if requested (only in non-headless mode)
       if (this.config.minimizeWindow && !this.config.headless) {
@@ -360,6 +335,22 @@ class BrowserManager {
     } catch (error) {
       this.logger.error('Element not found', { selector, error: error.message });
       throw new Error(`Element not found: ${selector}`);
+    }
+  }
+
+  /**
+   * Get all elements matching a selector
+   * @param {string} selector - CSS selector
+   * @returns {Promise<Array>} Array of element handles
+   */
+  async $$(selector) {
+    await this.ensureInitialized();
+    try {
+      this.logger.debug('Getting elements', { selector });
+      return await this.page.$$(selector);
+    } catch (error) {
+      this.logger.error('Failed to get elements', { selector, error: error.message });
+      throw error;
     }
   }
 
@@ -632,6 +623,74 @@ class BrowserManager {
   async ensureInitialized() {
     if (!this.isInitialized) {
       await this.initialize();
+    }
+  }
+
+  /**
+   * Maximize browser window to full screen (Windows/non-headless only)
+   */
+  async maximizeBrowserWindow() {
+    try {
+      if (this.config.headless) {
+        this.logger.debug('Cannot maximize window in headless mode');
+        return;
+      }
+
+      this.logger.debug('Attempting to maximize browser window...');
+
+      // Get all browser pages/windows
+      const pages = await this.browser.pages();
+
+      for (const page of pages) {
+        try {
+          // Use Chrome DevTools Protocol to maximize window
+          const session = await page.target().createCDPSession();
+
+          // Get window bounds first
+          const { windowId } = await session.send('Browser.getWindowForTarget');
+
+          // Maximize the window
+          await session.send('Browser.setWindowBounds', {
+            windowId: windowId,
+            bounds: { windowState: 'maximized' },
+          });
+
+          await session.detach();
+          this.logger.info('Browser window maximized successfully');
+          break; // Only maximize the first window
+        } catch (error) {
+          this.logger.debug(
+            'Failed to maximize window via CDP, trying alternative',
+            {
+              error: error.message,
+            }
+          );
+
+          // Fallback: try to maximize via page evaluation
+          try {
+            await page.evaluate(() => {
+              if (
+                window.chrome &&
+                window.chrome.app &&
+                window.chrome.app.window
+              ) {
+                window.chrome.app.window.current().maximize();
+              }
+            });
+            this.logger.info('Browser window maximized via fallback method');
+            break;
+          } catch (fallbackError) {
+            this.logger.warn('Could not maximize browser window', {
+              error: fallbackError.message,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to maximize browser window', {
+        error: error.message,
+      });
+      // Don't throw - maximization failure shouldn't stop the application
     }
   }
 
