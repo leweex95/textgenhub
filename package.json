@@ -1,6 +1,6 @@
 {
     "name": "textgenhub",
-    "version": "0.6.7",
+    "version": "0.6.8",
     "description": "Text generation hub supporting multiple LLM providers",
     "main": "index.js",
     "scripts": {
