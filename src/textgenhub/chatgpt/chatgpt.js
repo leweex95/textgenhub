@@ -464,10 +464,6 @@ class ChatGPTProvider extends BaseLLMProvider {
               let bestContent = '';
               const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
               
-              // DEBUG
-              console.log('CHATGPT_DEBUG_FULL_TEXT:', JSON.stringify(allText.substring(0, 800)));
-              console.log('CHATGPT_DEBUG_LINES:', JSON.stringify(lines));
-              
               // Find where the assistant response starts
               // Look for common markers and get content after them
               let responseStartIndex = -1;
@@ -538,7 +534,10 @@ class ChatGPTProvider extends BaseLLMProvider {
           this.logger.debug('Last resort extraction succeeded', {
             strategy: 'last-resort',
             responseLength: extractedResponse.length,
-            bestContent: extractedResponse.substring(0, 100),
+            fullTextPreview: lastResortContent.fullText?.substring(0, 200),
+            linesCount: lastResortContent.lines?.length,
+            linesPreview: lastResortContent.lines?.slice(0, 5),
+            bestContent: lastResortContent.bestContent.substring(0, 100),
           });
         }
       }
