@@ -443,53 +443,58 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
+              const allText = lastTurn.textContent || lastTurn.innerText || '';
+
+              // Split into lines and try to extract the actual content
+              const lines = allText.split('\n').filter((line) => line.trim().length > 0);
+
+              // The response is usually after the "ChatGPT said:" marker or similar
+              let bestContent = '';
+              let foundChatGPTMarker = false;
               
-              // Try to find assistant-specific content
-              // Look for divs with role="presentation" or other assistant-specific markers
-              let assistantContent = null;
-              
-              // Try to find the assistant message marker and get content after it
-              const fullText = lastTurn.textContent || lastTurn.innerText || '';
-              
-              // Try to extract content after "ChatGPT" or similar markers
-              // by finding message containers within the last turn
-              const messageElements = Array.from(
-                lastTurn.querySelectorAll('[role="presentation"], .markdown, .prose, [data-message-author-role="assistant"]')
-              );
-              
-              if (messageElements.length > 0) {
-                // Get the last message element (should be most recent)
-                const lastMessage = messageElements[messageElements.length - 1];
-                assistantContent = (lastMessage.textContent || lastMessage.innerText || '').trim();
-              }
-              
-              // If we couldn't find a specific message container, split by role markers
-              if (!assistantContent || assistantContent.length < 1) {
-                // Try to split content by role markers
-                const contentAfterMarker = fullText.substring(
-                  fullText.indexOf('ChatGPT said:') !== -1 
-                    ? fullText.indexOf('ChatGPT said:') + 'ChatGPT said:'.length 
-                    : 0
-                ).trim();
-                assistantContent = contentAfterMarker || fullText;
+              for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                // Look for markers indicating start of response
+                if (line.toLowerCase().includes('chatgpt') || 
+                    line.toLowerCase().includes('assistant') ||
+                    foundChatGPTMarker) {
+                  foundChatGPTMarker = true;
+                  // Skip the marker line itself if it's just the marker
+                  if (i + 1 < lines.length && 
+                      !line.toLowerCase().includes('said') && 
+                      !line.toLowerCase().endsWith(':')) {
+                    bestContent = line;
+                    break;
+                  } else if (i + 1 < lines.length) {
+                    // Get the next line after the marker
+                    const nextLine = lines[i + 1].trim();
+                    if (nextLine.length > 0 && 
+                        !nextLine.includes('window.__') && 
+                        !nextLine.includes('__oai_')) {
+                      bestContent = nextLine;
+                      break;
+                    }
+                  }
+                }
               }
 
-              // Try to filter out obviously wrong content, but keep short responses (like "4")
-              const lines = fullText
-                .split('\n')
-                .filter(
-                  (line) =>
-                    line.trim().length > 0 && // Changed from > 5 to > 0 to allow short answers like "4"
-                    !line.includes('window.__') &&
-                    !line.includes('document.') &&
-                    !line.includes('__oai_')
-                );
+              // If we still haven't found content, just return all non-empty, non-script lines
+              if (!bestContent) {
+                bestContent = lines
+                  .filter((line) => {
+                    const trimmed = line.trim();
+                    return trimmed.length > 0 &&
+                           !trimmed.includes('window.__') &&
+                           !trimmed.includes('document.') &&
+                           !trimmed.includes('__oai_');
+                  })
+                  .join('\n');
+              }
 
               return {
-                fullText: fullText,
-                assistantContent: assistantContent,
-                filteredLines: lines,
-                bestContent: assistantContent || (lines.length > 0 ? lines.join('\n') : fullText),
+                fullText: allText,
+                lines: lines,
+                bestContent: bestContent || allText,
               };
             }
             return null;
@@ -502,7 +507,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           this.logger.debug('Last resort extraction succeeded', {
             strategy: 'last-resort',
             responseLength: extractedResponse.length,
-            assistantContent: lastResortContent.assistantContent?.substring(0, 50),
+            bestContent: extractedResponse.substring(0, 100),
           });
         }
       }
