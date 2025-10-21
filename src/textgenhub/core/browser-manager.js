@@ -45,16 +45,18 @@ class BrowserManager {
     this.isInitialized = false;
 
     // Default browser configuration
+    // Note: spread options FIRST, then explicitly set headless to ensure it's not overwritten
     this.config = {
-      headless: options.headless !== false, // Default to headless
-      timeout: options.timeout || 30000,
-      retries: options.retries || 3,
-      userDataDir: options.userDataDir || null,
-      proxy: options.proxy || null,
-      viewport: options.viewport || { width: 1920, height: 1080 },
-      connectToExisting: options.connectToExisting || false,
-      minimizeWindow: options.minimizeWindow !== undefined ? options.minimizeWindow : true, // Default to true for non-headless mode
+      timeout: 30000,
+      retries: 3,
+      userDataDir: null,
+      proxy: null,
+      viewport: { width: 1920, height: 1080 },
+      connectToExisting: false,
+      minimizeWindow: true, // Default to true for non-headless mode
       ...options,
+      // IMPORTANT: Set headless AFTER spread to avoid being overwritten
+      headless: options.headless !== undefined ? options.headless : true, // Default to headless if not specified
     };
 
     this.logger = createMinimalLogger(!!this.config.debug);
