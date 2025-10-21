@@ -464,6 +464,10 @@ class ChatGPTProvider extends BaseLLMProvider {
               let bestContent = '';
               const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
               
+              // DEBUG
+              console.log('CHATGPT_DEBUG_FULL_TEXT:', JSON.stringify(allText.substring(0, 800)));
+              console.log('CHATGPT_DEBUG_LINES:', JSON.stringify(lines));
+              
               // Find where the assistant response starts
               // Look for common markers and get content after them
               let responseStartIndex = -1;
