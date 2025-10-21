@@ -6,6 +6,7 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');
 const BaseLLMProvider = require('../core/base-provider');
 const BrowserManager = require('../core/browser-manager');
 
@@ -339,6 +340,17 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       this.logger.debug('Page analysis for response extraction', pageInfo);
 
+      // Take a screenshot before extraction for debugging
+      try {
+        const artifactsDir = path.join(process.cwd(), 'artifacts');
+        if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+        const screenshotPath = path.join(artifactsDir, `chatgpt-before-extraction-${Date.now()}.png`);
+        await this.browserManager.page.screenshot({ path: screenshotPath, fullPage: true });
+        this.logger.debug('Screenshot saved for debugging', { path: screenshotPath });
+      } catch (e) {
+        this.logger.debug('Failed to take screenshot before extraction', { error: e.message });
+      }
+
       // Try multiple extraction strategies
       const extractionStrategies = [
         {
@@ -384,7 +396,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   tagName: el.tagName,
                   className: el.className,
                 }))
-                .filter((item) => item.text.trim().length > 10)
+                .filter((item) => item.text.trim().length > 0) // Allow any non-empty text, including short answers like "4"
           );
 
           this.logger.debug(`Strategy ${strategy.name} results`, {
@@ -405,7 +417,7 @@ class ChatGPTProvider extends BaseLLMProvider {
               !lastElement.text.includes('window.__') &&
               !lastElement.text.includes('document.') &&
               !lastElement.text.includes('__oai_') &&
-              lastElement.text.trim().length > 5
+              lastElement.text.trim().length > 0 // Allow any non-empty text, including short answers like "4"
             ) {
               extractedResponse = lastElement.text.trim();
               usedStrategy = strategy.name;
@@ -443,35 +455,79 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
-              const allText = lastTurn.textContent || lastTurn.innerText || '';
-
-              // Try to filter out obviously wrong content
-              const lines = allText
-                .split('\n')
-                .filter(
-                  (line) =>
-                    line.trim().length > 5 &&
-                    !line.includes('window.__') &&
-                    !line.includes('document.') &&
-                    !line.includes('__oai_')
+              
+              // Try multiple ways to extract text
+              const methods = {
+                textContent: lastTurn.textContent || '',
+                innerText: lastTurn.innerText || '',
+                innerHTML: lastTurn.innerHTML.substring(0, 500) || '',
+              };
+              
+              // Also try to find all divs with text content
+              const allDivs = Array.from(lastTurn.querySelectorAll('div, p, span'))
+                .map(el => (el.textContent || el.innerText || '').trim())
+                .filter(text => text && text.length > 0 && !text.includes('window.__'));
+              
+              // Get all text nodes
+              const textNodes = [];
+              const walk = document.createTreeWalker(
+                lastTurn,
+                NodeFilter.SHOW_TEXT,
+                null
+              );
+              let node;
+              while (node = walk.nextNode()) {
+                const text = node.textContent?.trim();
+                if (text && text.length > 0) {
+                  textNodes.push(text);
+                }
+              }
+              
+              const allText = (lastTurn.textContent || lastTurn.innerText || '').trim();
+              
+              // Try to find the actual response by looking for patterns
+              let responseText = '';
+              
+              // If we only have "ChatGPT said:" but there are other divs, try those
+              if ((allText === 'ChatGPT said:' || allText === 'ChatGPT said') && allDivs.length > 0) {
+                // Skip any div that is just "ChatGPT said:" and get the next ones
+                const responseOnly = allDivs.filter(div => 
+                  !div.toLowerCase().includes('chatgpt') && 
+                  !div.toLowerCase().includes('assistant') &&
+                  !div.toLowerCase().includes('said:')
                 );
+                if (responseOnly.length > 0) {
+                  responseText = responseOnly[responseOnly.length - 1];
+                }
+              }
+              
+              if (!responseText) {
+                responseText = allText;
+              }
 
               return {
                 fullText: allText,
-                filteredLines: lines,
-                bestContent: lines.length > 0 ? lines.join('\n') : allText,
+                textNodes: textNodes,
+                allDivs: allDivs,
+                responseText: responseText,
+                methods: methods,
               };
             }
             return null;
           }
         );
 
-        if (lastResortContent && lastResortContent.bestContent) {
-          extractedResponse = lastResortContent.bestContent;
+        if (lastResortContent && lastResortContent.responseText) {
+          extractedResponse = lastResortContent.responseText;
           usedStrategy = 'last-resort';
           this.logger.debug('Last resort extraction succeeded', {
             strategy: 'last-resort',
             responseLength: extractedResponse.length,
+            fullTextPreview: lastResortContent.fullText?.substring(0, 100),
+            allDivsCount: lastResortContent.allDivs?.length,
+            allDivsPreview: lastResortContent.allDivs?.slice(0, 5),
+            textNodesCount: lastResortContent.textNodes?.length,
+            responseText: lastResortContent.responseText?.substring(0, 100),
           });
         }
       }

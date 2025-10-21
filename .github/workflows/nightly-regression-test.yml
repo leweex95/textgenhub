@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
+    inputs:
+      headless:
+        description: 'Run tests in headless mode (true/false)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   chatgpt-test:
@@ -42,31 +51,88 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
+      
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+        shell: pwsh
   
       - name: Run ChatGPT regression test
+        env:
+          CHATGPT_HEADLESS: ${{ inputs.headless || 'true' }}
+        timeout-minutes: 5
         run: |
           poetry run python - <<'EOF'
+          import os
+          import sys
+          import json
+          import threading
+          from pathlib import Path
           from textgenhub import chatgpt
 
-          result = chatgpt.ask(
-              "What is 2 + 2? Respond with only the number, no other text."
-          )
+          headless = os.getenv('CHATGPT_HEADLESS', 'true').lower() == 'true'
+          result_holder = {'result': None, 'error': None}
+          
+          def run_test():
+              try:
+                  result_holder['result'] = chatgpt.ask(
+                      "What is 2 + 2? Respond with only the number, no other text.",
+                      headless=headless,
+                      debug=True
+                  )
+              except Exception as e:
+                  result_holder['error'] = e
+          
+          try:
+              print(f"Starting ChatGPT test with headless={headless}")
+              
+              # Run test in a thread with timeout
+              test_thread = threading.Thread(target=run_test, daemon=False)
+              test_thread.start()
+              test_thread.join(timeout=240)  # 4 minutes timeout
+              
+              if test_thread.is_alive():
+                  print(f"ERROR: ChatGPT test timed out after 4 minutes", file=sys.stderr)
+                  raise TimeoutError("ChatGPT test timed out after 4 minutes")
+              
+              if result_holder['error']:
+                  raise result_holder['error']
+              
+              result = result_holder['result']
+              expected = "4"
 
-          expected = "4"
-
-          if result.strip() != expected:
-              raise ValueError(f"ChatGPT regression test failed: expected {expected}, got ChatGPT output: {result}")
-          else:
-              print(f"ChatGPT regression test passed: expected {expected}, ChatGPT output: {result}")
+              if result.strip() != expected:
+                  raise ValueError(f"ChatGPT regression test failed: expected {expected}, got ChatGPT output: {result}")
+              else:
+                  print(f"ChatGPT regression test passed: expected {expected}, ChatGPT output: {result}")
+          except Exception as e:
+              # Ensure artifacts directory exists
+              artifact_dir = Path("artifacts")
+              artifact_dir.mkdir(exist_ok=True)
+              
+              # Log error details
+              error_msg = str(e)
+              print(f"ERROR: ChatGPT test failed - {error_msg}", file=sys.stderr)
+              
+              # Check if HTML artifact was saved by the provider
+              html_files = list(artifact_dir.glob("chatgpt_*.html"))
+              if html_files:
+                  print(f"HTML artifacts saved: {[str(f) for f in html_files]}")
+              else:
+                  print("WARNING: No HTML artifacts were saved by provider", file=sys.stderr)
+              
+              # Re-raise to fail the test
+              raise
           EOF
         shell: bash
 
       - name: Upload ChatGPT HTML artifacts
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: chatgpt-html-artifacts
           path: artifacts/chatgpt_*.html
+          if-no-files-found: ignore
 
   deepseek-test:
     name: DeepSeek Regression Test
@@ -109,15 +175,33 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
+      
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+        shell: pwsh
   
       - name: Run DeepSeek regression test
+        env:
+          DEEPSEEK_HEADLESS: ${{ inputs.headless || 'true' }}
         run: |
-          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $headless = if ([System.Environment]::GetEnvironmentVariable('DEEPSEEK_HEADLESS') -eq 'false') { $false } else { $true }
+          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
+            Write-Error "DeepSeek regression test failed: No output from CLI script."
             throw "DeepSeek regression test failed: No output from CLI script."
           }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "20"
+          
+          # Check if error occurred and HTML artifact was saved
+          if ($result.error) {
+            Write-Error "DeepSeek error occurred: $($result.error)"
+            if ($result.artifactPath) {
+              Write-Output "HTML artifact saved at: $($result.artifactPath)"
+            }
+            throw "DeepSeek regression test failed: $($result.error)"
+          }
+          
           if (-not $result -or -not $result.response) {
             Write-Error "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
             throw "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
@@ -137,9 +221,11 @@ jobs:
       - name: Upload DeepSeek HTML artifacts
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: deepseek-html-artifacts
           path: artifacts/deepseek_*.html
+          if-no-files-found: ignore
 
   perplexity-test:
     name: Perplexity Regression Test
@@ -182,15 +268,33 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
+      
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+        shell: pwsh
   
       - name: Run Perplexity regression test
+        env:
+          PERPLEXITY_HEADLESS: ${{ inputs.headless || 'true' }}
         run: |
-          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $headless = if ([System.Environment]::GetEnvironmentVariable('PERPLEXITY_HEADLESS') -eq 'false') { $false } else { $true }
+          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
+            Write-Error "Perplexity regression test failed: No output from CLI script."
             throw "Perplexity regression test failed: No output from CLI script."
           }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "4"
+          
+          # Check if error occurred and HTML artifact was saved
+          if ($result.error) {
+            Write-Error "Perplexity error occurred: $($result.error)"
+            if ($result.artifactPath) {
+              Write-Output "HTML artifact saved at: $($result.artifactPath)"
+            }
+            throw "Perplexity regression test failed: $($result.error)"
+          }
+          
           if (-not $result -or -not $result.response) {
             Write-Error "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
             throw "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
@@ -210,9 +314,11 @@ jobs:
       - name: Upload Perplexity HTML artifacts
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: perplexity-html-artifacts
           path: artifacts/perplexity_*.html
+          if-no-files-found: ignore
 
   notify:
       name: Send Failure Notification
