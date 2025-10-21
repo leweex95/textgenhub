@@ -6,6 +6,7 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');
 const BaseLLMProvider = require('../core/base-provider');
 const BrowserManager = require('../core/browser-manager');
 
@@ -338,6 +339,17 @@ class ChatGPTProvider extends BaseLLMProvider {
       });
 
       this.logger.debug('Page analysis for response extraction', pageInfo);
+
+      // Take a screenshot before extraction for debugging
+      try {
+        const screenshotPath = path.join(process.cwd(), 'artifacts', `chatgpt-before-extraction-${Date.now()}.png`);
+        const dir = path.dirname(screenshotPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        await this.browserManager.page.screenshot({ path: screenshotPath, fullPage: true });
+        this.logger.debug('Screenshot saved for debugging', { path: screenshotPath });
+      } catch (e) {
+        this.logger.debug('Failed to take screenshot before extraction', { error: e.message });
+      }
 
       // Try multiple extraction strategies
       const extractionStrategies = [
