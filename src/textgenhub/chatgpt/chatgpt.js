@@ -384,7 +384,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   tagName: el.tagName,
                   className: el.className,
                 }))
-                .filter((item) => item.text.trim().length > 10)
+                .filter((item) => item.text.trim().length > 0) // Allow any non-empty text, including short answers like "4"
           );
 
           this.logger.debug(`Strategy ${strategy.name} results`, {
@@ -405,7 +405,7 @@ class ChatGPTProvider extends BaseLLMProvider {
               !lastElement.text.includes('window.__') &&
               !lastElement.text.includes('document.') &&
               !lastElement.text.includes('__oai_') &&
-              lastElement.text.trim().length > 5
+              lastElement.text.trim().length > 0 // Allow any non-empty text, including short answers like "4"
             ) {
               extractedResponse = lastElement.text.trim();
               usedStrategy = strategy.name;
@@ -443,23 +443,53 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
-              const allText = lastTurn.textContent || lastTurn.innerText || '';
+              
+              // Try to find assistant-specific content
+              // Look for divs with role="presentation" or other assistant-specific markers
+              let assistantContent = null;
+              
+              // Try to find the assistant message marker and get content after it
+              const fullText = lastTurn.textContent || lastTurn.innerText || '';
+              
+              // Try to extract content after "ChatGPT" or similar markers
+              // by finding message containers within the last turn
+              const messageElements = Array.from(
+                lastTurn.querySelectorAll('[role="presentation"], .markdown, .prose, [data-message-author-role="assistant"]')
+              );
+              
+              if (messageElements.length > 0) {
+                // Get the last message element (should be most recent)
+                const lastMessage = messageElements[messageElements.length - 1];
+                assistantContent = (lastMessage.textContent || lastMessage.innerText || '').trim();
+              }
+              
+              // If we couldn't find a specific message container, split by role markers
+              if (!assistantContent || assistantContent.length < 1) {
+                // Try to split content by role markers
+                const contentAfterMarker = fullText.substring(
+                  fullText.indexOf('ChatGPT said:') !== -1 
+                    ? fullText.indexOf('ChatGPT said:') + 'ChatGPT said:'.length 
+                    : 0
+                ).trim();
+                assistantContent = contentAfterMarker || fullText;
+              }
 
-              // Try to filter out obviously wrong content
-              const lines = allText
+              // Try to filter out obviously wrong content, but keep short responses (like "4")
+              const lines = fullText
                 .split('\n')
                 .filter(
                   (line) =>
-                    line.trim().length > 5 &&
+                    line.trim().length > 0 && // Changed from > 5 to > 0 to allow short answers like "4"
                     !line.includes('window.__') &&
                     !line.includes('document.') &&
                     !line.includes('__oai_')
                 );
 
               return {
-                fullText: allText,
+                fullText: fullText,
+                assistantContent: assistantContent,
                 filteredLines: lines,
-                bestContent: lines.length > 0 ? lines.join('\n') : allText,
+                bestContent: assistantContent || (lines.length > 0 ? lines.join('\n') : fullText),
               };
             }
             return null;
@@ -472,6 +502,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           this.logger.debug('Last resort extraction succeeded', {
             strategy: 'last-resort',
             responseLength: extractedResponse.length,
+            assistantContent: lastResortContent.assistantContent?.substring(0, 50),
           });
         }
       }
