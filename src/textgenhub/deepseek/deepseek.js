@@ -488,36 +488,15 @@ class DeepSeekProvider extends BaseLLMProvider {
 
   /**
    * Handle errors in the DeepSeek provider
-   * @param {Error} error - The error to handle
-   * @param {string} operation - The operation that caused the error
-   * @returns {Error} A wrapped error with context
+   * Simply delegates to parent which saves HTML artifacts
    */
-  handleError(error, operation) {
-    this.logger.error(`Error during ${operation}:`, error);
-
-    // Check for common error types
-    if (error.name === 'TimeoutError') {
-      return new Error(`DeepSeek timeout during ${operation}: The operation took too long to complete. Please check your internet connection and try again.`);
-    }
-
-    if (error.message.includes('net::')) {
-      return new Error(`DeepSeek network error during ${operation}: Please check your internet connection and ensure chat-deep.ai is accessible.`);
-    }
-
-    if (error.message.includes('Session')) {
-      // Reset session state
-      this.isLoggedIn = false;
-      this.lastSessionCheck = 0;
-      return new Error(`DeepSeek session error during ${operation}: The session has expired or become invalid. Please try reinitializing.`);
-    }
-
-    // Check if error is from the website itself
-    if (error.message.includes('error-message') || error.message.includes('alert-error')) {
-      return new Error(`DeepSeek website error during ${operation}: The website reported an error. Please try again later.`);
-    }
-
-    // Generic error with operation context
-    return new Error(`DeepSeek ${operation} failed: ${error.message}`);
+  async handleError(error, operation) {
+    // Reset session state on any error for safety
+    this.isLoggedIn = false;
+    this.lastSessionCheck = 0;
+    
+    // Parent handleError saves HTML and returns wrapped error
+    return await super.handleError(error, operation);
   }
 
   /**
