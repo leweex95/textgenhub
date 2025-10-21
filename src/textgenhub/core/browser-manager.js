@@ -53,11 +53,15 @@ class BrowserManager {
       proxy: null,
       viewport: { width: 1920, height: 1080 },
       connectToExisting: false,
-      minimizeWindow: true, // Default to true for non-headless mode
       ...options,
       // IMPORTANT: Set headless AFTER spread to avoid being overwritten
       headless: options.headless !== undefined ? options.headless : true, // Default to headless if not specified
     };
+
+    // Set minimizeWindow: default to false (keep window visible in non-headless mode)
+    if (this.config.minimizeWindow === undefined) {
+      this.config.minimizeWindow = false;
+    }
 
     this.logger = createMinimalLogger(!!this.config.debug);
     this.logger.info('Browser manager initialized', {
