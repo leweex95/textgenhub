@@ -342,9 +342,9 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Take a screenshot before extraction for debugging
       try {
-        const screenshotPath = path.join(process.cwd(), 'artifacts', `chatgpt-before-extraction-${Date.now()}.png`);
-        const dir = path.dirname(screenshotPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const artifactsDir = path.join(process.cwd(), 'artifacts');
+        if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+        const screenshotPath = path.join(artifactsDir, `chatgpt-before-extraction-${Date.now()}.png`);
         await this.browserManager.page.screenshot({ path: screenshotPath, fullPage: true });
         this.logger.debug('Screenshot saved for debugging', { path: screenshotPath });
       } catch (e) {
@@ -455,58 +455,73 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
-              const allText = lastTurn.textContent || lastTurn.innerText || '';
+              const allText = (lastTurn.textContent || lastTurn.innerText || '').trim();
 
-              // Split into lines and try to extract the actual content
-              const lines = allText.split('\n').filter((line) => line.trim().length > 0);
-
-              // The response is usually after the "ChatGPT said:" marker or similar
-              let bestContent = '';
-              let foundChatGPTMarker = false;
+              // The structure might be: [User prompt]\n[Assistant label]\n[Response]
+              // Or: [User prompt]\nChatGPT said:\n[Response]
+              // We want to get everything after the assistant marker
               
+              let bestContent = '';
+              const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              
+              // Find where the assistant response starts
+              // Look for common markers and get content after them
+              let responseStartIndex = -1;
               for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                // Look for markers indicating start of response
-                if (line.toLowerCase().includes('chatgpt') || 
-                    line.toLowerCase().includes('assistant') ||
-                    foundChatGPTMarker) {
-                  foundChatGPTMarker = true;
-                  // Skip the marker line itself if it's just the marker
-                  if (i + 1 < lines.length && 
-                      !line.toLowerCase().includes('said') && 
-                      !line.toLowerCase().endsWith(':')) {
-                    bestContent = line;
+                const line = lines[i].toLowerCase();
+                // Check for assistant markers
+                if (line.includes('chatgpt') || 
+                    line.includes('assistant') || 
+                    line === 'chatgpt said:' ||
+                    line.endsWith('said:')) {
+                  // The response should be in the next line or in a continuation
+                  if (i + 1 < lines.length) {
+                    responseStartIndex = i + 1;
                     break;
-                  } else if (i + 1 < lines.length) {
-                    // Get the next line after the marker
-                    const nextLine = lines[i + 1].trim();
-                    if (nextLine.length > 0 && 
-                        !nextLine.includes('window.__') && 
-                        !nextLine.includes('__oai_')) {
-                      bestContent = nextLine;
-                      break;
-                    }
+                  }
+                }
+              }
+              
+              // If we found an assistant marker, get everything after it
+              if (responseStartIndex > -1 && responseStartIndex < lines.length) {
+                bestContent = lines.slice(responseStartIndex).join('\n');
+              }
+              
+              // If we still don't have content, try to get the last non-marker line
+              if (!bestContent || bestContent.toLowerCase().includes('chatgpt')) {
+                // Filter out marker-only lines and get non-empty content
+                const nonMarkerLines = lines.filter(line => {
+                  const lower = line.toLowerCase();
+                  return !lower.includes('chatgpt') && 
+                         !lower.includes('assistant') &&
+                         !lower.includes('said:') &&
+                         !lower.includes('window.__') &&
+                         !lower.includes('document.') &&
+                         !lower.includes('__oai_') &&
+                         line.length > 0;
+                });
+                
+                if (nonMarkerLines.length > 0) {
+                  // Guess: last few non-marker lines are the response
+                  // If last line is short (like "4"), use it; otherwise use last few
+                  const lastLine = nonMarkerLines[nonMarkerLines.length - 1];
+                  if (lastLine.length < 20) {
+                    bestContent = lastLine;
+                  } else {
+                    bestContent = nonMarkerLines.slice(-3).join('\n');
                   }
                 }
               }
 
-              // If we still haven't found content, just return all non-empty, non-script lines
+              // Last resort: if we still have nothing, return the whole thing
               if (!bestContent) {
-                bestContent = lines
-                  .filter((line) => {
-                    const trimmed = line.trim();
-                    return trimmed.length > 0 &&
-                           !trimmed.includes('window.__') &&
-                           !trimmed.includes('document.') &&
-                           !trimmed.includes('__oai_');
-                  })
-                  .join('\n');
+                bestContent = allText;
               }
 
               return {
                 fullText: allText,
                 lines: lines,
-                bestContent: bestContent || allText,
+                bestContent: bestContent,
               };
             }
             return null;
