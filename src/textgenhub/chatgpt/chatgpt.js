@@ -455,89 +455,79 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
+              
+              // Try multiple ways to extract text
+              const methods = {
+                textContent: lastTurn.textContent || '',
+                innerText: lastTurn.innerText || '',
+                innerHTML: lastTurn.innerHTML.substring(0, 500) || '',
+              };
+              
+              // Also try to find all divs with text content
+              const allDivs = Array.from(lastTurn.querySelectorAll('div, p, span'))
+                .map(el => (el.textContent || el.innerText || '').trim())
+                .filter(text => text && text.length > 0 && !text.includes('window.__'));
+              
+              // Get all text nodes
+              const textNodes = [];
+              const walk = document.createTreeWalker(
+                lastTurn,
+                NodeFilter.SHOW_TEXT,
+                null
+              );
+              let node;
+              while (node = walk.nextNode()) {
+                const text = node.textContent?.trim();
+                if (text && text.length > 0) {
+                  textNodes.push(text);
+                }
+              }
+              
               const allText = (lastTurn.textContent || lastTurn.innerText || '').trim();
-
-              // The structure might be: [User prompt]\n[Assistant label]\n[Response]
-              // Or: [User prompt]\nChatGPT said:\n[Response]
-              // We want to get everything after the assistant marker
               
-              let bestContent = '';
-              const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              // Try to find the actual response by looking for patterns
+              let responseText = '';
               
-              // Find where the assistant response starts
-              // Look for common markers and get content after them
-              let responseStartIndex = -1;
-              for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].toLowerCase();
-                // Check for assistant markers
-                if (line.includes('chatgpt') || 
-                    line.includes('assistant') || 
-                    line === 'chatgpt said:' ||
-                    line.endsWith('said:')) {
-                  // The response should be in the next line or in a continuation
-                  if (i + 1 < lines.length) {
-                    responseStartIndex = i + 1;
-                    break;
-                  }
+              // If we only have "ChatGPT said:" but there are other divs, try those
+              if ((allText === 'ChatGPT said:' || allText === 'ChatGPT said') && allDivs.length > 0) {
+                // Skip any div that is just "ChatGPT said:" and get the next ones
+                const responseOnly = allDivs.filter(div => 
+                  !div.toLowerCase().includes('chatgpt') && 
+                  !div.toLowerCase().includes('assistant') &&
+                  !div.toLowerCase().includes('said:')
+                );
+                if (responseOnly.length > 0) {
+                  responseText = responseOnly[responseOnly.length - 1];
                 }
               }
               
-              // If we found an assistant marker, get everything after it
-              if (responseStartIndex > -1 && responseStartIndex < lines.length) {
-                bestContent = lines.slice(responseStartIndex).join('\n');
-              }
-              
-              // If we still don't have content, try to get the last non-marker line
-              if (!bestContent || bestContent.toLowerCase().includes('chatgpt')) {
-                // Filter out marker-only lines and get non-empty content
-                const nonMarkerLines = lines.filter(line => {
-                  const lower = line.toLowerCase();
-                  return !lower.includes('chatgpt') && 
-                         !lower.includes('assistant') &&
-                         !lower.includes('said:') &&
-                         !lower.includes('window.__') &&
-                         !lower.includes('document.') &&
-                         !lower.includes('__oai_') &&
-                         line.length > 0;
-                });
-                
-                if (nonMarkerLines.length > 0) {
-                  // Guess: last few non-marker lines are the response
-                  // If last line is short (like "4"), use it; otherwise use last few
-                  const lastLine = nonMarkerLines[nonMarkerLines.length - 1];
-                  if (lastLine.length < 20) {
-                    bestContent = lastLine;
-                  } else {
-                    bestContent = nonMarkerLines.slice(-3).join('\n');
-                  }
-                }
-              }
-
-              // Last resort: if we still have nothing, return the whole thing
-              if (!bestContent) {
-                bestContent = allText;
+              if (!responseText) {
+                responseText = allText;
               }
 
               return {
                 fullText: allText,
-                lines: lines,
-                bestContent: bestContent,
+                textNodes: textNodes,
+                allDivs: allDivs,
+                responseText: responseText,
+                methods: methods,
               };
             }
             return null;
           }
         );
 
-        if (lastResortContent && lastResortContent.bestContent) {
-          extractedResponse = lastResortContent.bestContent;
+        if (lastResortContent && lastResortContent.responseText) {
+          extractedResponse = lastResortContent.responseText;
           usedStrategy = 'last-resort';
           this.logger.debug('Last resort extraction succeeded', {
             strategy: 'last-resort',
             responseLength: extractedResponse.length,
-            fullTextPreview: lastResortContent.fullText?.substring(0, 200),
-            linesCount: lastResortContent.lines?.length,
-            linesPreview: lastResortContent.lines?.slice(0, 5),
-            bestContent: lastResortContent.bestContent.substring(0, 100),
+            fullTextPreview: lastResortContent.fullText?.substring(0, 100),
+            allDivsCount: lastResortContent.allDivs?.length,
+            allDivsPreview: lastResortContent.allDivs?.slice(0, 5),
+            textNodesCount: lastResortContent.textNodes?.length,
+            responseText: lastResortContent.responseText?.substring(0, 100),
           });
         }
       }
