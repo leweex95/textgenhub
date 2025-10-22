@@ -539,6 +539,33 @@ class ChatGPTProvider extends BaseLLMProvider {
       }
 
       const duration = Date.now() - startTime;
+      
+      // Validate extracted response - if it's suspiciously short or just a label, save HTML for debugging
+      if (extractedResponse && (
+        extractedResponse.length < 2 ||
+        extractedResponse === 'ChatGPT said:' ||
+        extractedResponse === 'ChatGPT said' ||
+        extractedResponse.toLowerCase().includes('said:') && extractedResponse.length < 30
+      )) {
+        this.logger.warn('Extracted response looks suspicious, saving HTML artifact for debugging', {
+          responseLength: extractedResponse.length,
+          responsePreview: extractedResponse.substring(0, 100),
+        });
+        
+        try {
+          const html = await this.browserManager.page.content();
+          const fs = require('fs');
+          const path = require('path');
+          const artifactDir = path.join(process.cwd(), 'artifacts');
+          if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
+          const htmlPath = path.join(artifactDir, `chatgpt_suspicious_response_${Date.now()}.html`);
+          fs.writeFileSync(htmlPath, html, 'utf8');
+          this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
+        } catch (htmlErr) {
+          this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
+        }
+      }
+      
       this.logger.info('Response extracted successfully', {
         responseLength: extractedResponse.length,
         extractionTime: `${duration}ms`,
