@@ -25,7 +25,7 @@ const { hideBin } = require('yargs/helpers');
 
   try {
     await provider.initialize();
-    
+
     if (argv.continuous) {
       // Continuous mode: read prompts from stdin
       const readline = require('readline');
@@ -34,7 +34,6 @@ const { hideBin } = require('yargs/helpers');
         output: process.stdout,
         terminal: false
       });
-      
       rl.on('line', async (line) => {
         const prompt = line.trim();
         if (prompt) {
@@ -42,29 +41,45 @@ const { hideBin } = require('yargs/helpers');
             const response = await provider.generateContent(prompt);
             console.log(JSON.stringify({ response, prompt }));
           } catch (err) {
-            console.error(JSON.stringify({ error: err.message, prompt }));
+            let artifactPath = null;
+            if (typeof provider.saveHtmlArtifact === 'function') {
+              artifactPath = await provider.saveHtmlArtifact('continuous-error');
+            }
+            // Always print JSON to stdout
+            console.log(JSON.stringify({ error: err.message, prompt, artifactPath }));
           }
         }
       });
-      
       rl.on('close', async () => {
         await provider.cleanup();
         process.exit(0);
       });
     } else {
       // Single prompt mode
-      const response = await provider.generateContent(argv.prompt);
-
-      // Validate response if expected is provided
-      if (argv.expected && response.trim() !== argv.expected.trim()) {
-        // Save HTML artifact before cleanup
-        if (typeof provider.saveHtmlArtifact === 'function') {
-          await provider.saveHtmlArtifact('wrong-answer');
+      let response = null;
+      let artifactPath = null;
+      let errorObj = null;
+      try {
+        response = await provider.generateContent(argv.prompt);
+        // Validate response if expected is provided
+        if (argv.expected && response.trim() !== argv.expected.trim()) {
+          if (typeof provider.saveHtmlArtifact === 'function') {
+            artifactPath = await provider.saveHtmlArtifact('wrong-answer');
+          }
+          throw new Error(`ChatGPT regression test failed: expected \"${argv.expected}\", got \"${response}\"`);
         }
-        throw new Error(`ChatGPT regression test failed: expected "${argv.expected}", got "${response}"`);
+        // Success: print response JSON
+        console.log(JSON.stringify({ response }));
+      } catch (err) {
+        if (!artifactPath && typeof provider.saveHtmlArtifact === 'function') {
+          artifactPath = await provider.saveHtmlArtifact('error');
+        }
+        errorObj = { error: err.message, artifactPath };
+        // Always print JSON to stdout
+        console.log(JSON.stringify(errorObj));
+        // Exit with error code
+        process.exit(1);
       }
-
-      console.log(JSON.stringify({ response }));
       await provider.cleanup();
     }
   } catch (err) {
