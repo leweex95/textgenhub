@@ -126,7 +126,7 @@ jobs:
         shell: bash
 
       - name: Upload ChatGPT HTML artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
@@ -219,7 +219,7 @@ jobs:
         shell: pwsh
 
       - name: Upload DeepSeek HTML artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
@@ -312,7 +312,7 @@ jobs:
         shell: pwsh
 
       - name: Upload Perplexity HTML artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
