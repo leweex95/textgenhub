@@ -1,25 +1,4 @@
-  /**
-   * Save current HTML page as artifact for debugging
-   * @param {string} reason - Reason for saving artifact
-   */
-  async saveHtmlArtifact(reason = 'manual') {
-    try {
-      if (this.browserManager && this.browserManager.page) {
-        const html = await this.browserManager.page.content();
-        const fs = require('fs');
-        const path = require('path');
-        const artifactDir = path.join(process.cwd(), 'artifacts');
-        if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-        const htmlPath = path.join(artifactDir, `chatgpt_manual_${reason}_${Date.now()}.html`);
-        fs.writeFileSync(htmlPath, html, 'utf8');
-        this.logger.error(`Saved manual HTML artifact: ${htmlPath}`);
-        return htmlPath;
-      }
-    } catch (err) {
-      this.logger.error('Failed to save manual HTML artifact', { error: err.message });
-    }
-    return null;
-  }
+// ...existing code...
 /**
  * ChatGPT Provider - Browser automation for ChatGPT web interface
  * Uses Puppeteer to interact with ChatGPT when API access is not available
