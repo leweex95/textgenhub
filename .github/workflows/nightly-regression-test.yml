@@ -59,71 +59,31 @@ jobs:
       - name: Run ChatGPT regression test
         env:
           CHATGPT_HEADLESS: ${{ inputs.headless || 'true' }}
-        timeout-minutes: 5
         run: |
-          poetry run python - <<'EOF'
-          import os
-          import sys
-          import json
-          import threading
-          from pathlib import Path
-          from textgenhub import chatgpt
-
-          headless = os.getenv('CHATGPT_HEADLESS', 'true').lower() == 'true'
-          result_holder = {'result': None, 'error': None}
+          $headless = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { $false } else { $true }
+          $jsonOutput = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            Write-Error "ChatGPT regression test failed: No output from CLI script."
+            throw "ChatGPT regression test failed: No output from CLI script."
+          }
+          $result = $jsonOutput | ConvertFrom-Json
           
-          def run_test():
-              try:
-                  result_holder['result'] = chatgpt.ask(
-                      "What is 2 + 2? Respond with only the number, no other text.",
-                      headless=headless,
-                      debug=True
-                  )
-              except Exception as e:
-                  result_holder['error'] = e
+          # Check if error occurred and HTML artifact was saved
+          if ($result.error) {
+            Write-Error "ChatGPT error occurred: $($result.error)"
+            if ($result.artifactPath) {
+              Write-Output "HTML artifact saved at: $($result.artifactPath)"
+            }
+            throw "ChatGPT regression test failed: $($result.error)"
+          }
           
-          try:
-              print(f"Starting ChatGPT test with headless={headless}")
-              
-              # Run test in a thread with timeout
-              test_thread = threading.Thread(target=run_test, daemon=False)
-              test_thread.start()
-              test_thread.join(timeout=240)  # 4 minutes timeout
-              
-              if test_thread.is_alive():
-                  print(f"ERROR: ChatGPT test timed out after 4 minutes", file=sys.stderr)
-                  raise TimeoutError("ChatGPT test timed out after 4 minutes")
-              
-              if result_holder['error']:
-                  raise result_holder['error']
-              
-              result = result_holder['result']
-              expected = "4"
-
-              if result.strip() != expected:
-                  raise ValueError(f"ChatGPT regression test failed: expected {expected}, got ChatGPT output: {result}")
-              else:
-                  print(f"ChatGPT regression test passed: expected {expected}, ChatGPT output: {result}")
-          except Exception as e:
-              # Ensure artifacts directory exists
-              artifact_dir = Path("artifacts")
-              artifact_dir.mkdir(exist_ok=True)
-              
-              # Log error details
-              error_msg = str(e)
-              print(f"ERROR: ChatGPT test failed - {error_msg}", file=sys.stderr)
-              
-              # Check if HTML artifact was saved by the provider
-              html_files = list(artifact_dir.glob("chatgpt_*.html"))
-              if html_files:
-                  print(f"HTML artifacts saved: {[str(f) for f in html_files]}")
-              else:
-                  print("WARNING: No HTML artifacts were saved by provider", file=sys.stderr)
-              
-              # Re-raise to fail the test
-              raise
-          EOF
-        shell: bash
+          if (-not $result -or -not $result.response) {
+            Write-Error "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          
+          Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
+        shell: pwsh
 
       - name: Upload ChatGPT HTML artifacts
         if: failure()

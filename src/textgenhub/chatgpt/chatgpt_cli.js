@@ -8,6 +8,7 @@ const { hideBin } = require('yargs/helpers');
 (async () => {
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', demandOption: false })
+    .option('expected', { type: 'string', demandOption: false })
     .option('headless', { type: 'boolean', default: true })
     .option('remove-cache', { type: 'boolean', default: false })
     .option('continuous', { type: 'boolean', default: false })
@@ -53,6 +54,12 @@ const { hideBin } = require('yargs/helpers');
     } else {
       // Single prompt mode
       const response = await provider.generateContent(argv.prompt);
+      
+      // Validate response if expected is provided
+      if (argv.expected && response.trim() !== argv.expected.trim()) {
+        throw new Error(`ChatGPT regression test failed: expected "${argv.expected}", got "${response}"`);
+      }
+      
       console.log(JSON.stringify({ response }));
       await provider.cleanup();
     }
