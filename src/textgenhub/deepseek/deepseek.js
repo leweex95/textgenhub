@@ -10,6 +10,28 @@ const BaseLLMProvider = require('../core/base-provider');
 const BrowserManager = require('../core/browser-manager');
 
 class DeepSeekProvider extends BaseLLMProvider {
+  /**
+   * Save current HTML page as artifact for debugging
+   * @param {string} reason - Reason for saving artifact
+   */
+  async saveHtmlArtifact(reason = 'manual') {
+    try {
+      if (this.browserManager && this.browserManager.page) {
+        const html = await this.browserManager.page.content();
+        const fs = require('fs');
+        const path = require('path');
+        const artifactDir = path.join(process.cwd(), 'artifacts');
+        if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
+        const htmlPath = path.join(artifactDir, `deepseek_manual_${reason}_${Date.now()}.html`);
+        fs.writeFileSync(htmlPath, html, 'utf8');
+        this.logger.error(`Saved manual HTML artifact: ${htmlPath}`);
+        return htmlPath;
+      }
+    } catch (err) {
+      this.logger.error('Failed to save manual HTML artifact', { error: err.message });
+    }
+    return null;
+  }
   constructor(config = {}) {
     super('deepseek', config);
 
@@ -337,33 +359,6 @@ class DeepSeekProvider extends BaseLLMProvider {
       }
 
       const duration = Date.now() - startTime;
-      
-      // Validate extracted response - if it looks like the prompt or is suspiciously long, save HTML for debugging
-      if (extractedResponse && (
-        extractedResponse.includes('Answer with only the number') ||
-        extractedResponse.includes('Answer with only the') ||
-        extractedResponse.includes('no text, no explanation') ||
-        extractedResponse.includes('just the single') ||
-        (extractedResponse.length > 200 && extractedResponse.includes('What is'))
-      )) {
-        this.logger.warn('Extracted response looks like prompt or contains too much text, saving HTML artifact for debugging', {
-          responseLength: extractedResponse.length,
-          responsePreview: extractedResponse.substring(0, 100),
-        });
-        
-        try {
-          const html = await this.browserManager.page.content();
-          const fs = require('fs');
-          const path = require('path');
-          const artifactDir = path.join(process.cwd(), 'artifacts');
-          if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-          const htmlPath = path.join(artifactDir, `deepseek_suspicious_response_${Date.now()}.html`);
-          fs.writeFileSync(htmlPath, html, 'utf8');
-          this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
-        } catch (htmlErr) {
-          this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
-        }
-      }
       
       this.logger.info('Response extracted successfully', {
         responseLength: extractedResponse.length,

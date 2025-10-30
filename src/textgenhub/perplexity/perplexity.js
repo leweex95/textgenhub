@@ -214,30 +214,6 @@ class PerplexityProvider extends BaseLLMProvider {
         if (response.length > 0) {
           const cleanedResponse = this.cleanResponse(response);
           
-          // Validate extracted response - if it looks suspicious, save HTML for debugging
-          if (cleanedResponse && (
-            cleanedResponse.length < 2 ||
-            (cleanedResponse.length > 200 && cleanedResponse.includes('Answer with only'))
-          )) {
-            this.logger.warn('Extracted response looks suspicious, saving HTML artifact for debugging', {
-              responseLength: cleanedResponse.length,
-              responsePreview: cleanedResponse.substring(0, 100),
-            });
-            
-            try {
-              const html = await this.browserManager.page.content();
-              const fs = require('fs');
-              const path = require('path');
-              const artifactDir = path.join(process.cwd(), 'artifacts');
-              if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-              const htmlPath = path.join(artifactDir, `perplexity_suspicious_response_${Date.now()}.html`);
-              fs.writeFileSync(htmlPath, html, 'utf8');
-              this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
-            } catch (htmlErr) {
-              this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
-            }
-          }
-          
           return cleanedResponse;
         }
 
