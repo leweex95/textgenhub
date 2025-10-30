@@ -54,12 +54,16 @@ const { hideBin } = require('yargs/helpers');
     } else {
       // Single prompt mode
       const response = await provider.generateContent(argv.prompt);
-      
+
       // Validate response if expected is provided
       if (argv.expected && response.trim() !== argv.expected.trim()) {
+        // Save HTML artifact before cleanup
+        if (typeof provider.saveHtmlArtifact === 'function') {
+          await provider.saveHtmlArtifact('wrong-answer');
+        }
         throw new Error(`ChatGPT regression test failed: expected "${argv.expected}", got "${response}"`);
       }
-      
+
       console.log(JSON.stringify({ response }));
       await provider.cleanup();
     }
