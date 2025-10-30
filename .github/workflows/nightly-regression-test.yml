@@ -314,7 +314,7 @@ jobs:
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: perplexity-html-artifacts
+          name: perplexity-artifacts
           path: artifacts/perplexity_*.html
           if-no-files-found: ignore
 
