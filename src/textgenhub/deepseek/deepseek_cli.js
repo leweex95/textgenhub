@@ -27,6 +27,9 @@ const { hideBin } = require('yargs/helpers');
   } catch (err) {
     // Always output a JSON error object for CI artifact capture
     let artifactPath = err.artifactPath || (err.originalError && err.originalError.artifactPath);
+    if (!artifactPath && typeof provider.saveHtmlArtifact === 'function') {
+      artifactPath = await provider.saveHtmlArtifact('error');
+    }
     console.log(JSON.stringify({
       error: err.message || String(err),
       stack: err.stack,
