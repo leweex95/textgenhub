@@ -130,14 +130,7 @@ jobs:
           Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
         shell: pwsh
 
-      - name: Upload ChatGPT HTML artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: chatgpt-html-artifacts
-          path: artifacts/chatgpt_*.html
-          if-no-files-found: ignore
+      # Removed redundant ChatGPT HTML artifact upload step
 
   deepseek-test:
     name: DeepSeek Regression Test
