@@ -80,7 +80,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     this.config.timeout = config.timeout || 60000;
     this.config.sessionTimeout = config.sessionTimeout || 3600000;
     this.config.userDataDir =
-      this.config.userDataDir || path.join(process.cwd(), 'temp', 'chatgpt-session');
+      this.config.userDataDir || path.join(process.env.USERPROFILE, 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default');
   }
 
   /**
@@ -94,6 +94,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         headless: this.config.headless,
         timeout: this.config.timeout,
         userDataDir: this.config.userDataDir,
+        minimizeWindow: true, // Minimize window since not headless
         debug: true // Force debug for browser manager
       };
       this.browserManager = new BrowserManager(browserConfig);
@@ -610,64 +611,58 @@ class ChatGPTProvider extends BaseLLMProvider {
    */
   async waitForTypingComplete() {
     const maxWait = 60000; // Max 60s
-    const pollInterval = 150;
+    const pollInterval = 500; // Check every 500ms
     const start = Date.now();
 
     this.logger.debug('Waiting for typing animation to complete...');
 
+    // First wait a minimum time for response to start
+    await this.browserManager.delay(2000);
+
     while (Date.now() - start < maxWait) {
       try {
-        // Check if there's a typing indicator or if send button is disabled
-        const isTyping = await this.browserManager.page.evaluate(() => {
-          // Look for common typing indicators
-          const typingIndicators = [
-            '[data-testid*="typing"]',
-            '.typing-indicator',
-            '[aria-label*="typing"]',
-            '[data-testid="stop-button"]', // Stop button appears during generation
-          ];
+        const status = await this.browserManager.page.evaluate(() => {
+          // Check for stop button (appears during generation)
+          const stopButton = document.querySelector('[data-testid="stop-button"]') ||
+                           document.querySelector('button[aria-label*="Stop"]');
+          
+          // Check if send button is disabled
+          const sendButton = document.querySelector('[data-testid="send-button"]') ||
+                           document.querySelector('button[data-testid="send-button"]');
 
-          for (const selector of typingIndicators) {
-            if (document.querySelector(selector)) {
-              return true;
-            }
+          // Check for substantial content in the last assistant message
+          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');     
+          const lastMessage = assistantMessages[assistantMessages.length - 1];
+          const content = lastMessage ? (lastMessage.textContent || lastMessage.innerText || '') : '';
+          const hasSubstantialContent = content.trim().length > 10; // Lower threshold
+
+          // If stop button is gone AND we have some content, we're done
+          if (!stopButton && hasSubstantialContent) {
+            return 'complete';
           }
 
-          // Check if send button is disabled (indication of processing)
-          const sendButtonSelectors = [
-            '[data-testid="send-button"]',
-            'button[data-testid="send-button"]',
-            'button:has(svg):last-child',
-          ];
-          for (const selector of sendButtonSelectors) {
-            const sendButton = document.querySelector(selector);
-            if (sendButton && sendButton.disabled) {
-              return true;
-            }
+          // If stop button exists or send button is disabled, still generating
+          if (stopButton || (sendButton && sendButton.disabled)) {
+            return 'typing';
           }
 
-          // Check if there's actual content in the last response area
-          const responseAreas = document.querySelectorAll(
-            '[data-testid*="conversation-turn"]'
-          );
-          if (responseAreas.length > 0) {
-            const lastResponse = responseAreas[responseAreas.length - 1];
-            const content = lastResponse.textContent || lastResponse.innerText;
-            if (content && content.trim().length > 10) {
-              // Wait for substantial content
-              return false; // Content is there, not typing anymore
-            }
+          // If we have substantial content but no stop button, we're done
+          if (hasSubstantialContent) {
+            return 'complete';
           }
 
-          return true; // Still waiting for content
+          return 'waiting'; // No substantial content yet
         });
 
-        if (!isTyping) {
-          this.logger.debug('Typing animation completed');
+        if (status === 'complete') {
+          this.logger.debug('Typing animation completed - content found');
           return;
+        } else if (status === 'typing') {
+          this.logger.debug('Still generating response...');
+        } else {
+          this.logger.debug('Waiting for response content...');
         }
 
-        this.logger.debug('Still generating response...');
         await this.browserManager.delay(pollInterval);
       } catch (error) {
         this.logger.warn('Error checking typing status', {
@@ -677,7 +672,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       }
     }
 
-    this.logger.warn('Typing animation check timed out');
+    this.logger.warn('Typing animation check timed out - proceeding with extraction');
   }
 
   /**

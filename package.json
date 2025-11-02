@@ -4,7 +4,7 @@
     "description": "Text generation hub supporting multiple LLM providers",
     "main": "index.js",
     "scripts": {
-        "test": "mocha tests/**/*.test.js --timeout 120000"
+        "test": "mocha tests/**/*.test.js --timeout 120000 --exit"
     },
     "keywords": [
         "llm",

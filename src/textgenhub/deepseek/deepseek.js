@@ -267,8 +267,22 @@ class DeepSeekProvider extends BaseLLMProvider {
     this.logger.debug('Waiting for DeepSeek response...');
 
     try {
-      // Wait for response to start appearing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Count messages before sending to know when new response appears
+      const initialMessageCount = await this.getMessageCount();
+      this.logger.debug('Initial message count:', initialMessageCount);
+
+      // Wait for response to start appearing (new message should appear)
+      const newMessageTimeout = 30000; // 30 seconds to start responding
+      const messageStartTime = Date.now();
+      
+      while (Date.now() - messageStartTime < newMessageTimeout) {
+        const currentMessageCount = await this.getMessageCount();
+        if (currentMessageCount > initialMessageCount) {
+          this.logger.debug('New message detected, waiting for completion...');
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
 
       // Wait for typing animation to complete
       await this.waitForTypingComplete();
@@ -424,6 +438,22 @@ class DeepSeekProvider extends BaseLLMProvider {
   }
 
   /**
+   * Get the current number of messages in the chat
+   */
+  async getMessageCount() {
+    try {
+      const count = await this.browserManager.page.$$eval(
+        '.ds-message-content, [data-message], .message, .chat-message',
+        (elements) => elements.length
+      );
+      return count;
+    } catch (error) {
+      this.logger.warn('Error getting message count', { error: error.message });
+      return 0;
+    }
+  }
+
+  /**
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
@@ -537,6 +567,41 @@ class DeepSeekProvider extends BaseLLMProvider {
     ];
 
     return recoverableErrors.some(e => error.message.includes(e));
+  }
+
+  /**
+   * Clear the chat to start fresh
+   */
+  async clearChat() {
+    try {
+      this.logger.debug('Attempting to clear chat...');
+      
+      // Try multiple selectors for the clear/new chat button
+      const clearSelectors = [
+        'button[aria-label*="New Chat"]',
+        'button[title*="New Chat"]',
+        'button[class*="new-chat"]',
+        'button[aria-label*="Clear"]',
+        'button[title*="Clear"]',
+        'button[class*="clear"]'
+      ];
+
+      for (const selector of clearSelectors) {
+        try {
+          await this.browserManager.waitForElement(selector, { timeout: 3000 });
+          await this.browserManager.clickElement(selector);
+          this.logger.debug('Chat cleared successfully', { selector });
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for UI to update
+          return;
+        } catch (error) {
+          this.logger.debug('Clear selector failed, trying next', { selector });
+        }
+      }
+
+      this.logger.warn('Could not find clear chat button, chat may not be cleared');
+    } catch (error) {
+      this.logger.error('Error clearing chat', { error: error.message });
+    }
   }
 
   /**

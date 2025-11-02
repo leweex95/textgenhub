@@ -1,14 +1,15 @@
 const assert = require('assert');
-const DeepSeekProvider = require('../../src/textgenhub/deepseek/deepseek');
+const ChatGPTProvider = require('../../src/textgenhub/chatgpt/chatgpt');
 
-describe('DeepSeek Provider Tests', () => {
+describe('ChatGPT Provider Tests', () => {
     let provider;
 
     before(async () => {
-        provider = new DeepSeekProvider({
-            headless: false, // Set to false for visual debugging
+        provider = new ChatGPTProvider({
+            headless: false, // Use non-headless to avoid detection
             removeCache: true,
-            timeout: 60000
+            timeout: 60000,
+            debug: true
         });
     });
 
@@ -16,9 +17,9 @@ describe('DeepSeek Provider Tests', () => {
         if (provider) {
             try {
                 await provider.cleanup();
-                console.log('DeepSeek provider cleanup completed');
+                console.log('ChatGPT provider cleanup completed');
             } catch (error) {
-                console.error('Error during DeepSeek cleanup:', error);
+                console.error('Error during ChatGPT cleanup:', error);
             }
         }
     });

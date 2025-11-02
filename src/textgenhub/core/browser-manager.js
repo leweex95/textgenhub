@@ -110,12 +110,11 @@ class BrowserManager {
     }
 
     // Check if Chrome is available
+    let executablePath = null;
     try {
       const { execSync } = require('child_process');
       const fs = require('fs');
       const path = require('path');
-      
-      let chromeFound = false;
       
       if (process.platform === 'win32') {
         // Check multiple common Chrome installation paths on Windows
@@ -131,14 +130,14 @@ class BrowserManager {
         for (const chromePath of chromePaths) {
           try {
             if (chromePath === 'chrome') {
-              execSync('where chrome', { stdio: 'ignore' });
+              const result = execSync('where chrome', { encoding: 'utf8' }).trim();
+              executablePath = result.split('\n')[0]; // Take first match
             } else if (fs.existsSync(chromePath)) {
-              // Path exists
+              executablePath = chromePath;
             } else {
               continue;
             }
-            chromeFound = true;
-            this.logger.info('Chrome found at:', chromePath);
+            this.logger.info('Chrome found at:', executablePath);
             break;
           } catch (error) {
             // Continue to next path
@@ -147,19 +146,19 @@ class BrowserManager {
       } else {
         // Unix-like systems
         try {
-          execSync('which google-chrome', { stdio: 'ignore' });
-          chromeFound = true;
-          this.logger.info('Chrome found in PATH');
+          const result = execSync('which google-chrome', { encoding: 'utf8' }).trim();
+          executablePath = result;
+          this.logger.info('Chrome found at:', executablePath);
         } catch (error) {
           // Chrome not in PATH
         }
       }
       
-      if (!chromeFound) {
-  this.logger.warn('Chrome not found in common locations, Puppeteer will use bundled Chromium');
+      if (!executablePath) {
+        this.logger.warn('Chrome not found in common locations, Puppeteer will use bundled Chromium');
       }
     } catch (error) {
-  this.logger.warn('Error checking for Chrome:', error.message);
+      this.logger.warn('Error checking for Chrome:', error.message);
     }
 
     try {
@@ -193,6 +192,12 @@ class BrowserManager {
           args: browserArgs,
           ignoreDefaultArgs: ['--enable-automation'],
         };
+
+        // Use system Chrome if found
+        if (executablePath) {
+          launchOptions.executablePath = executablePath;
+          this.logger.info('Using system Chrome', { executablePath });
+        }
 
         // Add proxy if configured
         if (this.config.proxy) {
@@ -234,6 +239,11 @@ class BrowserManager {
             ],
             ignoreDefaultArgs: ['--enable-automation'],
           };
+
+          // Use system Chrome if found
+          if (executablePath) {
+            minimalOptions.executablePath = executablePath;
+          }
 
           try {
             this.browser = await puppeteer.launch(minimalOptions);
