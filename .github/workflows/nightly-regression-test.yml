@@ -62,9 +62,9 @@ jobs:
 
       - name: Run ChatGPT regression test
         env:
-          CHATGPT_HEADLESS: ${{ inputs.headless || 'true' }}
+          CHATGPT_HEADLESS: 'false'
         run: |
-          $headless = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { $false } else { $true }
+          $headless = $false
           $output = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" --headless $headless --debug 2>&1
           $output | Out-File -FilePath artifacts/chatgpt_cli_raw_output.txt
           $jsonLine = $output | Select-String '{' | Select-Object -Last 1
@@ -101,11 +101,11 @@ jobs:
             artifacts/chatgpt_cli_raw_output.txt
           if-no-files-found: ignore
   
-      - name: Run ChatGPT regression test
+      - name: Run ChatGPT regression test retry
         env:
-          CHATGPT_HEADLESS: ${{ inputs.headless || 'true' }}
+          CHATGPT_HEADLESS: 'false'
         run: |
-          $headless = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { $false } else { $true }
+          $headless = $false
           $jsonOutput = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
             Write-Error "ChatGPT regression test failed: No output from CLI script."
@@ -129,8 +129,6 @@ jobs:
           
           Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
         shell: pwsh
-
-      # Removed redundant ChatGPT HTML artifact upload step
 
   deepseek-test:
     name: DeepSeek Regression Test

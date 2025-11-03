@@ -1,7 +1,17 @@
-// ...existing code...
 /**
  * ChatGPT Provider - Browser automation for ChatGPT web interface
  * Uses Puppeteer to interact with ChatGPT when API access is not available
+ * 
+ * IMPORTANT: This provider uses NON-HEADLESS mode (headless=false).
+ * 
+ * Reason: ChatGPT.com is a complex React SPA that doesn't properly render 
+ * response content to the DOM when running in Puppeteer's headless mode.
+ * The assistant message element exists but remains empty, making extraction impossible.
+ * 
+ * The browser window is automatically minimized via Chrome DevTools Protocol
+ * to prevent interference with laptop usability during CI/automated execution.
+ * This approach ensures responses are properly rendered while maintaining
+ * a non-intrusive automated testing experience.
  */
 
 'use strict';
@@ -343,27 +353,138 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Wait for typing animation to complete
       await this.waitForTypingComplete();
 
-      // Reduce extra wait after typing complete
-      await this.browserManager.delay(300);
+      // Add extra wait to ensure response is fully streamed, especially in CI
+      await this.browserManager.delay(2000);
 
-      // Debug: Let's see what's actually on the page
-      const pageInfo = await this.browserManager.page.evaluate(() => {
+      // In headless mode, try to detect if we're actually getting a response
+      // by checking DOM changes and network activity
+      const isHeadless = this.config.headless === true || this.config.headless === 'new';
+      if (isHeadless) {
+        this.logger.debug('Running in headless mode - skipping additional detection (let waitForTypingComplete handle it)');
+      }
+
+      // Wait for assistant message content to be populated (critical for headless mode)
+      // This will wait up to 90 seconds for content to appear
+      await this.waitForAssistantContent();
+
+      // Try to extract content from React component data or other sources
+      const reactContent = await this.browserManager.page.evaluate(() => {
+        // Try to find content in React component data
+        const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+        if (assistantMessages.length === 0) return null;
+
+        const lastMessage = assistantMessages[assistantMessages.length - 1];
+
+        // SPECIAL HEADLESS MODE CHECK:
+        // In headless, elements might not have text content but have innerHTML
+        // Check if element exists but is empty
+        if (lastMessage.innerHTML && lastMessage.innerHTML.trim().length === 0) {
+          // Element exists but has no HTML content - check for specific structure
+          const hasChildElements = lastMessage.children && lastMessage.children.length > 0;
+          return {
+            type: 'empty-element-headless-mode',
+            hasChildren: hasChildElements,
+            innerHTML: lastMessage.innerHTML,
+            childrenCount: lastMessage.children ? lastMessage.children.length : 0
+          };
+        }
+
+        // Look for any element with data-start/data-end attributes (React rendering)
+        const dataElements = lastMessage.querySelectorAll('[data-start], [data-end]');
+        for (const el of dataElements) {
+          const text = el.textContent || el.innerText || '';
+          if (text && text.trim() && text.trim() !== 'ChatGPT said:' && text.trim() !== 'ChatGPT said') {
+            return { type: 'data-element', content: text.trim() };
+          }
+        }
+
+        // Try to access React fiber tree if available
+        try {
+          const reactKey = Object.keys(lastMessage).find(key => key.startsWith('__reactFiber'));
+          if (reactKey) {
+            const fiber = lastMessage[reactKey];
+            if (fiber && fiber.memoizedProps && fiber.memoizedProps.children) {
+              const content = typeof fiber.memoizedProps.children === 'string' ? fiber.memoizedProps.children : null;
+              if (content && content.trim()) {
+                return { type: 'react-fiber', content: content.trim() };
+              }
+            }
+          }
+        } catch (e) {
+          // React fiber access might fail
+        }
+
+        // Look for any text content that looks like a response (not UI text)
+        const allTextNodes = [];
+        const walk = document.createTreeWalker(lastMessage, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while (node = walk.nextNode()) {
+          const text = node.textContent?.trim();
+          if (text && text.length > 0 && text !== 'ChatGPT said:' && !text.includes('window.__')) {
+            allTextNodes.push(text);
+          }
+        }
+
+        // If we have text nodes, try to find the actual response
+        if (allTextNodes.length > 0) {
+          // Filter out UI text and find actual content
+          const responseCandidates = allTextNodes.filter(text =>
+            !text.toLowerCase().includes('chatgpt') &&
+            !text.toLowerCase().includes('said:') &&
+            text.length <= 100 // Reasonable response length
+          );
+          if (responseCandidates.length > 0) {
+            return { type: 'text-nodes', content: responseCandidates[0] };
+          }
+        }
+
+        return null;
+      });
+
+      if (reactContent) {
+        if (reactContent.type === 'empty-element-headless-mode') {
+          this.logger.warn('HEADLESS MODE ISSUE: Assistant element exists but is empty!', reactContent);
+          // In this case, we need to trigger a refresh or find the content elsewhere
+        } else {
+          this.logger.debug('Found content via React inspection', {
+            type: reactContent.type,
+            content: reactContent.content?.substring(0, 50)
+          });
+          // Use this content directly instead of going through extraction strategies
+          if (reactContent.content) {
+            return reactContent.content;
+          }
+        }
+      }
+
+      // Debug: Check what assistant message elements actually exist
+      const debugInfo = await this.browserManager.page.evaluate(() => {
+        const allAssistantElements = document.querySelectorAll('[data-message-author-role]');
+        const assistantElements = document.querySelectorAll('[data-message-author-role="assistant"]');
+        const conversationTurns = document.querySelectorAll('[data-testid*="conversation-turn"]');
+        
+        // Get ALL text from page to see if response is anywhere
+        const allPageText = document.body.textContent || '';
+        const hasNumberFour = allPageText.includes('4') || allPageText.includes('four') || allPageText.includes('Four');
+
         return {
-          title: document.title,
-          url: window.location.href,
-          hasConversation: !!document.querySelector(
-            '[data-testid*="conversation-turn"]'
-          ),
-          conversationTurns: document.querySelectorAll(
-            '[data-testid*="conversation-turn"]'
-          ).length,
-          lastTurnContent: document
-            .querySelector('[data-testid*="conversation-turn"]:last-child')
-            ?.textContent?.substring(0, 200),
+          allMessageRoles: Array.from(allAssistantElements).map(el => ({
+            role: el.getAttribute('data-message-author-role'),
+            text: (el.textContent || el.innerText || '').trim().substring(0, 50),
+            hasContent: (el.textContent || el.innerText || '').trim().length > 0,
+            innerHTML: el.innerHTML.substring(0, 200)
+          })),
+          assistantCount: assistantElements.length,
+          conversationTurnsCount: conversationTurns.length,
+          lastTurnHTML: conversationTurns.length > 0 ?
+            conversationTurns[conversationTurns.length - 1].outerHTML.substring(0, 500) : null,
+          allPageTextLength: allPageText.length,
+          hasNumberFour: hasNumberFour,
+          pageBodyFirstThousandChars: allPageText.substring(0, 1000)
         };
       });
 
-      this.logger.debug('Page analysis for response extraction', pageInfo);
+      this.logger.debug('Assistant message debug info', debugInfo);
 
       // Take a screenshot before extraction for debugging
       try {
@@ -379,6 +500,35 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Try multiple extraction strategies
       const extractionStrategies = [
         {
+          name: 'react-data-attributes',
+          selector: '[data-message-author-role="assistant"] [data-start], [data-message-author-role="assistant"] [data-end]',
+        },
+        {
+          name: 'assistant-markdown-simple',
+          selector: '[data-message-author-role="assistant"] .markdown, [data-message-author-role="assistant"] .prose',
+        },
+        {
+          name: 'assistant-paragraph',
+          selector: '[data-message-author-role="assistant"] p',
+        },
+        {
+          name: 'conversation-turn-paragraph',
+          selector: '[data-testid*="conversation-turn"]:last-child p',
+        },
+        {
+          name: 'assistant-any-content',
+          selector: '[data-message-author-role="assistant"]',
+        },
+        {
+          name: 'conversation-turn-assistant-markdown',
+          selector:
+            '[data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"] .markdown, [data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"] .prose',
+        },
+        {
+          name: 'assistant-message-markdown',
+          selector: '[data-message-author-role="assistant"]:last-child .markdown, [data-message-author-role="assistant"]:last-child .prose',
+        },
+        {
           name: 'conversation-turn-assistant',
           selector:
             '[data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"]',
@@ -391,6 +541,10 @@ class ChatGPTProvider extends BaseLLMProvider {
         {
           name: 'assistant-message',
           selector: '[data-message-author-role="assistant"]:last-child',
+        },
+        {
+          name: 'assistant-message-full-text',
+          selector: '[data-message-author-role="assistant"]:last-child *',
         },
         {
           name: 'markdown-content',
@@ -413,15 +567,28 @@ class ChatGPTProvider extends BaseLLMProvider {
 
           const elements = await this.browserManager.page.$$eval(
             strategy.selector,
-            (elements) =>
-              elements
-                .map((el) => ({
-                  text: el.textContent || el.innerText || '',
+            (elements) => {
+              // For each element, try to get all available text content
+              return elements.map((el) => {
+                // Try different methods to extract text
+                let text = '';
+                
+                if (el.tagName === 'DIV' && el.hasAttribute('data-message-author-role')) {
+                  // For message containers, get all text including nested elements
+                  text = el.innerText || el.textContent || '';
+                } else {
+                  // Prefer innerText (renders as visible), fall back to textContent
+                  text = el.innerText || el.textContent || '';
+                }
+                
+                return {
+                  text: text,
                   html: el.innerHTML?.substring(0, 200) || '',
                   tagName: el.tagName,
                   className: el.className,
-                }))
-                .filter((item) => item.text.trim().length > 0) // Allow any non-empty text, including short answers like "4"
+                };
+              }).filter((item) => item.text.trim().length > 0); // Allow any non-empty text
+            }
           );
 
           this.logger.debug(`Strategy ${strategy.name} results`, {
@@ -557,6 +724,44 @@ class ChatGPTProvider extends BaseLLMProvider {
         }
       }
 
+      // If still no response, check if this is a headless rendering issue
+      if (!extractedResponse || extractedResponse === 'ChatGPT said:' || extractedResponse === 'ChatGPT said') {
+        this.logger.warn('HEADLESS MODE: No content found with standard extraction, trying page-wide search');
+        
+        // Try to find the response anywhere on the page
+        const pageWideSearch = await this.browserManager.page.evaluate(() => {
+          // Get all text from the page except common UI elements
+          const bodyText = document.body.innerText || document.body.textContent || '';
+          
+          // Find lines that look like responses (not UI text)
+          const lines = bodyText.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+          
+          // Filter out common UI elements
+          const uiKeywords = ['send', 'message', 'new chat', 'settings', 'upgrade', 'edit', 'copy', 'delete', 'regenerate', 'continue'];
+          const responseLines = lines.filter(line => {
+            const lower = line.toLowerCase();
+            return !uiKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
+          });
+          
+          return responseLines;
+        });
+
+        if (pageWideSearch && pageWideSearch.length > 0) {
+          // Find the most likely response (usually one of the last meaningful lines)
+          const candidateResponse = pageWideSearch[pageWideSearch.length - 1];
+          if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:') {
+            extractedResponse = candidateResponse;
+            usedStrategy = 'page-wide-search-headless';
+            this.logger.debug('Found response via page-wide search', {
+              response: extractedResponse.substring(0, 100),
+              totalLines: pageWideSearch.length
+            });
+          }
+        }
+      }
+
       if (!extractedResponse) {
         throw new Error(
           'No valid response text found with any extraction strategy'
@@ -565,29 +770,109 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       const duration = Date.now() - startTime;
       
-      // Validate extracted response - if it's suspiciously short or just a label, save HTML for debugging
+      // Validate extracted response - if it's suspiciously wrong, retry extraction
       if (extractedResponse && (
-        extractedResponse.length < 2 ||
+        extractedResponse.length < 1 || // Empty responses are suspicious
         extractedResponse === 'ChatGPT said:' ||
         extractedResponse === 'ChatGPT said' ||
-        extractedResponse.toLowerCase().includes('said:') && extractedResponse.length < 30
+        (extractedResponse.toLowerCase().includes('said:') && extractedResponse.length < 10) // Only flag if very short and contains "said:"
       )) {
-        this.logger.warn('Extracted response looks suspicious, saving HTML artifact for debugging', {
+        this.logger.warn('Extracted response looks suspicious, retrying extraction with more aggressive strategies', {
           responseLength: extractedResponse.length,
           responsePreview: extractedResponse.substring(0, 100),
         });
         
+        // Reset and try again with more time and different selectors
+        await this.browserManager.delay(2000);
+        
         try {
-          const html = await this.browserManager.page.content();
-          const fs = require('fs');
-          const path = require('path');
-          const artifactDir = path.join(process.cwd(), 'artifacts');
-          if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-          const htmlPath = path.join(artifactDir, `chatgpt_suspicious_response_${Date.now()}.html`);
-          fs.writeFileSync(htmlPath, html, 'utf8');
-          this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
-        } catch (htmlErr) {
-          this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
+          // Try to get the full content of the last message, including all nested elements
+          const retryContent = await this.browserManager.page.evaluate(() => {
+            const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
+            if (messages.length === 0) return null;
+            
+            const lastMessage = messages[messages.length - 1];
+            // Get all text content including from nested elements
+            const allText = lastMessage.innerText || lastMessage.textContent || '';
+            const trimmed = allText.trim();
+            
+            // Also try to get content from all child elements
+            const childTexts = [];
+            lastMessage.querySelectorAll('*').forEach(el => {
+              const text = (el.innerText || el.textContent || '').trim();
+              if (text && text.length > 0 && !childTexts.includes(text)) {
+                childTexts.push(text);
+              }
+            });
+            
+            // Special handling for cases where we get "ChatGPT said:" - try to find the actual response
+            let actualResponse = trimmed;
+            if (trimmed === 'ChatGPT said:' || trimmed === 'ChatGPT said') {
+              // Look for markdown content or other text elements
+              const markdownElements = lastMessage.querySelectorAll('.markdown, .prose, p, span');
+              for (const el of markdownElements) {
+                const text = (el.innerText || el.textContent || '').trim();
+                if (text && text !== 'ChatGPT said:' && text !== 'ChatGPT said' && text.length > 0) {
+                  actualResponse = text;
+                  break;
+                }
+              }
+            }
+            
+            return {
+              mainText: trimmed,
+              actualResponse: actualResponse,
+              allText: allText.trim(),
+              childCount: childTexts.length,
+              longestChild: childTexts.length > 0 ? childTexts.reduce((a, b) => a.length > b.length ? a : b) : '',
+            };
+          });
+          
+          if (retryContent) {
+            // Prefer the actual response if it was extracted from markdown
+            if (retryContent.actualResponse && retryContent.actualResponse !== extractedResponse) {
+              this.logger.info('Retry found actual response content', {
+                original: extractedResponse.substring(0, 50),
+                actual: retryContent.actualResponse.substring(0, 50),
+              });
+              extractedResponse = retryContent.actualResponse;
+            } else if (retryContent.mainText && retryContent.mainText.length > extractedResponse.length) {
+              this.logger.info('Retry extraction found longer response', {
+                originalLength: extractedResponse.length,
+                retryLength: retryContent.mainText.length,
+              });
+              extractedResponse = retryContent.mainText;
+            } else if (retryContent.longestChild && retryContent.longestChild.length > extractedResponse.length) {
+              this.logger.info('Retry extraction found longer child content', {
+                originalLength: extractedResponse.length,
+                retryLength: retryContent.longestChild.length,
+              });
+              extractedResponse = retryContent.longestChild;
+            }
+          }
+        } catch (retryError) {
+          this.logger.debug('Retry extraction failed', { error: retryError.message });
+        }
+        
+        // If still suspiciously short after retry, save artifact but proceed
+        if (extractedResponse.length < 1) {
+          this.logger.error('Response still suspiciously short after retry', {
+            responseLength: extractedResponse.length,
+            responsePreview: extractedResponse.substring(0, 100),
+          });
+          
+          try {
+            const html = await this.browserManager.page.content();
+            const fs = require('fs');
+            const path = require('path');
+            const artifactDir = path.join(process.cwd(), 'artifacts');
+            if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
+            const htmlPath = path.join(artifactDir, `chatgpt_suspicious_response_${Date.now()}.html`);
+            fs.writeFileSync(htmlPath, html, 'utf8');
+            this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
+          } catch (htmlErr) {
+            this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
+          }
         }
       }
       
@@ -610,7 +895,7 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
-    const maxWait = 60000; // Max 60s
+    const maxWait = 90000; // Increased to 90s for CI environments
     const pollInterval = 500; // Check every 500ms
     const start = Date.now();
 
@@ -618,6 +903,10 @@ class ChatGPTProvider extends BaseLLMProvider {
 
     // First wait a minimum time for response to start
     await this.browserManager.delay(2000);
+    
+    let previousContentLength = 0;
+    let stableCount = 0;
+    const stableThreshold = 3; // Need 3 consecutive checks with same content length
 
     while (Date.now() - start < maxWait) {
       try {
@@ -630,37 +919,68 @@ class ChatGPTProvider extends BaseLLMProvider {
           const sendButton = document.querySelector('[data-testid="send-button"]') ||
                            document.querySelector('button[data-testid="send-button"]');
 
+          // Check the ARIA live region for generation status (most reliable in headless)
+          const liveRegion = document.querySelector('[aria-live="assertive"]');
+          const liveRegionText = liveRegion ? (liveRegion.textContent || '').toLowerCase() : '';
+          const isStillGenerating = liveRegionText.includes('generating') || liveRegionText.includes('still');
+
           // Check for substantial content in the last assistant message
           const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');     
           const lastMessage = assistantMessages[assistantMessages.length - 1];
           const content = lastMessage ? (lastMessage.textContent || lastMessage.innerText || '') : '';
-          const hasSubstantialContent = content.trim().length > 10; // Lower threshold
+          const contentLength = content.trim().length;
+          const hasSubstantialContent = contentLength > 10; // Lower threshold
+
+          // Most important: check the live region first - if it says "still generating", we're not done
+          if (isStillGenerating) {
+            return { status: 'typing', contentLength, reason: 'live-region-says-generating' };
+          }
 
           // If stop button is gone AND we have some content, we're done
           if (!stopButton && hasSubstantialContent) {
-            return 'complete';
+            return { status: 'complete', contentLength, reason: 'no-stop-button-has-content' };
           }
 
           // If stop button exists or send button is disabled, still generating
           if (stopButton || (sendButton && sendButton.disabled)) {
-            return 'typing';
+            return { status: 'typing', contentLength, reason: 'stop-button-exists' };
           }
 
           // If we have substantial content but no stop button, we're done
           if (hasSubstantialContent) {
-            return 'complete';
+            return { status: 'complete', contentLength, reason: 'has-substantial-content' };
           }
 
-          return 'waiting'; // No substantial content yet
+          return { status: 'waiting', contentLength, reason: 'no-content-yet' }; // No substantial content yet
         });
 
-        if (status === 'complete') {
-          this.logger.debug('Typing animation completed - content found');
-          return;
-        } else if (status === 'typing') {
-          this.logger.debug('Still generating response...');
+        this.logger.debug('Typing status check', { status: status.status, contentLength: status.contentLength, reason: status.reason });
+
+        // Check if content has stabilized (stopped changing)
+        if (status.contentLength === previousContentLength && status.contentLength > 0) {
+          stableCount++;
+          this.logger.debug('Content stable check', { stableCount, contentLength: status.contentLength });
+          
+          // If content hasn't changed for a few checks, consider it done
+          if (stableCount >= stableThreshold) {
+            this.logger.debug('Content has stabilized - marking as complete', { 
+              contentLength: status.contentLength,
+              stableCount 
+            });
+            return;
+          }
         } else {
-          this.logger.debug('Waiting for response content...');
+          stableCount = 0; // Reset if content changed
+          previousContentLength = status.contentLength;
+        }
+
+        if (status.status === 'complete') {
+          this.logger.debug('Typing animation completed', { contentLength: status.contentLength, reason: status.reason });
+          return;
+        } else if (status.status === 'typing') {
+          this.logger.debug('Still generating response...', { contentLength: status.contentLength, reason: status.reason });
+        } else {
+          this.logger.debug('Waiting for response content...', { contentLength: status.contentLength });
         }
 
         await this.browserManager.delay(pollInterval);
@@ -673,6 +993,107 @@ class ChatGPTProvider extends BaseLLMProvider {
     }
 
     this.logger.warn('Typing animation check timed out - proceeding with extraction');
+  }
+
+  /**
+   * Wait for assistant message content to be populated (critical for headless mode)
+   */
+  async waitForAssistantContent() {
+    const maxWait = 90000; // 90 seconds for headless mode
+    const pollInterval = 500; // Check every 500ms
+    const start = Date.now();
+
+    this.logger.debug('Waiting for assistant message content to be populated...');
+
+    while (Date.now() - start < maxWait) {
+      try {
+        const contentStatus = await this.browserManager.page.evaluate(() => {
+          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+          if (assistantMessages.length === 0) {
+            return { hasAssistantMessage: false, contentLength: 0 };
+          }
+
+          const lastMessage = assistantMessages[assistantMessages.length - 1];
+          
+          // Check for React-rendered content in data attributes
+          const reactContent = lastMessage.querySelector('[data-start], [data-end]');
+          if (reactContent) {
+            const reactText = reactContent.textContent || reactContent.innerText || '';
+            if (reactText.trim().length > 0) {
+              return {
+                hasAssistantMessage: true,
+                contentLength: reactText.trim().length,
+                content: reactText.trim().substring(0, 100),
+                hasActualContent: true,
+                source: 'react-data'
+              };
+            }
+          }
+          
+          // Check for markdown/prose content
+          const markdownContent = lastMessage.querySelector('.markdown, .prose, p');
+          if (markdownContent) {
+            const markdownText = markdownContent.textContent || markdownContent.innerText || '';
+            if (markdownText.trim().length > 0 && markdownText.trim() !== 'ChatGPT said:') {
+              return {
+                hasAssistantMessage: true,
+                contentLength: markdownText.trim().length,
+                content: markdownText.trim().substring(0, 100),
+                hasActualContent: true,
+                source: 'markdown'
+              };
+            }
+          }
+
+          // Check all text in the message container
+          const allText = lastMessage.textContent || lastMessage.innerText || '';
+          const textContent = allText.trim();
+          
+          // Filter out "ChatGPT said:" which is just UI text
+          if (textContent && textContent !== 'ChatGPT said:' && textContent !== 'ChatGPT said') {
+            return {
+              hasAssistantMessage: true,
+              contentLength: textContent.length,
+              content: textContent.substring(0, 100),
+              hasActualContent: true,
+              source: 'textContent'
+            };
+          }
+
+          return {
+            hasAssistantMessage: true,
+            contentLength: textContent.length,
+            content: textContent.substring(0, 100),
+            hasActualContent: false,
+            source: 'textContent'
+          };
+        });
+
+        if (contentStatus.hasAssistantMessage && contentStatus.hasActualContent) {
+          this.logger.debug('Assistant message content populated', {
+            contentLength: contentStatus.contentLength,
+            contentPreview: contentStatus.content,
+            source: contentStatus.source
+          });
+          return;
+        }
+
+        this.logger.debug('Waiting for assistant content...', {
+          hasAssistantMessage: contentStatus.hasAssistantMessage,
+          contentLength: contentStatus.contentLength,
+          contentPreview: contentStatus.content
+        });
+
+        await this.browserManager.delay(pollInterval);
+      } catch (error) {
+        this.logger.warn('Error checking assistant content', {
+          error: error.message,
+        });
+        await this.browserManager.delay(pollInterval);
+      }
+    }
+
+    this.logger.warn('Assistant content wait timed out - proceeding with extraction anyway');
   }
 
   /**
@@ -817,6 +1238,73 @@ class ChatGPTProvider extends BaseLLMProvider {
         });
         await this.ensureLoggedIn();
       }
+    }
+  }
+
+  /**
+   * Reset browser state by navigating to a fresh chat page
+   */
+  async resetBrowserState() {
+    try {
+      this.logger.debug('Resetting browser state...');
+      // Navigate directly to home to get a fresh chat
+      await this.browserManager.navigateToUrl('https://chatgpt.com/');
+      await this.browserManager.delay(2000);
+      
+      // Wait for the text area to be available
+      await this.browserManager.waitForElement(this.selectors.textArea, {
+        timeout: 10000,
+      });
+      this.logger.debug('Browser state reset complete');
+    } catch (error) {
+      this.logger.warn('Failed to reset browser state', {
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Start a new chat to ensure clean conversation state
+   */
+  async startNewChat() {
+    try {
+      // Try multiple selectors for the "New chat" button
+      const newChatSelectors = [
+        '[data-testid="new-chat-button"]',
+        'button[data-testid="new-chat-button"]',
+        'a[href="/"]',
+        'button:has(svg):first-child', // Often the first button with an icon
+        '[aria-label*="New chat"]',
+        'button[aria-label*="New chat"]'
+      ];
+
+      let newChatClicked = false;
+      for (const selector of newChatSelectors) {
+        try {
+          await this.browserManager.waitForElement(selector, { timeout: 3000 });
+          await this.browserManager.clickElement(selector);
+          this.logger.debug('New chat button clicked', { selector });
+          newChatClicked = true;
+          
+          // Wait for the page to reset and text area to appear
+          await this.browserManager.waitForElement(this.selectors.textArea, { timeout: 10000 });
+          this.logger.debug('New chat started successfully');
+          break;
+        } catch (error) {
+          this.logger.debug('New chat selector failed, trying next', {
+            selector,
+            error: error.message,
+          });
+        }
+      }
+
+      if (!newChatClicked) {
+        this.logger.debug('Could not find new chat button, assuming we are already in a fresh state');
+      }
+    } catch (error) {
+      this.logger.warn('Failed to start new chat, continuing with current state', {
+        error: error.message,
+      });
     }
   }
 
