@@ -1001,18 +1001,18 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
-    const maxWait = 90000; // Increased to 90s for CI environments
-    const pollInterval = 500; // Check every 500ms
+    const maxWait = 300000; // Increased to 5 minutes for CI environments
+    const pollInterval = 1000; // Check every second
     const start = Date.now();
 
     this.logger.debug('Waiting for typing animation to complete...');
 
     // First wait a minimum time for response to start
-    await this.browserManager.delay(2000);
+    await this.browserManager.delay(3000);
     
     let previousContentLength = 0;
     let stableCount = 0;
-    const stableThreshold = 3; // Need 3 consecutive checks with same content length
+    const stableThreshold = 5; // Need 5 consecutive checks with same content length
 
     while (Date.now() - start < maxWait) {
       try {
@@ -1035,16 +1035,11 @@ class ChatGPTProvider extends BaseLLMProvider {
           const lastMessage = assistantMessages[assistantMessages.length - 1];
           const content = lastMessage ? (lastMessage.textContent || lastMessage.innerText || '') : '';
           const contentLength = content.trim().length;
-          const hasSubstantialContent = contentLength > 10; // Lower threshold
+          const hasSubstantialContent = contentLength > 1; // Very low threshold - even "4" is enough
 
           // Most important: check the live region first - if it says "still generating", we're not done
           if (isStillGenerating) {
             return { status: 'typing', contentLength, reason: 'live-region-says-generating' };
-          }
-
-          // If stop button is gone AND we have some content, we're done
-          if (!stopButton && hasSubstantialContent) {
-            return { status: 'complete', contentLength, reason: 'no-stop-button-has-content' };
           }
 
           // If stop button exists or send button is disabled, still generating
@@ -1052,12 +1047,12 @@ class ChatGPTProvider extends BaseLLMProvider {
             return { status: 'typing', contentLength, reason: 'stop-button-exists' };
           }
 
-          // If we have substantial content but no stop button, we're done
+          // If we have any content at all, we're done (for simple responses like "4")
           if (hasSubstantialContent) {
-            return { status: 'complete', contentLength, reason: 'has-substantial-content' };
+            return { status: 'complete', contentLength, reason: 'has-any-content' };
           }
 
-          return { status: 'waiting', contentLength, reason: 'no-content-yet' }; // No substantial content yet
+          return { status: 'waiting', contentLength, reason: 'no-content-yet' }; // No content yet
         });
 
         this.logger.debug('Typing status check', { status: status.status, contentLength: status.contentLength, reason: status.reason });
@@ -1067,7 +1062,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           stableCount++;
           this.logger.debug('Content stable check', { stableCount, contentLength: status.contentLength });
           
-          // If content hasn't changed for a few checks, consider it done
+          // If content hasn't changed for several checks, consider it done
           if (stableCount >= stableThreshold) {
             this.logger.debug('Content has stabilized - marking as complete', { 
               contentLength: status.contentLength,
@@ -1082,6 +1077,8 @@ class ChatGPTProvider extends BaseLLMProvider {
 
         if (status.status === 'complete') {
           this.logger.debug('Typing animation completed', { contentLength: status.contentLength, reason: status.reason });
+          // Add a small delay to ensure content is fully rendered
+          await this.browserManager.delay(2000);
           return;
         } else if (status.status === 'typing') {
           this.logger.debug('Still generating response...', { contentLength: status.contentLength, reason: status.reason });

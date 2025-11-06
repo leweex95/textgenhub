@@ -262,7 +262,7 @@ class GrokProvider extends BaseLLMProvider {
    * @param {Object} options - Wait options
    */
   async waitForResponse(options = {}) {
-    const timeout = options.timeout || 60000; // 1 minute default
+    const timeout = options.timeout || 120000; // Increased to 2 minutes for CI
     const startTime = Date.now();
 
     this.logger.debug('Waiting for Grok response...');
@@ -271,7 +271,7 @@ class GrokProvider extends BaseLLMProvider {
       // Simple approach: wait for any response text to appear
       let response = '';
       const maxWaitTime = timeout;
-      const checkInterval = 1000; // Check every second
+      const checkInterval = 2000; // Check every 2 seconds
 
       for (let elapsed = 0; elapsed < maxWaitTime; elapsed += checkInterval) {
         try {
@@ -286,14 +286,14 @@ class GrokProvider extends BaseLLMProvider {
             const assistantMessages = messageBubbles.filter(bubble => {
               const text = bubble.textContent?.trim() || '';
               const isVisible = bubble.offsetParent !== null;
-              const hasContent = text.length > 10;
+              const hasContent = text.length > 0; // Allow any content, even short responses
 
               // Skip if this looks like user input (contains the question we just asked)
               // This is a heuristic - look for messages that don't start with simple questions
               const looksLikeUserInput = text.startsWith('What is') ||
                                         text.startsWith('Explain') ||
                                         text.startsWith('How') ||
-                                        text.length < 20; // User inputs are typically short
+                                        text.length < 10; // User inputs are typically short
 
               return isVisible && hasContent && !looksLikeUserInput &&
                      !text.includes('window.__') &&
@@ -311,13 +311,13 @@ class GrokProvider extends BaseLLMProvider {
             const assistantMarkdowns = markdownElements.filter(el => {
               const text = el.textContent?.trim() || '';
               const isVisible = el.offsetParent !== null;
-              const hasContent = text.length > 10;
+              const hasContent = text.length > 0; // Allow any content
 
               // Skip user inputs
               const looksLikeUserInput = text.startsWith('What is') ||
                                         text.startsWith('Explain') ||
                                         text.startsWith('How') ||
-                                        text.length < 20;
+                                        text.length < 10;
 
               return isVisible && hasContent && !looksLikeUserInput;
             });
@@ -325,6 +325,16 @@ class GrokProvider extends BaseLLMProvider {
             if (assistantMarkdowns.length > 0) {
               const lastMarkdown = assistantMarkdowns[assistantMarkdowns.length - 1];
               return lastMarkdown.textContent?.trim() || '';
+            }
+
+            // Additional fallback: look for any content in assistant message containers
+            const assistantContainers = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+            if (assistantContainers.length > 0) {
+              const lastContainer = assistantContainers[assistantContainers.length - 1];
+              const text = lastContainer.textContent?.trim() || '';
+              if (text.length > 0) {
+                return text;
+              }
             }
 
             return '';
