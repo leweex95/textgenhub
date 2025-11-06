@@ -86,7 +86,7 @@ class GrokProvider extends BaseLLMProvider {
 
     // Grok-specific configuration with configurable headless mode
     this.config.headless =
-      config.headless !== undefined ? config.headless : true; // Default to headless
+      config.headless !== undefined ? config.headless : false; // Default to non-headless for Grok
     this.config.timeout = config.timeout || 60000;
     this.config.sessionTimeout = config.sessionTimeout || 3600000;
     this.config.userDataDir =
