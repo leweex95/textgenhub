@@ -114,21 +114,9 @@ class GrokProvider extends BaseLLMProvider {
       await this.browserManager.navigateToUrl(this.urls.chat);
       this.logger.debug('Grok navigation completed');
 
-      // Try to find the text area, if not found, fail fast instead of hanging
-      try {
-        this.logger.info('Waiting for Grok text area...');
-        await this.browserManager.waitForElement(this.selectors.textArea, {
-          timeout: 10000, // Reduced timeout for faster failure
-        });
-        this.isLoggedIn = true;
-        this.logger.info('Grok text area found, session is logged in.');
-      } catch (e) {
-        this.logger.error('Grok login required but not available in headless mode. Please run with --debug flag for manual login.', {
-          error: e.message,
-          stack: e.stack
-        });
-        throw new Error('Grok login required. Run with --debug flag for manual login or ensure you have a valid session.');
-      }
+      // Don't check for text area here - let generateContent handle session validation
+      // This allows for proper login flow on CI runners without existing sessions
+      this.isLoggedIn = false; // Will be set to true during ensureSessionValid
       this.isInitialized = true;
       this.logger.info('Grok provider initialized successfully');
     } catch (error) {

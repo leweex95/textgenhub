@@ -32,6 +32,7 @@ describe('Grok Provider Tests', () => {
     it('should generate a response to a simple prompt', async () => {
         const prompt = 'What is 2+2?';
         const response = await provider.generateContent(prompt);
+        console.log('Grok response:', JSON.stringify(response));
         assert.ok(response.length > 0, 'Response should not be empty');
         assert.ok(response.includes('4'), 'Response should contain the answer');
     }).timeout(60000);
