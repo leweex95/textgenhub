@@ -364,7 +364,7 @@ jobs:
   
       - name: Run Grok regression test
         env:
-          GROK_HEADLESS: true
+          GROK_HEADLESS: 'false'
         run: |
           $headless = if ([System.Environment]::GetEnvironmentVariable('GROK_HEADLESS') -eq 'false') { $false } else { $true }
           $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>&1
