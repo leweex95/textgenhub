@@ -256,56 +256,48 @@ class GrokProvider extends BaseLLMProvider {
       // Check for modal after typing prompt
       await this.handleContinueManuallyPrompt();
 
-      // Send the message
-      this.logger.debug('Attempting to send message via send button', {
-        selector: this.selectors.sendButton,
-      });
-      const sendButtonSelectors = [
-        '[data-testid="send-button"]',
-        'button[data-testid="send-button"]',
-        '[aria-label*="Send"]',
-        'button[aria-label*="Send"]',
-        'button[type="submit"]:not([disabled])',
-        'button:has(svg):last-child',
-      ];
+      // Send the message - try Enter key first (simplest approach)
+      this.logger.debug('Attempting to send message via Enter key');
+      try {
+        // Focus on text area and press Enter
+        await this.browserManager.page.focus(this.selectors.textArea);
+        await this.browserManager.delay(500);
+        await this.browserManager.page.keyboard.press('Enter');
+        this.logger.debug('Message sent via Enter key');
+      } catch (error) {
+        this.logger.warn('Enter key failed, trying send button selectors', { error: error.message });
+        
+        // Fallback to send button selectors
+        const sendButtonSelectors = [
+          '[data-testid="send-button"]',
+          'button[data-testid="send-button"]',
+          '[aria-label*="Send"]',
+          'button[aria-label*="Send"]',
+          'button[type="submit"]:not([disabled])',
+          'button:has(svg):last-child',
+          'button[class*="send"]',
+          'svg[aria-label*="Send"]',
+        ];
 
-      let sendButtonFound = false;
-      for (const selector of sendButtonSelectors) {
-        try {
-          await this.browserManager.waitForElement(selector, { timeout: 5000 });
-          await this.browserManager.clickElement(selector);
-          this.logger.debug('Send button clicked successfully', { selector });
-          sendButtonFound = true;
-          break;
-        } catch (error) {
-          this.logger.debug('Send button selector failed, trying next', {
-            selector,
-            error: error.message,
-          });
+        let sendButtonFound = false;
+        for (const selector of sendButtonSelectors) {
+          try {
+            await this.browserManager.waitForElement(selector, { timeout: 3000 });
+            await this.browserManager.clickElement(selector);
+            this.logger.debug('Send button clicked successfully', { selector });
+            sendButtonFound = true;
+            break;
+          } catch (error) {
+            this.logger.debug('Send button selector failed, trying next', {
+              selector,
+              error: error.message,
+            });
+          }
         }
-      }
 
-      if (!sendButtonFound) {
-        this.logger.warn('All send button selectors failed, trying Enter key fallback');
-        try {
-          // Focus on text area and press Enter
-          await this.browserManager.page.focus(this.selectors.textArea);
-          await this.browserManager.delay(500);
-          await this.browserManager.page.keyboard.press('Enter');
-          this.logger.debug('Message sent via Enter key');
-          sendButtonFound = true;
-        } catch (error) {
-          this.logger.error('Enter key fallback also failed', { error: error.message });
+        if (!sendButtonFound) {
+          throw new Error('Cannot send message - all send methods failed');
         }
-      }
-
-      if (!sendButtonFound) {
-        this.logger.error(
-          'All send methods failed - Grok interface may have changed'
-        );
-        throw new Error(
-          'Cannot send message - Grok interface may have changed'
-        );
       }
 
       // Check for modal after clicking send (in case it appears late)
