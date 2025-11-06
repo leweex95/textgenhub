@@ -174,144 +174,90 @@ class GrokProvider extends BaseLLMProvider {
         await this.browserManager.navigateToUrl(this.urls.chat);
       }
 
-      // Try to find text area, reset browser state if not found
-      if (this.config.debug) this.logger.debug('Waiting for text area', {
-        selector: this.selectors.textArea,
-      });
-      
-      let textAreaFound = false;
-      const maxAttempts = 2;
-      
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          await this.browserManager.waitForElement(this.selectors.textArea, {
-            timeout: 10000,
-          });
-          if (this.config.debug) this.logger.debug('Text area found', { attempt });
-          textAreaFound = true;
-          break;
-        } catch (error) {
-          if (attempt < maxAttempts) {
-            if (this.config.debug) this.logger.warn(`Text area not found on attempt ${attempt}, resetting browser state`, {
-              error: error.message,
-            });
-            await this.resetBrowserState();
-          } else {
-            if (this.config.debug) this.logger.error(`Text area not found after ${maxAttempts} attempts`, {
-              error: error.message,
-            });
-            throw error;
-          }
-        }
-      }
-      
-      if (!textAreaFound) {
-        throw new Error('Text area not found after multiple attempts');
-      }
-
-      // Check for modal before typing prompt
-      await this.handleContinueManuallyPrompt();
-
-      // Clear any existing text and type the prompt
-      if (this.config.debug) this.logger.debug('Typing prompt into text area');
-      
-      let promptSet = false;
-      const maxPromptAttempts = 3;
-      
-      for (let attempt = 1; attempt <= maxPromptAttempts; attempt++) {
-        try {
-          // Ensure text area is still available
-          await this.browserManager.waitForElement(this.selectors.textArea, {
-            timeout: 5000,
-          });
-          
-          await this.browserManager.setTextValue(this.selectors.textArea, prompt);
-          if (this.config.debug) this.logger.debug('Prompt set using direct value method', { attempt });
-          promptSet = true;
-          break;
-        } catch (error) {
-          if (attempt < maxPromptAttempts) {
-            this.logger.warn(`Failed to set prompt on attempt ${attempt}, retrying...`, {
-              error: error.message,
-            });
-            // Check for popups that might have appeared
-            await this.handleContinueManuallyPrompt();
-            // Small delay before retry
-            await this.browserManager.delay(1000);
-          } else {
-            this.logger.error('Failed to set prompt text after all attempts', {
-              error: error.message,
-            });
-            throw new Error(`Cannot input prompt after ${maxPromptAttempts} attempts: ${error.message}`);
-          }
-        }
-      }
-      
-      if (!promptSet) {
-        throw new Error('Failed to set prompt text');
-      }
-      
-      this.logger.debug('Prompt input completed successfully');
-
-      // Check for modal after typing prompt
-      await this.handleContinueManuallyPrompt();
-
-      // Send the message - try Enter key first (simplest approach)
-      this.logger.debug('Attempting to send message via Enter key');
+      // Handle any popups first (simplified approach)
       try {
-        // Focus on text area and press Enter
-        await this.browserManager.page.focus(this.selectors.textArea);
+        await this.browserManager.page.evaluate(() => {
+          // Click all visible close buttons
+          const closeButtons = Array.from(document.querySelectorAll(
+            'button[aria-label*="Close"], button[aria-label*="Dismiss"], [class*="close"]'
+          )).filter(el => el.offsetParent !== null);
+          closeButtons.forEach(btn => btn.click());
+
+          // Remove any remaining popups/dialogs
+          const popups = Array.from(document.querySelectorAll(
+            'div[role="dialog"], [class*="popup"], [class*="modal"], [class*="overlay"]'
+          )).filter(el => el.offsetParent !== null);
+          popups.forEach(popup => popup.parentNode?.removeChild(popup));
+        });
         await this.browserManager.delay(500);
-        await this.browserManager.page.keyboard.press('Enter');
-        this.logger.debug('Message sent via Enter key');
-      } catch (error) {
-        this.logger.warn('Enter key failed, trying send button selectors', { error: error.message });
-        
-        // Fallback to send button selectors
-        const sendButtonSelectors = [
-          '[data-testid="send-button"]',
-          'button[data-testid="send-button"]',
-          '[aria-label*="Send"]',
-          'button[aria-label*="Send"]',
-          'button[type="submit"]:not([disabled])',
-          'button:has(svg):last-child',
-          'button[class*="send"]',
-          'svg[aria-label*="Send"]',
-        ];
-
-        let sendButtonFound = false;
-        for (const selector of sendButtonSelectors) {
-          try {
-            await this.browserManager.waitForElement(selector, { timeout: 3000 });
-            await this.browserManager.clickElement(selector);
-            this.logger.debug('Send button clicked successfully', { selector });
-            sendButtonFound = true;
-            break;
-          } catch (error) {
-            this.logger.debug('Send button selector failed, trying next', {
-              selector,
-              error: error.message,
-            });
-          }
-        }
-
-        if (!sendButtonFound) {
-          throw new Error('Cannot send message - all send methods failed');
-        }
+      } catch (e) {
+        if (this.config.debug) this.logger.debug('Error handling popups', { error: e.message });
       }
 
-      // Check for modal after clicking send (in case it appears late)
-      await this.handleContinueManuallyPrompt();
+      // Find and prepare input (simplified approach)
+      try {
+        const inputReady = await this.browserManager.page.evaluate(() => {
+          // Look for various input types
+          const possibleInputs = [
+            // Contenteditable divs
+            ...Array.from(document.querySelectorAll('div[contenteditable="true"]')),
+            // Textareas
+            ...Array.from(document.querySelectorAll('textarea')),
+            // Text inputs
+            ...Array.from(document.querySelectorAll('input[type="text"]')),
+          ].filter(el => {
+            const isVisible = el.offsetParent !== null;
+            const notInPopup = !el.closest('div[role="dialog"]') && !el.closest('[class*="popup"]') && !el.closest('[class*="modal"]');
+            const notEmail = !el.getAttribute('placeholder')?.toLowerCase().includes('email') &&
+                           !el.getAttribute('type')?.includes('email') &&
+                           !el.className?.toLowerCase().includes('email');
+            const notHidden = !el.getAttribute('hidden') && el.style.display !== 'none' && el.style.visibility !== 'hidden';
+            return isVisible && notInPopup && notEmail && notHidden;
+          });
 
-      // Wait for response to appear
-      this.logger.debug('Waiting for response...');
-      const response = await this.waitForResponse(options);
-      console.log(JSON.stringify({ response }));
+          if (possibleInputs.length > 0) {
+            // Prefer the first visible input
+            const input = possibleInputs[0];
+            if (input.tagName.toLowerCase() === 'div' && input.getAttribute('contenteditable') === 'true') {
+              input.innerHTML = '';
+              input.focus();
+            } else {
+              input.value = '';
+              input.focus();
+            }
+            return true;
+          }
+          return false;
+        });
 
-      const duration = Date.now() - startTime;
-      const validatedResponse = this.validateResponse(response);
-      this.logRequest(prompt, validatedResponse, duration, options);
-      return validatedResponse;
+        if (!inputReady) {
+          throw new Error('Could not find appropriate input field');
+        }
+
+        // Type the prompt
+        await this.browserManager.page.keyboard.type(prompt);
+        if (this.config.debug) this.logger.debug('Prompt typed successfully');
+
+        // Submit the prompt - try Enter key first
+        await this.browserManager.page.keyboard.press('Enter');
+        if (this.config.debug) this.logger.debug('Submitted with Enter key');
+
+        // Wait for response
+        const response = await this.waitForResponse(options);
+
+        const duration = Date.now() - startTime;
+        const validatedResponse = this.validateResponse(response);
+        this.logRequest(prompt, validatedResponse, duration, options);
+        return validatedResponse;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        this.logger.error('Content generation failed', {
+          duration,
+          error: error.message,
+          stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+        });
+        throw await this.handleError(error, 'content generation');
+      }
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error('Content generation failed', {
@@ -324,7 +270,7 @@ class GrokProvider extends BaseLLMProvider {
   }
 
   /**
-   * Wait for Grok response to appear
+   * Wait for Grok response to appear (simplified version)
    * @param {Object} options - Wait options
    */
   async waitForResponse(options = {}) {
@@ -334,219 +280,126 @@ class GrokProvider extends BaseLLMProvider {
     this.logger.debug('Waiting for Grok response...');
 
     try {
-      // Wait for the response container to appear and be populated
-      await this.browserManager.waitForElement(
-        this.selectors.messageContainer,
-        {
-          timeout: timeout,
-        }
-      );
+      // Simple approach: wait for any response text to appear
+      let response = '';
+      const maxWaitTime = timeout;
+      const checkInterval = 1000; // Check every second
 
-      // Wait for typing animation to complete
-      await this.waitForTypingComplete();
-
-      // Add extra wait to ensure response is fully streamed, especially in CI
-      await this.browserManager.delay(2000);
-
-      // In headless mode, try to detect if we're actually getting a response
-      // by checking DOM changes and network activity
-      const isHeadless = this.config.headless === true || this.config.headless === 'new';
-      if (isHeadless) {
-        this.logger.debug('Running in headless mode - skipping additional detection (let waitForTypingComplete handle it)');
-      }
-
-      // Wait for assistant message content to be populated (critical for headless mode)
-      // This will wait up to 90 seconds for content to appear
-      await this.waitForAssistantContent();
-
-      // Try to extract content from React component data or other sources
-      const reactContent = await this.browserManager.page.evaluate(() => {
-        // Try to find content in React component data
-        const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
-        if (assistantMessages.length === 0) return null;
-
-        const lastMessage = assistantMessages[assistantMessages.length - 1];
-
-        // SPECIAL HEADLESS MODE CHECK:
-        // In headless, elements might not have text content but have innerHTML
-        // Check if element exists but is empty
-        if (lastMessage.innerHTML && lastMessage.innerHTML.trim().length === 0) {
-          // Element exists but has no HTML content - check for specific structure
-          const hasChildElements = lastMessage.children && lastMessage.children.length > 0;
-          return {
-            type: 'empty-element-headless-mode',
-            hasChildren: hasChildElements,
-            innerHTML: lastMessage.innerHTML,
-            childrenCount: lastMessage.children ? lastMessage.children.length : 0
-          };
-        }
-
-        // Look for any element with data-start/data-end attributes (React rendering)
-        const dataElements = lastMessage.querySelectorAll('[data-start], [data-end]');
-        for (const el of dataElements) {
-          const text = el.textContent || el.innerText || '';
-          if (text && text.trim() && text.trim() !== 'Grok said:' && text.trim() !== 'Grok said') {
-            return { type: 'data-element', content: text.trim() };
-          }
-        }
-
-        // Try to access React fiber tree if available
+      for (let elapsed = 0; elapsed < maxWaitTime; elapsed += checkInterval) {
         try {
-          const reactKey = Object.keys(lastMessage).find(key => key.startsWith('__reactFiber'));
-          if (reactKey) {
-            const fiber = lastMessage[reactKey];
-            if (fiber && fiber.memoizedProps && fiber.memoizedProps.children) {
-              const content = typeof fiber.memoizedProps.children === 'string' ? fiber.memoizedProps.children : null;
-              if (content && content.trim()) {
-                return { type: 'react-fiber', content: content.trim() };
+          // Check if we have any response content - use Grok-specific selectors
+          const currentResponse = await this.browserManager.page.evaluate(() => {
+            // Look for Grok assistant response elements specifically
+            // Find all message bubbles and identify the last assistant message
+            const messageBubbles = Array.from(document.querySelectorAll('div.message-bubble'));
+
+            // Filter for assistant messages (not user messages)
+            // Assistant messages typically don't contain the user's input text
+            const assistantMessages = messageBubbles.filter(bubble => {
+              const text = bubble.textContent?.trim() || '';
+              const isVisible = bubble.offsetParent !== null;
+              const hasContent = text.length > 10;
+
+              // Skip if this looks like user input (contains the question we just asked)
+              // This is a heuristic - look for messages that don't start with simple questions
+              const looksLikeUserInput = text.startsWith('What is') ||
+                                        text.startsWith('Explain') ||
+                                        text.startsWith('How') ||
+                                        text.length < 20; // User inputs are typically short
+
+              return isVisible && hasContent && !looksLikeUserInput &&
+                     !text.includes('window.__') &&
+                     !text.includes('document.');
+            });
+
+            // Get the last assistant message (most recent response)
+            if (assistantMessages.length > 0) {
+              const lastMessage = assistantMessages[assistantMessages.length - 1];
+              return lastMessage.textContent?.trim() || '';
+            }
+
+            // Fallback: look for response-content-markdown that doesn't contain user input
+            const markdownElements = Array.from(document.querySelectorAll('div.response-content-markdown'));
+            const assistantMarkdowns = markdownElements.filter(el => {
+              const text = el.textContent?.trim() || '';
+              const isVisible = el.offsetParent !== null;
+              const hasContent = text.length > 10;
+
+              // Skip user inputs
+              const looksLikeUserInput = text.startsWith('What is') ||
+                                        text.startsWith('Explain') ||
+                                        text.startsWith('How') ||
+                                        text.length < 20;
+
+              return isVisible && hasContent && !looksLikeUserInput;
+            });
+
+            if (assistantMarkdowns.length > 0) {
+              const lastMarkdown = assistantMarkdowns[assistantMarkdowns.length - 1];
+              return lastMarkdown.textContent?.trim() || '';
+            }
+
+            return '';
+          });
+
+          if (currentResponse && currentResponse.trim().length > 0) {
+            response = currentResponse.trim();
+            this.logger.debug('Response found', { length: response.length });
+            break;
+          }
+
+          // Check for error messages
+          const errorFound = await this.browserManager.page.evaluate(() => {
+            const errorSelectors = [
+              '[class*="error"]',
+              '[class*="Error"]',
+              'div[role="alert"]',
+              '.text-red-500',
+              '.text-red-600',
+            ];
+            for (const selector of errorSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent && element.textContent.trim()) {
+                return element.textContent.trim();
               }
             }
-          }
-        } catch (e) {
-          // React fiber access might fail
-        }
-
-        // Look for any text content that looks like a response (not UI text)
-        const allTextNodes = [];
-        const walk = document.createTreeWalker(lastMessage, NodeFilter.SHOW_TEXT, null);
-        let node;
-        while (node = walk.nextNode()) {
-          const text = node.textContent?.trim();
-          if (text && text.length > 0 && text !== 'Grok said:' && !text.includes('window.__')) {
-            allTextNodes.push(text);
-          }
-        }
-
-        // If we have text nodes, try to find the actual response
-        if (allTextNodes.length > 0) {
-          // Filter out UI text and find actual content
-          const responseCandidates = allTextNodes.filter(text =>
-            !text.toLowerCase().includes('grok') &&
-            !text.toLowerCase().includes('said:') &&
-            text.length <= 100 // Reasonable response length
-          );
-          if (responseCandidates.length > 0) {
-            return { type: 'text-nodes', content: responseCandidates[0] };
-          }
-        }
-
-        return null;
-      });
-
-      if (reactContent) {
-        if (reactContent.type === 'empty-element-headless-mode') {
-          this.logger.warn('HEADLESS MODE ISSUE: Assistant element exists but is empty!', reactContent);
-          // In this case, we need to trigger a refresh or find the content elsewhere
-        } else {
-          this.logger.debug('Found content via React inspection', {
-            type: reactContent.type,
-            content: reactContent.content?.substring(0, 50)
+            return null;
           });
-          // Use this content directly instead of going through extraction strategies
-          if (reactContent.content) {
-            return reactContent.content;
+
+          if (errorFound) {
+            throw new Error(`Grok returned error: ${errorFound}`);
           }
+
+          await this.browserManager.delay(checkInterval);
+        } catch (error) {
+          if (error.message.includes('Grok returned error')) {
+            throw error;
+          }
+          // Continue polling on other errors
+          this.logger.debug('Error during response check, continuing to poll', { error: error.message });
+          await this.browserManager.delay(checkInterval);
         }
       }
 
-      // Debug: Check what assistant message elements actually exist
-      const debugInfo = await this.browserManager.page.evaluate(() => {
-        const allAssistantElements = document.querySelectorAll('[data-message-author-role]');
-        const assistantElements = document.querySelectorAll('[data-message-author-role="assistant"]');
-        const conversationTurns = document.querySelectorAll('[data-testid*="conversation-turn"]');
-        
-        // Get ALL text from page to see if response is anywhere
-        const allPageText = document.body.textContent || '';
-        const hasNumberFour = allPageText.includes('4') || allPageText.includes('four') || allPageText.includes('Four');
-
-        return {
-          allMessageRoles: Array.from(allAssistantElements).map(el => ({
-            role: el.getAttribute('data-message-author-role'),
-            text: (el.textContent || el.innerText || '').trim().substring(0, 50),
-            hasContent: (el.textContent || el.innerText || '').trim().length > 0,
-            innerHTML: el.innerHTML.substring(0, 200)
-          })),
-          assistantCount: assistantElements.length,
-          conversationTurnsCount: conversationTurns.length,
-          lastTurnHTML: conversationTurns.length > 0 ?
-            conversationTurns[conversationTurns.length - 1].outerHTML.substring(0, 500) : null,
-          allPageTextLength: allPageText.length,
-          hasNumberFour: hasNumberFour,
-          pageBodyFirstThousandChars: allPageText.substring(0, 1000)
-        };
-      });
-
-      this.logger.debug('Assistant message debug info', debugInfo);
-
-      // Take a screenshot before extraction for debugging
-      try {
-        const artifactsDir = path.join(process.cwd(), 'artifacts');
-        if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
-        const screenshotPath = path.join(artifactsDir, `grok-before-extraction-${Date.now()}.png`);
-        await this.browserManager.page.screenshot({ path: screenshotPath, fullPage: true });
-        this.logger.debug('Screenshot saved for debugging', { path: screenshotPath });
-      } catch (e) {
-        this.logger.debug('Failed to take screenshot before extraction', { error: e.message });
+      if (!response) {
+        throw new Error(`No response received within ${timeout}ms timeout`);
       }
 
-      // Try multiple extraction strategies
-      const extractionStrategies = [
-        {
-          name: 'react-data-attributes',
-          selector: '[data-message-author-role="assistant"] [data-start], [data-message-author-role="assistant"] [data-end]',
-        },
-        {
-          name: 'assistant-markdown-simple',
-          selector: '[data-message-author-role="assistant"] .markdown, [data-message-author-role="assistant"] .prose',
-        },
-        {
-          name: 'assistant-paragraph',
-          selector: '[data-message-author-role="assistant"] p',
-        },
-        {
-          name: 'conversation-turn-paragraph',
-          selector: '[data-testid*="conversation-turn"]:last-child p',
-        },
-        {
-          name: 'assistant-any-content',
-          selector: '[data-message-author-role="assistant"]',
-        },
-        {
-          name: 'conversation-turn-assistant-markdown',
-          selector:
-            '[data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"] .markdown, [data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"] .prose',
-        },
-        {
-          name: 'assistant-message-markdown',
-          selector: '[data-message-author-role="assistant"]:last-child .markdown, [data-message-author-role="assistant"]:last-child .prose',
-        },
-        {
-          name: 'conversation-turn-assistant',
-          selector:
-            '[data-testid*="conversation-turn"]:last-child [data-message-author-role="assistant"]',
-        },
-        {
-          name: 'conversation-turn-last',
-          selector:
-            '[data-testid*="conversation-turn"]:last-child .markdown, [data-testid*="conversation-turn"]:last-child .prose',
-        },
-        {
-          name: 'assistant-message',
-          selector: '[data-message-author-role="assistant"]:last-child',
-        },
-        {
-          name: 'assistant-message-full-text',
-          selector: '[data-message-author-role="assistant"]:last-child *',
-        },
-        {
-          name: 'markdown-content',
-          selector: '.markdown:last-child, .prose:last-child',
-        },
-        {
-          name: 'original-selectors',
-          selector: this.selectors.responseText,
-        },
-      ];
+      const duration = Date.now() - startTime;
+      this.logger.debug('Response received', { duration, responseLength: response.length });
+
+      return response;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Failed to get response', { duration, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Wait for typing animation to complete
+   */
+  async waitForTypingComplete() {
 
       let extractedResponse = null;
       let usedStrategy = null;
@@ -867,126 +720,6 @@ class GrokProvider extends BaseLLMProvider {
       }
 
       const duration = Date.now() - startTime;
-      
-      // Validate extracted response - if it's suspiciously wrong, retry extraction
-      if (extractedResponse && (
-        extractedResponse.length < 1 || // Empty responses are suspicious
-        extractedResponse === 'ChatGPT said:' ||
-        extractedResponse === 'ChatGPT said' ||
-        (extractedResponse.toLowerCase().includes('said:') && extractedResponse.length < 10) // Only flag if very short and contains "said:"
-      )) {
-        this.logger.warn('Extracted response looks suspicious, retrying extraction with more aggressive strategies', {
-          responseLength: extractedResponse.length,
-          responsePreview: extractedResponse.substring(0, 100),
-        });
-        
-        // Reset and try again with more time and different selectors
-        await this.browserManager.delay(2000);
-        
-        try {
-          // Try to get the full content of the last message, including all nested elements
-          const retryContent = await this.browserManager.page.evaluate(() => {
-            const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
-            if (messages.length === 0) return null;
-            
-            const lastMessage = messages[messages.length - 1];
-            // Get all text content including from nested elements
-            const allText = lastMessage.innerText || lastMessage.textContent || '';
-            const trimmed = allText.trim();
-            
-            // Also try to get content from all child elements
-            const childTexts = [];
-            lastMessage.querySelectorAll('*').forEach(el => {
-              const text = (el.innerText || el.textContent || '').trim();
-              if (text && text.length > 0 && !childTexts.includes(text)) {
-                childTexts.push(text);
-              }
-            });
-            
-            // Special handling for cases where we get "ChatGPT said:" - try to find the actual response
-            let actualResponse = trimmed;
-            if (trimmed === 'ChatGPT said:' || trimmed === 'ChatGPT said') {
-              // Look for markdown content or other text elements
-              const markdownElements = lastMessage.querySelectorAll('.markdown, .prose, p, span');
-              for (const el of markdownElements) {
-                const text = (el.innerText || el.textContent || '').trim();
-                if (text && text !== 'ChatGPT said:' && text !== 'ChatGPT said' && text.length > 0) {
-                  actualResponse = text;
-                  break;
-                }
-              }
-            }
-            
-            return {
-              mainText: trimmed,
-              actualResponse: actualResponse,
-              allText: allText.trim(),
-              childCount: childTexts.length,
-              longestChild: childTexts.length > 0 ? childTexts.reduce((a, b) => a.length > b.length ? a : b) : '',
-            };
-          });
-          
-          if (retryContent) {
-            // Prefer the actual response if it was extracted from markdown
-            if (retryContent.actualResponse && retryContent.actualResponse !== extractedResponse) {
-              this.logger.info('Retry found actual response content', {
-                original: extractedResponse.substring(0, 50),
-                actual: retryContent.actualResponse.substring(0, 50),
-              });
-              extractedResponse = retryContent.actualResponse;
-            } else if (retryContent.mainText && retryContent.mainText.length > extractedResponse.length) {
-              this.logger.info('Retry extraction found longer response', {
-                originalLength: extractedResponse.length,
-                retryLength: retryContent.mainText.length,
-              });
-              extractedResponse = retryContent.mainText;
-            } else if (retryContent.longestChild && retryContent.longestChild.length > extractedResponse.length) {
-              this.logger.info('Retry extraction found longer child content', {
-                originalLength: extractedResponse.length,
-                retryLength: retryContent.longestChild.length,
-              });
-              extractedResponse = retryContent.longestChild;
-            }
-          }
-        } catch (retryError) {
-          this.logger.debug('Retry extraction failed', { error: retryError.message });
-        }
-        
-        // If still suspiciously short after retry, save artifact but proceed
-        if (extractedResponse.length < 1) {
-          this.logger.error('Response still suspiciously short after retry', {
-            responseLength: extractedResponse.length,
-            responsePreview: extractedResponse.substring(0, 100),
-          });
-          
-          try {
-            const html = await this.browserManager.page.content();
-            const fs = require('fs');
-            const path = require('path');
-            const artifactDir = path.join(process.cwd(), 'artifacts');
-            if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-            const htmlPath = path.join(artifactDir, `chatgpt_suspicious_response_${Date.now()}.html`);
-            fs.writeFileSync(htmlPath, html, 'utf8');
-            this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
-          } catch (htmlErr) {
-            this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
-          }
-        }
-      }
-      
-      this.logger.info('Response extracted successfully', {
-        responseLength: extractedResponse.length,
-        extractionTime: `${duration}ms`,
-      });
-
-      return extractedResponse;
-    } catch (error) {
-      // Take screenshot for debugging
-      await this.browserManager.takeScreenshot(
-        `chatgpt-error-${Date.now()}.png`
-      );
-      throw new Error(`Failed to get response: ${error.message}`);
-    }
   }
 
   /**
