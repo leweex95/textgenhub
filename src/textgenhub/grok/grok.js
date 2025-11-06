@@ -1,10 +1,10 @@
 /**
- * ChatGPT Provider - Browser automation for ChatGPT web interface
- * Uses Puppeteer to interact with ChatGPT when API access is not available
+ * Grok Provider - Browser automation for Grok web interface
+ * Uses Puppeteer to interact with Grok when API access is not available
  * 
  * IMPORTANT: This provider uses NON-HEADLESS mode (headless=false).
  * 
- * Reason: ChatGPT.com is a complex React SPA that doesn't properly render 
+ * Reason: Grok.com is a complex React SPA that doesn't properly render 
  * response content to the DOM when running in Puppeteer's headless mode.
  * The assistant message element exists but remains empty, making extraction impossible.
  * 
@@ -21,7 +21,7 @@ const fs = require('fs');
 const BaseLLMProvider = require('../core/base-provider');
 const BrowserManager = require('../core/browser-manager');
 
-class ChatGPTProvider extends BaseLLMProvider {
+class GrokProvider extends BaseLLMProvider {
 
   /**
    * Save current HTML page as artifact for debugging
@@ -35,7 +35,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         const path = require('path');
         const artifactDir = path.join(process.cwd(), 'artifacts');
         if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-        const htmlPath = path.join(artifactDir, `chatgpt_manual_${reason}_${Date.now()}.html`);
+        const htmlPath = path.join(artifactDir, `grok_manual_${reason}_${Date.now()}.html`);
         fs.writeFileSync(htmlPath, html, 'utf8');
         this.logger.error(`Saved manual HTML artifact: ${htmlPath}`);
         return htmlPath;
@@ -46,7 +46,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     return null;
   }
   constructor(config = {}) {
-    super('chatgpt', config);
+    super('grok', config);
 
   this.browserManager = null;
   this.isLoggedIn = false;
@@ -59,14 +59,14 @@ class ChatGPTProvider extends BaseLLMProvider {
   this.removeCache = config.removeCache !== undefined ? config.removeCache : true;
   this.continuous = config.continuous !== undefined ? config.continuous : false;
 
-    // ChatGPT-specific selectors (may need updates as UI changes)
+    // Grok-specific selectors (may need updates as UI changes)
     this.selectors = {
       loginButton: '[data-testid="login-button"]',
       emailInput: '#username',
       passwordInput: '#password',
       submitButton: 'button[type="submit"]',
       textArea:
-        '#prompt-textarea, [data-testid="composer-text-input"], textarea[placeholder*="Message"], textarea[data-id="root"]',
+        '#prompt-textarea, [data-testid="composer-text-input"], textarea[placeholder*="Message"], textarea[data-id="root"], [contenteditable="true"]',
       sendButton:
         '[data-testid="send-button"], button[data-testid="send-button"], [aria-label*="Send"], button[aria-label*="Send"], button[type="submit"]:not([disabled]), button:has(svg):last-child',
       messageContainer:
@@ -79,8 +79,8 @@ class ChatGPTProvider extends BaseLLMProvider {
     };
 
     this.urls = {
-      login: 'https://chatgpt.com/auth/login',
-      chat: 'https://chatgpt.com/',
+      login: 'https://grok.com/auth/login',
+      chat: 'https://grok.com/',
       ...config.urls,
     };
 
@@ -1769,4 +1769,4 @@ class ChatGPTProvider extends BaseLLMProvider {
   }
 }
 
-module.exports = ChatGPTProvider;
+module.exports = GrokProvider;

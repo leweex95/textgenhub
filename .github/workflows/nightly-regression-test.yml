@@ -316,9 +316,102 @@ jobs:
           path: artifacts/perplexity_*.html
           if-no-files-found: ignore
 
+  grok-test:
+    name: Grok Regression Test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+  
+      - name: Install Poetry
+        run: python -m pip install --upgrade poetry==2.2.0
+
+      - name: Install dependencies
+        run: |
+          poetry install
+        shell: pwsh
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+        shell: pwsh
+
+      - name: Validate textgenhub installation
+        run: |
+          poetry run pip show textgenhub
+        shell: pwsh
+      
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+        shell: pwsh
+  
+      - name: Run Grok regression test
+        env:
+          GROK_HEADLESS: ${{ inputs.headless || 'true' }}
+        run: |
+          $headless = if ([System.Environment]::GetEnvironmentVariable('GROK_HEADLESS') -eq 'false') { $false } else { $true }
+          $jsonOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            Write-Error "Grok regression test failed: No output from CLI script."
+            throw "Grok regression test failed: No output from CLI script."
+          }
+          $result = $jsonOutput | ConvertFrom-Json
+          $expected_answer = "4"
+          
+          # Check if error occurred and HTML artifact was saved
+          if ($result.error) {
+            Write-Error "Grok error occurred: $($result.error)"
+            if ($result.artifactPath) {
+              Write-Output "HTML artifact saved at: $($result.artifactPath)"
+            }
+            throw "Grok regression test failed: $($result.error)"
+          }
+          
+          if (-not $result -or -not $result.response) {
+            Write-Error "Grok regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "Grok regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          if ([string]::IsNullOrWhiteSpace($result.response)) {
+            Write-Error "Grok regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+            throw "Grok regression test failed: Response is empty or whitespace. Raw response: '$($result.response)'"
+          }
+          if ($result.response.Trim() -ne $expected_answer) {
+            Write-Error "Grok regression test failed: expected $expected_answer, got Grok output: '$($result.response)'"
+            throw "Grok regression test failed: expected $expected_answer, got Grok output: '$($result.response)'"
+          } else {
+            Write-Output "Grok regression test passed: expected $expected_answer, Grok output: $($result.response)"
+          }
+        shell: pwsh
+
+      - name: Upload Grok HTML artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: grok-artifacts
+          path: artifacts/grok_*.html
+          if-no-files-found: ignore
+
   notify:
       name: Send Failure Notification
-      needs: [chatgpt-test, deepseek-test, perplexity-test] 
+      needs: [chatgpt-test, deepseek-test, perplexity-test, grok-test] 
       if: failure()
       runs-on: ubuntu-latest
       steps:
@@ -335,12 +428,13 @@ jobs:
                 🚨 LLM Regression Tests Failed!
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
-                One or more LLM providers (ChatGPT, DeepSeek, Perplexity) failed their regression tests.
+                One or more LLM providers (ChatGPT, DeepSeek, Perplexity, Grok) failed their regression tests.
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:16px;">
                 <strong>ChatGPT Test:</strong> ${{ needs.chatgpt-test.result }}<br/>
                 <strong>DeepSeek Test:</strong> ${{ needs.deepseek-test.result }}<br/>
-                <strong>Perplexity Test:</strong> ${{ needs.perplexity-test.result }}
+                <strong>Perplexity Test:</strong> ${{ needs.perplexity-test.result }}<br/>
+                <strong>Grok Test:</strong> ${{ needs.grok-test.result }}
               </p>
               <p style="font-family: 'Roboto', Helvetica, sans-serif; font-size:18px;">
                 Check logs: <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Workflow Run</a>
@@ -350,7 +444,8 @@ jobs:
                 <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">All Artifacts</a><br/>
                 <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">ChatGPT HTML</a><br/>
                 <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">DeepSeek HTML</a><br/>
-                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">Perplexity HTML</a>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">Perplexity HTML</a><br/>
+                <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts">Grok HTML</a>
               </p>
             to: ${{ secrets.EMAIL_USERNAME }}
             from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
