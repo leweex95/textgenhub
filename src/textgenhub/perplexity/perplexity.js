@@ -20,8 +20,8 @@ class PerplexityProvider extends BaseLLMProvider {
 
     // Very specific selectors to avoid email/popup inputs
     this.selectors = {
-      textArea: '[class*="QueryInput"], div[contenteditable][role="textbox"]:not([type="email"]):not([placeholder*="email"]):not([class*="footer"]), div[aria-label="Search"] div[contenteditable="true"]',
-      submitButton: 'button[type="submit"], button[aria-label*="Ask"], button[aria-label*="Search"]',
+      textArea: 'div[contenteditable="true"]:not([type="email"]):not([placeholder*="email"]):not([class*="footer"]), textarea:not([type="email"]), input[type="text"]:not([type="email"])',
+      submitButton: 'button[type="submit"], button[aria-label*="Ask"], button[aria-label*="Search"], button[aria-label*="Send"]',
       responseContainer: 'div[class*="answer"], div[class*="response"], div[class*="result"]',
     };
 
@@ -126,20 +126,34 @@ class PerplexityProvider extends BaseLLMProvider {
       // Find and prepare input
       try {
         const inputReady = await this.browserManager.page.evaluate(() => {
-          const inputs = Array.from(document.querySelectorAll(
-            'div[class*="SearchBox"] [contenteditable="true"], ' +
-            'div[class*="QueryInput"] [contenteditable="true"], ' +
-            'main div[contenteditable="true"]'
-          )).filter(el => {
+          // Look for various input types
+          const possibleInputs = [
+            // Contenteditable divs
+            ...Array.from(document.querySelectorAll('div[contenteditable="true"]')),
+            // Textareas
+            ...Array.from(document.querySelectorAll('textarea')),
+            // Text inputs
+            ...Array.from(document.querySelectorAll('input[type="text"]')),
+          ].filter(el => {
             const isVisible = el.offsetParent !== null;
-            const notInPopup = !el.closest('div[role="dialog"]') && !el.closest('[class*="popup"]');
-            const notEmail = !el.getAttribute('placeholder')?.includes('email');
-            return isVisible && notInPopup && notEmail;
+            const notInPopup = !el.closest('div[role="dialog"]') && !el.closest('[class*="popup"]') && !el.closest('[class*="modal"]');
+            const notEmail = !el.getAttribute('placeholder')?.toLowerCase().includes('email') && 
+                           !el.getAttribute('type')?.includes('email') &&
+                           !el.className?.toLowerCase().includes('email');
+            const notHidden = !el.getAttribute('hidden') && el.style.display !== 'none' && el.style.visibility !== 'hidden';
+            return isVisible && notInPopup && notEmail && notHidden;
           });
 
-          if (inputs.length > 0) {
-            inputs[0].innerHTML = '';
-            inputs[0].focus();
+          if (possibleInputs.length > 0) {
+            // Prefer the first visible input
+            const input = possibleInputs[0];
+            if (input.tagName.toLowerCase() === 'div' && input.getAttribute('contenteditable') === 'true') {
+              input.innerHTML = '';
+              input.focus();
+            } else {
+              input.value = '';
+              input.focus();
+            }
             return true;
           }
           return false;
@@ -153,8 +167,44 @@ class PerplexityProvider extends BaseLLMProvider {
         await this.browserManager.page.keyboard.type(prompt);
         if (this.config.debug) this.logger.debug('Prompt typed successfully');
         
-        // Submit the prompt
-        await this.browserManager.page.keyboard.press('Enter');
+        // Submit the prompt - try multiple methods
+        let submitted = false;
+        try {
+          // Try Enter key first
+          await this.browserManager.page.keyboard.press('Enter');
+          submitted = true;
+          if (this.config.debug) this.logger.debug('Submitted with Enter key');
+        } catch (e) {
+          if (this.config.debug) this.logger.debug('Enter key failed, trying button click');
+        }
+        
+        if (!submitted) {
+          // Try clicking submit button
+          try {
+            await this.browserManager.page.evaluate(() => {
+              const buttons = Array.from(document.querySelectorAll('button')).filter(btn => {
+                const text = btn.textContent?.toLowerCase() || '';
+                const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+                return text.includes('ask') || text.includes('search') || text.includes('send') ||
+                       ariaLabel.includes('ask') || ariaLabel.includes('search') || ariaLabel.includes('send') ||
+                       btn.getAttribute('type') === 'submit';
+              });
+              if (buttons.length > 0) {
+                buttons[0].click();
+                return true;
+              }
+              return false;
+            });
+            submitted = true;
+            if (this.config.debug) this.logger.debug('Submitted with button click');
+          } catch (e) {
+            if (this.config.debug) this.logger.debug('Button click failed');
+          }
+        }
+        
+        if (!submitted) {
+          throw new Error('Could not submit the prompt');
+        }
         
         // Wait for response
         const response = await this.waitForResponse();
