@@ -66,9 +66,9 @@ class GrokProvider extends BaseLLMProvider {
       passwordInput: '#password',
       submitButton: 'button[type="submit"]',
       textArea:
-        '#prompt-textarea, [data-testid="composer-text-input"], textarea[placeholder*="Message"], textarea[data-id="root"], [contenteditable="true"]',
+        'textarea, input[type="text"], [contenteditable="true"], [role="textbox"], [data-testid*="input"], [data-testid*="composer"], #prompt-textarea, textarea[placeholder*="Ask"], textarea[placeholder*="Message"], [data-testid="composer-text-input"]',
       sendButton:
-        '[data-testid="send-button"], button[data-testid="send-button"], [aria-label*="Send"], button[aria-label*="Send"], button[type="submit"]:not([disabled]), button:has(svg):last-child',
+        'button[type="submit"], button[aria-label*="Send"], button[data-testid*="send"], [data-testid="send-button"], button[aria-label*="Submit"], button[class*="send"], svg[aria-label*="Send"]',
       messageContainer:
         '[data-testid*="conversation-turn"], [data-testid="conversation-turn"], .group, .flex.flex-col, div[class*="conversation"]',
       responseText:
@@ -84,7 +84,7 @@ class GrokProvider extends BaseLLMProvider {
       ...config.urls,
     };
 
-    // ChatGPT-specific configuration with configurable headless mode
+    // Grok-specific configuration with configurable headless mode
     this.config.headless =
       config.headless !== undefined ? config.headless : true; // Default to headless
     this.config.timeout = config.timeout || 60000;
@@ -94,11 +94,11 @@ class GrokProvider extends BaseLLMProvider {
   }
 
   /**
-   * Initialize the ChatGPT provider
+   * Initialize the Grok provider
    */
   async initialize() {
     try {
-      this.logger.info('Initializing ChatGPT provider...'); // crucial
+      this.logger.info('Initializing Grok provider...'); // crucial
       this.logger.debug('Provider config:', this.config);
       const browserConfig = {
         headless: this.config.headless,
@@ -110,27 +110,27 @@ class GrokProvider extends BaseLLMProvider {
       this.browserManager = new BrowserManager(browserConfig);
       await this.browserManager.initialize();
 
-      this.logger.info('Navigating to ChatGPT...', { url: this.urls.chat });
+      this.logger.info('Navigating to Grok...', { url: this.urls.chat });
       await this.browserManager.navigateToUrl(this.urls.chat);
-      this.logger.debug('ChatGPT navigation completed');
+      this.logger.debug('Grok navigation completed');
 
       // Try to find the text area, if not found, fail fast instead of hanging
       try {
-        this.logger.info('Waiting for ChatGPT text area...');
+        this.logger.info('Waiting for Grok text area...');
         await this.browserManager.waitForElement(this.selectors.textArea, {
           timeout: 10000, // Reduced timeout for faster failure
         });
         this.isLoggedIn = true;
-        this.logger.info('ChatGPT text area found, session is logged in.');
+        this.logger.info('Grok text area found, session is logged in.');
       } catch (e) {
-        this.logger.error('ChatGPT login required but not available in headless mode. Please run with --debug flag for manual login.', {
+        this.logger.error('Grok login required but not available in headless mode. Please run with --debug flag for manual login.', {
           error: e.message,
           stack: e.stack
         });
-        throw new Error('ChatGPT login required. Run with --debug flag for manual login or ensure you have a valid session.');
+        throw new Error('Grok login required. Run with --debug flag for manual login or ensure you have a valid session.');
       }
       this.isInitialized = true;
-      this.logger.info('ChatGPT provider initialized successfully');
+      this.logger.info('Grok provider initialized successfully');
     } catch (error) {
       this.logger.error('Provider initialization failed', {
         error: error.message,
@@ -145,7 +145,7 @@ class GrokProvider extends BaseLLMProvider {
   }
 
   /**
-   * Generate content using ChatGPT
+   * Generate content using Grok
    * @param {string} prompt - The prompt to send
    * @param {Object} options - Generation options
    */
@@ -301,10 +301,10 @@ class GrokProvider extends BaseLLMProvider {
 
       if (!sendButtonFound) {
         this.logger.error(
-          'All send methods failed - ChatGPT interface may have changed'
+          'All send methods failed - Grok interface may have changed'
         );
         throw new Error(
-          'Cannot send message - ChatGPT interface may have changed'
+          'Cannot send message - Grok interface may have changed'
         );
       }
 
@@ -332,14 +332,14 @@ class GrokProvider extends BaseLLMProvider {
   }
 
   /**
-   * Wait for ChatGPT response to appear
+   * Wait for Grok response to appear
    * @param {Object} options - Wait options
    */
   async waitForResponse(options = {}) {
     const timeout = options.timeout || 60000; // 1 minute default
     const startTime = Date.now();
 
-    this.logger.debug('Waiting for ChatGPT response...');
+    this.logger.debug('Waiting for Grok response...');
 
     try {
       // Wait for the response container to appear and be populated
@@ -393,7 +393,7 @@ class GrokProvider extends BaseLLMProvider {
         const dataElements = lastMessage.querySelectorAll('[data-start], [data-end]');
         for (const el of dataElements) {
           const text = el.textContent || el.innerText || '';
-          if (text && text.trim() && text.trim() !== 'ChatGPT said:' && text.trim() !== 'ChatGPT said') {
+          if (text && text.trim() && text.trim() !== 'Grok said:' && text.trim() !== 'Grok said') {
             return { type: 'data-element', content: text.trim() };
           }
         }
@@ -420,7 +420,7 @@ class GrokProvider extends BaseLLMProvider {
         let node;
         while (node = walk.nextNode()) {
           const text = node.textContent?.trim();
-          if (text && text.length > 0 && text !== 'ChatGPT said:' && !text.includes('window.__')) {
+          if (text && text.length > 0 && text !== 'Grok said:' && !text.includes('window.__')) {
             allTextNodes.push(text);
           }
         }
@@ -429,7 +429,7 @@ class GrokProvider extends BaseLLMProvider {
         if (allTextNodes.length > 0) {
           // Filter out UI text and find actual content
           const responseCandidates = allTextNodes.filter(text =>
-            !text.toLowerCase().includes('chatgpt') &&
+            !text.toLowerCase().includes('grok') &&
             !text.toLowerCase().includes('said:') &&
             text.length <= 100 // Reasonable response length
           );
@@ -490,7 +490,7 @@ class GrokProvider extends BaseLLMProvider {
       try {
         const artifactsDir = path.join(process.cwd(), 'artifacts');
         if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
-        const screenshotPath = path.join(artifactsDir, `chatgpt-before-extraction-${Date.now()}.png`);
+        const screenshotPath = path.join(artifactsDir, `grok-before-extraction-${Date.now()}.png`);
         await this.browserManager.page.screenshot({ path: screenshotPath, fullPage: true });
         this.logger.debug('Screenshot saved for debugging', { path: screenshotPath });
       } catch (e) {
@@ -680,8 +680,8 @@ class GrokProvider extends BaseLLMProvider {
               // Try to find the actual response by looking for patterns
               let responseText = '';
               
-              // If we only have "ChatGPT said:" but there are other divs, try those
-              if ((allText === 'ChatGPT said:' || allText === 'ChatGPT said') && allDivs.length > 0) {
+              // If we only have "Grok said:" but there are other divs, try those
+              if ((allText === 'Grok said:' || allText === 'Grok said') && allDivs.length > 0) {
                 // Skip any div that is just "ChatGPT said:" and get the next ones
                 const responseOnly = allDivs.filter(div => 
                   !div.toLowerCase().includes('chatgpt') && 
