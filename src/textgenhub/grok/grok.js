@@ -293,7 +293,9 @@ class GrokProvider extends BaseLLMProvider {
               const looksLikeUserInput = text.startsWith('What is') ||
                                         text.startsWith('Explain') ||
                                         text.startsWith('How') ||
-                                        text.length < 10; // User inputs are typically short
+                                        text.startsWith('Translate') ||
+                                        text.startsWith('Calculate') ||
+                                        text.startsWith('Solve');
 
               return isVisible && hasContent && !looksLikeUserInput &&
                      !text.includes('window.__') &&
@@ -317,7 +319,9 @@ class GrokProvider extends BaseLLMProvider {
               const looksLikeUserInput = text.startsWith('What is') ||
                                         text.startsWith('Explain') ||
                                         text.startsWith('How') ||
-                                        text.length < 10;
+                                        text.startsWith('Translate') ||
+                                        text.startsWith('Calculate') ||
+                                        text.startsWith('Solve');
 
               return isVisible && hasContent && !looksLikeUserInput;
             });
@@ -401,6 +405,30 @@ class GrokProvider extends BaseLLMProvider {
 
       let extractedResponse = null;
       let usedStrategy = null;
+
+      // Try multiple extraction strategies for Grok
+      const extractionStrategies = [
+        {
+          name: 'grok-assistant-message-bubble',
+          selector: 'div.message-bubble:not([class*="bg-surface"]):not([class*="border"])',
+        },
+        {
+          name: 'grok-response-markdown',
+          selector: 'div.response-content-markdown',
+        },
+        {
+          name: 'grok-assistant-container',
+          selector: '[data-message-author-role="assistant"]',
+        },
+        {
+          name: 'grok-message-bubble-any',
+          selector: 'div.message-bubble',
+        },
+        {
+          name: 'grok-markdown-any',
+          selector: '.markdown, .prose',
+        },
+      ];
 
       for (const strategy of extractionStrategies) {
         try {

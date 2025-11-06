@@ -52,17 +52,83 @@ class PerplexityProvider extends BaseLLMProvider {
       await this.browserManager.initialize();
       this.logger?.info('Navigating to Perplexity Chat...', { url: this.urls.chat });
       await this.browserManager.navigateToUrl(this.urls.chat);
-      // Optionally, check for text area to confirm page load
-      try {
-        await this.browserManager.page.waitForSelector(this.selectors.textArea, { timeout: 15000 });
-        this.logger?.info('Perplexity Chat interface ready.');
-      } catch (e) {
-        this.logger?.warn('Text area not found after navigation.', { error: e.message });
-      }
+
+      // Wait for the page to fully load, handling Cloudflare challenges
+      await this.waitForInterfaceReady();
+
       this.isInitialized = true;
+      this.logger?.info('Perplexity provider initialized successfully');
     } catch (error) {
       throw await this.handleError(error, 'initialization');
     }
+  }
+
+  /**
+   * Wait for Perplexity interface to be ready, handling Cloudflare challenges
+   */
+  async waitForInterfaceReady() {
+    const maxWaitTime = 60000; // 60 seconds to handle Cloudflare
+    const checkInterval = 2000; // Check every 2 seconds
+    const startTime = Date.now();
+
+    this.logger?.info('Waiting for Perplexity interface to load...');
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        // Check if we're still on a Cloudflare challenge page
+        const isCloudflareChallenge = await this.browserManager.page.evaluate(() => {
+          const title = document.title.toLowerCase();
+          const bodyText = document.body?.textContent?.toLowerCase() || '';
+          return title.includes('just a moment') ||
+                 bodyText.includes('verifying you are human') ||
+                 bodyText.includes('checking your browser');
+        });
+
+        if (isCloudflareChallenge) {
+          this.logger?.debug('Cloudflare challenge detected, waiting...');
+          await this.browserManager.delay(checkInterval);
+          continue;
+        }
+
+        // Check if the actual Perplexity interface has loaded
+        const interfaceReady = await this.browserManager.page.evaluate(() => {
+          // Look for Perplexity-specific elements that indicate the interface is loaded
+          const hasPerplexityElements = !!(
+            document.querySelector('div[contenteditable="true"]') ||
+            document.querySelector('textarea') ||
+            document.querySelector('input[type="text"]') ||
+            document.querySelector('[class*="perplexity"]') ||
+            document.querySelector('[data-testid*="perplexity"]')
+          );
+
+          // Also check that we're on the correct domain
+          const isCorrectDomain = window.location.hostname === 'www.perplexity.ai';
+
+          return hasPerplexityElements && isCorrectDomain;
+        });
+
+        if (interfaceReady) {
+          // Double-check by trying to find the input field
+          try {
+            await this.browserManager.page.waitForSelector(
+              'div[contenteditable="true"], textarea, input[type="text"]',
+              { timeout: 5000 }
+            );
+            this.logger?.info('Perplexity interface ready');
+            return;
+          } catch (e) {
+            this.logger?.debug('Interface elements found but input not ready yet');
+          }
+        }
+
+        await this.browserManager.delay(checkInterval);
+      } catch (e) {
+        this.logger?.debug('Error checking interface readiness', { error: e.message });
+        await this.browserManager.delay(checkInterval);
+      }
+    }
+
+    throw new Error('Timeout waiting for Perplexity interface to load');
   }
 
   async generateContent(prompt) {

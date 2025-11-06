@@ -1001,7 +1001,7 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
-    const maxWait = 300000; // Increased to 5 minutes for CI environments
+    const maxWait = 180000; // Reduced to 3 minutes for CI environments
     const pollInterval = 1000; // Check every second
     const start = Date.now();
 
@@ -1012,7 +1012,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     
     let previousContentLength = 0;
     let stableCount = 0;
-    const stableThreshold = 5; // Need 5 consecutive checks with same content length
+    const stableThreshold = 3; // Reduced threshold for faster completion detection
 
     while (Date.now() - start < maxWait) {
       try {
@@ -1028,14 +1028,25 @@ class ChatGPTProvider extends BaseLLMProvider {
           // Check the ARIA live region for generation status (most reliable in headless)
           const liveRegion = document.querySelector('[aria-live="assertive"]');
           const liveRegionText = liveRegion ? (liveRegion.textContent || '').toLowerCase() : '';
-          const isStillGenerating = liveRegionText.includes('generating') || liveRegionText.includes('still');
+          const isStillGenerating = liveRegionText.includes('generating') || 
+                                  liveRegionText.includes('still') ||
+                                  liveRegionText.includes('thinking');
 
           // Check for substantial content in the last assistant message
           const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');     
           const lastMessage = assistantMessages[assistantMessages.length - 1];
-          const content = lastMessage ? (lastMessage.textContent || lastMessage.innerText || '') : '';
-          const contentLength = content.trim().length;
-          const hasSubstantialContent = contentLength > 1; // Very low threshold - even "4" is enough
+          let content = '';
+          if (lastMessage) {
+            // Try multiple ways to get content
+            content = (lastMessage.textContent || lastMessage.innerText || '').trim();
+            // Also check for markdown content
+            const proseDiv = lastMessage.querySelector('.prose, .markdown');
+            if (proseDiv) {
+              content = (proseDiv.textContent || proseDiv.innerText || '').trim();
+            }
+          }
+          const contentLength = content.length;
+          const hasSubstantialContent = contentLength > 0; // Very low threshold - even "4" is enough
 
           // Most important: check the live region first - if it says "still generating", we're not done
           if (isStillGenerating) {
@@ -1078,7 +1089,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         if (status.status === 'complete') {
           this.logger.debug('Typing animation completed', { contentLength: status.contentLength, reason: status.reason });
           // Add a small delay to ensure content is fully rendered
-          await this.browserManager.delay(2000);
+          await this.browserManager.delay(1000);
           return;
         } else if (status.status === 'typing') {
           this.logger.debug('Still generating response...', { contentLength: status.contentLength, reason: status.reason });

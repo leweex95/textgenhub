@@ -64,7 +64,7 @@ jobs:
         env:
           CHATGPT_HEADLESS: 'false'
         run: |
-          $headlessArg = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { "--no-headless" } else { "" }
+          $headlessArg = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { "--headless false" } else { "" }
           $output = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" $headlessArg --debug 2>&1
           $output | Out-File -FilePath artifacts/chatgpt_cli_raw_output.txt
           $jsonLine = $output | Select-String '{' | Select-Object -Last 1
