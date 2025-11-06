@@ -367,7 +367,22 @@ jobs:
           GROK_HEADLESS: 'false'
         run: |
           $headlessArg = if ([System.Environment]::GetEnvironmentVariable('GROK_HEADLESS') -eq 'false') { "--no-headless" } else { "" }
-          $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." $headlessArg --debug 2>&1
+          $job = Start-Job -ScriptBlock {
+            param($headlessArg)
+            $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." $headlessArg --debug 2>&1
+            return $allOutput
+          } -ArgumentList $headlessArg
+          
+          $timeout = 600  # 10 minutes timeout
+          $completed = Wait-Job -Job $job -Timeout $timeout
+          
+          if (-not $completed) {
+            Stop-Job -Job $job -ErrorAction SilentlyContinue
+            Write-Error "Grok CLI timed out after $timeout seconds"
+            throw "Grok CLI timed out after $timeout seconds"
+          }
+          
+          $allOutput = Receive-Job -Job $job
           Write-Output "Full CLI output:"
           Write-Output $allOutput
           $jsonOutput = $allOutput | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
