@@ -162,14 +162,14 @@ class GrokProvider extends BaseLLMProvider {
       if (this.config.debug) this.logger.debug('Ensuring session is valid...');
       await this.ensureSessionValid();
       if (this.config.debug) this.logger.debug('Session validation completed');
-      if (this.config.debug) this.logger.info('Sending prompt to ChatGPT', {
+      if (this.config.debug) this.logger.info('Sending prompt to Grok', {
         promptLength: prompt.length,
         options,
       });
 
       const currentUrl = await this.browserManager.getCurrentUrl();
       if (this.config.debug) this.logger.debug('Current URL before navigation check', { currentUrl });
-      if (!currentUrl.includes('chatgpt.com')) {
+      if (!currentUrl.includes('grok.com')) {
         if (this.config.debug) this.logger.debug('Navigating to chat URL', { url: this.urls.chat });
         await this.browserManager.navigateToUrl(this.urls.chat);
       }
@@ -1210,7 +1210,7 @@ class GrokProvider extends BaseLLMProvider {
       return;
     }
 
-    this.logger.info('Checking ChatGPT login status...');
+    this.logger.info('Checking Grok login status...');
 
     try {
       // Navigate to chat page first
@@ -1223,7 +1223,7 @@ class GrokProvider extends BaseLLMProvider {
         });
         this.isLoggedIn = true;
         this.lastSessionCheck = Date.now();
-        this.logger.info('Already logged in to ChatGPT');
+        this.logger.info('Already logged in to Grok');
         return;
       } catch (error) {
         this.logger.info('Not logged in, need to authenticate');
@@ -1354,7 +1354,7 @@ class GrokProvider extends BaseLLMProvider {
     try {
       this.logger.debug('Resetting browser state...');
       // Navigate directly to home to get a fresh chat
-      await this.browserManager.navigateToUrl('https://chatgpt.com/');
+      await this.browserManager.navigateToUrl('https://grok.com/');
       await this.browserManager.delay(2000);
       
       // Wait for the text area to be available
