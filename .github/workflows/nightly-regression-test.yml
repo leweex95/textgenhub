@@ -364,10 +364,13 @@ jobs:
   
       - name: Run Grok regression test
         env:
-          GROK_HEADLESS: false
+          GROK_HEADLESS: true
         run: |
           $headless = if ([System.Environment]::GetEnvironmentVariable('GROK_HEADLESS') -eq 'false') { $false } else { $true }
-          $jsonOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>&1
+          Write-Output "Full CLI output:"
+          Write-Output $allOutput
+          $jsonOutput = $allOutput | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
             Write-Error "Grok regression test failed: No output from CLI script."
             throw "Grok regression test failed: No output from CLI script."
