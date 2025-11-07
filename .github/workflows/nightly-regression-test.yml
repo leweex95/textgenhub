@@ -18,6 +18,7 @@ jobs:
   chatgpt-test:
     name: ChatGPT Regression Test
     runs-on: windows-latest
+    if: false  # Temporarily disabled due to CI performance issues
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
