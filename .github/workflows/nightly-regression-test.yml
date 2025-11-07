@@ -100,35 +100,6 @@ jobs:
             artifacts/chatgpt_*.html
             artifacts/chatgpt_cli_raw_output.txt
           if-no-files-found: ignore
-  
-      - name: Run ChatGPT regression test retry
-        env:
-          CHATGPT_HEADLESS: 'false'
-        run: |
-          $headless = $false
-          $jsonOutput = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
-          if (-not $jsonOutput) {
-            Write-Error "ChatGPT regression test failed: No output from CLI script."
-            throw "ChatGPT regression test failed: No output from CLI script."
-          }
-          $result = $jsonOutput | ConvertFrom-Json
-          
-          # Check if error occurred and HTML artifact was saved
-          if ($result.error) {
-            Write-Error "ChatGPT error occurred: $($result.error)"
-            if ($result.artifactPath) {
-              Write-Output "HTML artifact saved at: $($result.artifactPath)"
-            }
-            throw "ChatGPT regression test failed: $($result.error)"
-          }
-          
-          if (-not $result -or -not $result.response) {
-            Write-Error "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-            throw "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
-          }
-          
-          Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
-        shell: pwsh
 
   deepseek-test:
     name: DeepSeek Regression Test
