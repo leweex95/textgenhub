@@ -85,8 +85,10 @@ class ChatGPTProvider extends BaseLLMProvider {
     };
 
     // ChatGPT-specific configuration with configurable headless mode
+    // IMPORTANT: ChatGPT responses don't render in headless mode, causing extraction failures
+    // Default to non-headless (false) for reliability, can be overridden if needed
     this.config.headless =
-      config.headless !== undefined ? config.headless : true; // Default to headless
+      config.headless !== undefined ? config.headless : false;
     this.config.timeout = config.timeout || 60000;
     this.config.sessionTimeout = config.sessionTimeout || 3600000;
     this.config.userDataDir =
@@ -257,34 +259,65 @@ class ChatGPTProvider extends BaseLLMProvider {
       await this.handleContinueManuallyPrompt();
 
       // Send the message
-      this.logger.debug('Attempting to send message via send button', {
+      this.logger.debug('Attempting to send message', {
+        headless: this.config.headless,
         selector: this.selectors.sendButton,
       });
-      const sendButtonSelectors = [
-        '[data-testid="send-button"]',
-        'button[data-testid="send-button"]',
-        '[aria-label*="Send"]',
-        'button[aria-label*="Send"]',
-        'button[type="submit"]:not([disabled])',
-        'button:has(svg):last-child',
-      ];
 
       let sendButtonFound = false;
-      for (const selector of sendButtonSelectors) {
+
+      // In headless mode, prioritize Enter key since send button may not render
+      if (this.config.headless) {
+        this.logger.debug('Headless mode detected, trying Enter key first');
         try {
-          await this.browserManager.waitForElement(selector, { timeout: 5000 });
-          await this.browserManager.clickElement(selector);
-          this.logger.debug('Send button clicked successfully', { selector });
+          // Focus on text area and press Enter
+          await this.browserManager.page.focus(this.selectors.textArea);
+          await this.browserManager.delay(500);
+          await this.browserManager.page.keyboard.press('Enter');
+          this.logger.debug('Message sent via Enter key in headless mode');
           sendButtonFound = true;
-          break;
         } catch (error) {
-          this.logger.debug('Send button selector failed, trying next', {
-            selector,
+          this.logger.debug('Enter key failed in headless mode, trying send button selectors', {
             error: error.message,
           });
         }
       }
 
+      // Try send button selectors if Enter key didn't work or not in headless mode
+      if (!sendButtonFound) {
+        const sendButtonSelectors = [
+          '[data-testid="send-button"]',
+          'button[data-testid="send-button"]',
+          '[aria-label*="Send"]',
+          'button[aria-label*="Send"]',
+          'button[type="submit"]:not([disabled])',
+          'button:has(svg):last-child',
+          // Modern ChatGPT selectors
+          'button[data-testid*="send"]',
+          '[role="button"][aria-label*="Send"]',
+          'button[class*="send"]',
+          'svg[aria-label*="Send"]',
+          // Fallback to any enabled button near textarea
+          'form button:not([disabled])',
+        ];
+
+        for (const selector of sendButtonSelectors) {
+          try {
+            await this.browserManager.waitForElement(selector, { timeout: 5000 });
+            await this.browserManager.clickElement(selector);
+            this.logger.debug('Send button clicked successfully', { selector });
+            sendButtonFound = true;
+            break;
+          } catch (error) {
+            this.logger.debug('Send button selector failed, trying next', {
+              selector,
+              error: error.message,
+            });
+          }
+        }
+      }
+
+      // Final fallback to Enter key if all else failed
       if (!sendButtonFound) {
         this.logger.warn('All send button selectors failed, trying Enter key fallback');
         try {
@@ -292,7 +325,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           await this.browserManager.page.focus(this.selectors.textArea);
           await this.browserManager.delay(500);
           await this.browserManager.page.keyboard.press('Enter');
-          this.logger.debug('Message sent via Enter key');
+          this.logger.debug('Message sent via Enter key fallback');
           sendButtonFound = true;
         } catch (error) {
           this.logger.error('Enter key fallback also failed', { error: error.message });
@@ -751,7 +784,9 @@ class ChatGPTProvider extends BaseLLMProvider {
         if (pageWideSearch && pageWideSearch.length > 0) {
           // Find the most likely response (usually one of the last meaningful lines)
           const candidateResponse = pageWideSearch[pageWideSearch.length - 1];
-          if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:') {
+          if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' && 
+              !candidateResponse.toLowerCase().includes('still generating') && 
+              !candidateResponse.toLowerCase().includes('generating a response')) {
             extractedResponse = candidateResponse;
             usedStrategy = 'page-wide-search-headless';
             this.logger.debug('Found response via page-wide search', {
@@ -768,223 +803,22 @@ class ChatGPTProvider extends BaseLLMProvider {
         );
       }
 
-      // Check if response indicates still generating - wait longer
-      if (extractedResponse && (
-        extractedResponse.toLowerCase().includes('still generating') ||
-        extractedResponse.toLowerCase().includes('generating a response') ||
-        extractedResponse.toLowerCase().includes('chatgpt is still')
-      )) {
-        this.logger.warn('Response indicates still generating, waiting 5 seconds and retrying extraction...', {
-          currentResponse: extractedResponse.substring(0, 100)
-        });
-        await this.browserManager.delay(5000);
-        
-        // Retry extraction with the same strategies
-        extractedResponse = null;
-        usedStrategy = null;
-        
-        for (const strategy of extractionStrategies) {
-          try {
-            this.logger.debug(`Retrying extraction strategy: ${strategy.name}`, {
-              selector: strategy.selector,
-            });
-
-            const elements = await this.browserManager.page.$$eval(
-              strategy.selector,
-              (elements) => {
-                return elements.map((el) => {
-                  let text = '';
-                  
-                  if (el.tagName === 'DIV' && el.hasAttribute('data-message-author-role')) {
-                    text = el.innerText || el.textContent || '';
-                  } else {
-                    text = el.innerText || el.textContent || '';
-                  }
-                  
-                  return {
-                    text: text,
-                    html: el.innerHTML?.substring(0, 200) || '',
-                    tagName: el.tagName,
-                    className: el.className,
-                  };
-                }).filter((item) => item.text.trim().length > 0);
-              }
-            );
-
-            if (elements.length > 0) {
-              const lastElement = elements[elements.length - 1];
-
-              if (
-                !lastElement.text.includes('window.__') &&
-                !lastElement.text.includes('document.') &&
-                !lastElement.text.includes('__oai_') &&
-                lastElement.text.trim().length > 0
-              ) {
-                extractedResponse = lastElement.text.trim();
-                usedStrategy = strategy.name + '-retry';
-                this.logger.debug('Successfully extracted response on retry', {
-                  strategy: strategy.name + '-retry',
-                  responseLength: extractedResponse.length,
-                });
-                break;
-              }
-            }
-          } catch (error) {
-            this.logger.debug(`Retry strategy ${strategy.name} failed`, {
-              error: error.message,
-            });
-          }
-        }
-        
-        // If still no response or still generating, try page-wide search again
-        if (!extractedResponse || extractedResponse.toLowerCase().includes('still generating') || extractedResponse.toLowerCase().includes('generating a response')) {
-          this.logger.warn('Retry extraction still indicates generating, trying page-wide search again');
-          const pageWideSearch = await this.browserManager.page.evaluate(() => {
-            const bodyText = document.body.innerText || document.body.textContent || '';
-            const lines = bodyText.split('\n')
-              .map(line => line.trim())
-              .filter(line => line.length > 0);
-            
-            const uiKeywords = ['send', 'message', 'new chat', 'settings', 'upgrade', 'edit', 'copy', 'delete', 'regenerate', 'continue'];
-            const responseLines = lines.filter(line => {
-              const lower = line.toLowerCase();
-              return !uiKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
-            });
-            
-            return responseLines;
-          });
-
-          if (pageWideSearch && pageWideSearch.length > 0) {
-            const candidateResponse = pageWideSearch[pageWideSearch.length - 1];
-            if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' && 
-                !candidateResponse.toLowerCase().includes('still generating') && 
-                !candidateResponse.toLowerCase().includes('generating a response')) {
-              extractedResponse = candidateResponse;
-              usedStrategy = 'page-wide-search-retry';
-              this.logger.debug('Found response via page-wide search on retry', {
-                response: extractedResponse.substring(0, 100),
-                totalLines: pageWideSearch.length
-              });
-            }
-          }
-        }
-        
-        if (!extractedResponse) {
-          throw new Error('No valid response found even after retry');
-        }
+      // Save HTML artifact after successful extraction for debugging
+      try {
+        const artifactsDir = path.join(process.cwd(), 'artifacts');
+        if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+        const htmlPath = path.join(artifactsDir, `chatgpt_success_extraction_${Date.now()}.html`);
+        const html = await this.browserManager.page.content();
+        fs.writeFileSync(htmlPath, html, 'utf8');
+        this.logger.debug('Saved HTML artifact after successful extraction', { path: htmlPath });
+      } catch (e) {
+        this.logger.debug('Failed to save HTML artifact after extraction', { error: e.message });
       }
 
-      const duration = Date.now() - startTime;
-      
-      // Validate extracted response - if it's suspiciously wrong, retry extraction
-      if (extractedResponse && (
-        extractedResponse.length < 1 || // Empty responses are suspicious
-        extractedResponse === 'ChatGPT said:' ||
-        extractedResponse === 'ChatGPT said' ||
-        (extractedResponse.toLowerCase().includes('said:') && extractedResponse.length < 10) // Only flag if very short and contains "said:"
-      )) {
-        this.logger.warn('Extracted response looks suspicious, retrying extraction with more aggressive strategies', {
-          responseLength: extractedResponse.length,
-          responsePreview: extractedResponse.substring(0, 100),
-        });
-        
-        // Reset and try again with more time and different selectors
-        await this.browserManager.delay(2000);
-        
-        try {
-          // Try to get the full content of the last message, including all nested elements
-          const retryContent = await this.browserManager.page.evaluate(() => {
-            const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
-            if (messages.length === 0) return null;
-            
-            const lastMessage = messages[messages.length - 1];
-            // Get all text content including from nested elements
-            const allText = lastMessage.innerText || lastMessage.textContent || '';
-            const trimmed = allText.trim();
-            
-            // Also try to get content from all child elements
-            const childTexts = [];
-            lastMessage.querySelectorAll('*').forEach(el => {
-              const text = (el.innerText || el.textContent || '').trim();
-              if (text && text.length > 0 && !childTexts.includes(text)) {
-                childTexts.push(text);
-              }
-            });
-            
-            // Special handling for cases where we get "ChatGPT said:" - try to find the actual response
-            let actualResponse = trimmed;
-            if (trimmed === 'ChatGPT said:' || trimmed === 'ChatGPT said') {
-              // Look for markdown content or other text elements
-              const markdownElements = lastMessage.querySelectorAll('.markdown, .prose, p, span');
-              for (const el of markdownElements) {
-                const text = (el.innerText || el.textContent || '').trim();
-                if (text && text !== 'ChatGPT said:' && text !== 'ChatGPT said' && text.length > 0) {
-                  actualResponse = text;
-                  break;
-                }
-              }
-            }
-            
-            return {
-              mainText: trimmed,
-              actualResponse: actualResponse,
-              allText: allText.trim(),
-              childCount: childTexts.length,
-              longestChild: childTexts.length > 0 ? childTexts.reduce((a, b) => a.length > b.length ? a : b) : '',
-            };
-          });
-          
-          if (retryContent) {
-            // Prefer the actual response if it was extracted from markdown
-            if (retryContent.actualResponse && retryContent.actualResponse !== extractedResponse) {
-              this.logger.info('Retry found actual response content', {
-                original: extractedResponse.substring(0, 50),
-                actual: retryContent.actualResponse.substring(0, 50),
-              });
-              extractedResponse = retryContent.actualResponse;
-            } else if (retryContent.mainText && retryContent.mainText.length > extractedResponse.length) {
-              this.logger.info('Retry extraction found longer response', {
-                originalLength: extractedResponse.length,
-                retryLength: retryContent.mainText.length,
-              });
-              extractedResponse = retryContent.mainText;
-            } else if (retryContent.longestChild && retryContent.longestChild.length > extractedResponse.length) {
-              this.logger.info('Retry extraction found longer child content', {
-                originalLength: extractedResponse.length,
-                retryLength: retryContent.longestChild.length,
-              });
-              extractedResponse = retryContent.longestChild;
-            }
-          }
-        } catch (retryError) {
-          this.logger.debug('Retry extraction failed', { error: retryError.message });
-        }
-        
-        // If still suspiciously short after retry, save artifact but proceed
-        if (extractedResponse.length < 1) {
-          this.logger.error('Response still suspiciously short after retry', {
-            responseLength: extractedResponse.length,
-            responsePreview: extractedResponse.substring(0, 100),
-          });
-          
-          try {
-            const html = await this.browserManager.page.content();
-            const fs = require('fs');
-            const path = require('path');
-            const artifactDir = path.join(process.cwd(), 'artifacts');
-            if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
-            const htmlPath = path.join(artifactDir, `chatgpt_suspicious_response_${Date.now()}.html`);
-            fs.writeFileSync(htmlPath, html, 'utf8');
-            this.logger.error(`Saved HTML artifact due to suspicious response: ${htmlPath}`);
-          } catch (htmlErr) {
-            this.logger.error('Failed to save HTML artifact', { error: htmlErr.message });
-          }
-        }
-      }
-      
-      this.logger.info('Response extracted successfully', {
+      this.logger.debug('Response extraction completed', {
+        usedStrategy: usedStrategy,
         responseLength: extractedResponse.length,
-        extractionTime: `${duration}ms`,
+        responsePreview: extractedResponse.substring(0, 100),
       });
 
       return extractedResponse;
@@ -1001,18 +835,21 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
-    const maxWait = 180000; // Reduced to 3 minutes for CI environments
+    // AGGRESSIVE TIMEOUT: Max 60 seconds to wait for typing to complete
+    // If it hasn't completed by then, save HTML and fail fast
+    const maxWait = 60000; // 60 seconds max
     const pollInterval = 1000; // Check every second
     const start = Date.now();
+    let timeoutSaveAttempted = false;
 
-    this.logger.debug('Waiting for typing animation to complete...');
+    this.logger.debug('Waiting for typing animation to complete...', { maxWait });
 
     // First wait a minimum time for response to start
     await this.browserManager.delay(3000);
     
     let previousContentLength = 0;
     let stableCount = 0;
-    const stableThreshold = 3; // Reduced threshold for faster completion detection
+    const stableThreshold = 2; // Very low threshold - 2 consecutive stable checks
 
     while (Date.now() - start < maxWait) {
       try {
@@ -1066,7 +903,24 @@ class ChatGPTProvider extends BaseLLMProvider {
           return { status: 'waiting', contentLength, reason: 'no-content-yet' }; // No content yet
         });
 
-        this.logger.debug('Typing status check', { status: status.status, contentLength: status.contentLength, reason: status.reason });
+        const elapsedMs = Date.now() - start;
+        this.logger.debug('Typing status check', { 
+          status: status.status, 
+          contentLength: status.contentLength, 
+          reason: status.reason,
+          elapsedMs 
+        });
+
+        // Save HTML if we're waiting too long (after 10 seconds with no content)
+        if (elapsedMs > 10000 && status.status === 'waiting' && !timeoutSaveAttempted) {
+          this.logger.warn('No content after 10 seconds, saving debug HTML', { elapsedMs });
+          try {
+            await this.saveHtmlArtifact('typing-timeout-10s');
+            timeoutSaveAttempted = true;
+          } catch (e) {
+            this.logger.debug('Failed to save typing timeout HTML', { error: e.message });
+          }
+        }
 
         // Check if content has stabilized (stopped changing)
         if (status.contentLength === previousContentLength && status.contentLength > 0) {
@@ -1077,7 +931,8 @@ class ChatGPTProvider extends BaseLLMProvider {
           if (stableCount >= stableThreshold) {
             this.logger.debug('Content has stabilized - marking as complete', { 
               contentLength: status.contentLength,
-              stableCount 
+              stableCount,
+              elapsedMs
             });
             return;
           }
@@ -1087,14 +942,25 @@ class ChatGPTProvider extends BaseLLMProvider {
         }
 
         if (status.status === 'complete') {
-          this.logger.debug('Typing animation completed', { contentLength: status.contentLength, reason: status.reason });
+          this.logger.debug('Typing animation completed', { 
+            contentLength: status.contentLength, 
+            reason: status.reason,
+            elapsedMs 
+          });
           // Add a small delay to ensure content is fully rendered
           await this.browserManager.delay(1000);
           return;
         } else if (status.status === 'typing') {
-          this.logger.debug('Still generating response...', { contentLength: status.contentLength, reason: status.reason });
+          this.logger.debug('Still generating response...', { 
+            contentLength: status.contentLength, 
+            reason: status.reason,
+            elapsedMs 
+          });
         } else {
-          this.logger.debug('Waiting for response content...', { contentLength: status.contentLength });
+          this.logger.debug('Waiting for response content...', { 
+            contentLength: status.contentLength,
+            elapsedMs 
+          });
         }
 
         await this.browserManager.delay(pollInterval);
@@ -1106,18 +972,34 @@ class ChatGPTProvider extends BaseLLMProvider {
       }
     }
 
-    this.logger.warn('Typing animation check timed out - proceeding with extraction');
+    const elapsedTime = Date.now() - start;
+    this.logger.error('TIMEOUT: Typing animation check exceeded maximum wait time', {
+      elapsedMs: elapsedTime,
+      maxWait
+    });
+
+    // Save HTML when timeout occurs
+    try {
+      await this.saveHtmlArtifact('typing-timeout-exceeded');
+    } catch (e) {
+      this.logger.debug('Failed to save typing timeout HTML artifact', { error: e.message });
+    }
+
+    throw new Error(`Response generation timeout after ${elapsedTime}ms - ChatGPT interface may be unresponsive`);
   }
 
   /**
    * Wait for assistant message content to be populated (critical for headless mode)
    */
   async waitForAssistantContent() {
-    const maxWait = 90000; // 90 seconds for headless mode
+    // AGGRESSIVE TIMEOUT: In non-headless mode, content should appear within 10 seconds
+    // If it doesn't, something is wrong and we should fail fast
+    const maxWait = this.config.headless ? 30000 : 15000; // 30s for headless, 15s for normal
     const pollInterval = 500; // Check every 500ms
     const start = Date.now();
+    let timeoutSaveAttempted = false;
 
-    this.logger.debug('Waiting for assistant message content to be populated...');
+    this.logger.debug('Waiting for assistant message content to be populated...', { maxWait });
 
     while (Date.now() - start < maxWait) {
       try {
@@ -1192,7 +1074,24 @@ class ChatGPTProvider extends BaseLLMProvider {
           return;
         }
 
+        const elapsedMs = Date.now() - start;
+        if (elapsedMs > 5000 && !timeoutSaveAttempted) {
+          // After 5 seconds of waiting with no content, save HTML for debugging
+          this.logger.warn('Assistant content not appearing after 5 seconds, saving debug HTML', {
+            elapsedMs,
+            hasAssistantMessage: contentStatus.hasAssistantMessage,
+            contentLength: contentStatus.contentLength
+          });
+          try {
+            await this.saveHtmlArtifact('wait-timeout-5s');
+            timeoutSaveAttempted = true;
+          } catch (e) {
+            this.logger.debug('Failed to save timeout HTML', { error: e.message });
+          }
+        }
+
         this.logger.debug('Waiting for assistant content...', {
+          elapsedMs,
           hasAssistantMessage: contentStatus.hasAssistantMessage,
           contentLength: contentStatus.contentLength,
           contentPreview: contentStatus.content
@@ -1207,7 +1106,18 @@ class ChatGPTProvider extends BaseLLMProvider {
       }
     }
 
-    this.logger.warn('Assistant content wait timed out - proceeding with extraction anyway');
+    const elapsedTime = Date.now() - start;
+    this.logger.warn('Assistant content wait timeout - proceeding with extraction', {
+      elapsedMs: elapsedTime,
+      maxWait
+    });
+
+    // Save HTML when timeout occurs for debugging
+    try {
+      await this.saveHtmlArtifact('wait-timeout-exceeded');
+    } catch (e) {
+      this.logger.debug('Failed to save timeout HTML artifact', { error: e.message });
+    }
   }
 
   /**
@@ -1652,16 +1562,19 @@ class ChatGPTProvider extends BaseLLMProvider {
                   if (modal.style) {
                     modal.style.display = 'none';
                     modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.style.pointerEvents = 'none';
                   }
-                  if (modal.remove) {
-                    modal.remove();
-                  }
+                  // Don't remove the element, just hide it to avoid triggering navigation
+                  // if (modal.remove) {
+                  //   modal.remove();
+                  // }
                 });
               });
-              this.logger.debug('Removed popup via JavaScript');
+              this.logger.debug('Hidden popup via JavaScript (without removing element)');
               popupDismissed = true;
             } catch (error) {
-              this.logger.debug('Failed to remove popup via JavaScript', { error: error.message });
+              this.logger.debug('Failed to hide popup via JavaScript', { error: error.message });
             }
           }
 

@@ -9,7 +9,7 @@ const { hideBin } = require('yargs/helpers');
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', demandOption: false })
     .option('expected', { type: 'string', demandOption: false })
-    .option('headless', { type: 'boolean', default: true })
+    .option('headless', { type: 'boolean', default: false })  // Default to false - responses don't render in headless mode
     .option('remove-cache', { type: 'boolean', default: false })
     .option('continuous', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: true }) // Force debug true
