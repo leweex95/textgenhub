@@ -105,22 +105,28 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       this.logger.info('Using browser automation mode');
       
-      // Check if Chrome is running with remote debugging, if not, start it
-      const isChromeDebuggingEnabled = await this.checkChromeDebugging();
-      if (!isChromeDebuggingEnabled) {
-        this.logger.info('Starting Chrome with remote debugging enabled...');
-        await this.startChromeWithDebugging();
-        // Wait a moment for Chrome to start
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      // Check if we should use Chrome debugging (skip in CI)
+      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+      const useChromeDebugging = !isCI && !this.config.headless;
+      
+      if (useChromeDebugging) {
+        // Check if Chrome is running with remote debugging, if not, start it
+        const isChromeDebuggingEnabled = await this.checkChromeDebugging();
+        if (!isChromeDebuggingEnabled) {
+          this.logger.info('Starting Chrome with remote debugging enabled...');
+          await this.startChromeWithDebugging();
+          // Wait a moment for Chrome to start
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
       }
 
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,
         userDataDir: this.config.userDataDir,
-        minimizeWindow: true, // Minimize window since not headless
+        minimizeWindow: !isCI && !this.config.headless, // Don't minimize in CI
         debug: true, // Force debug for browser manager
-        connectToExisting: true, // Connect to existing Chrome session
+        connectToExisting: useChromeDebugging, // Only connect to existing in non-CI
       };
       this.browserManager = new BrowserManager(browserConfig);
       await this.browserManager.initialize();
