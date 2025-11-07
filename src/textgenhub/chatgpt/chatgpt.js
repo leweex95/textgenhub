@@ -50,7 +50,7 @@ class ChatGPTProvider extends BaseLLMProvider {
 
   this.browserManager = null;
   this.isLoggedIn = false;
-  this.sessionTimeout = config.sessionTimeout || 3600000; // 1 hour
+  this.sessionTimeout = config.sessionTimeout || 86400000; // 24 hours instead of 1 hour
   this.lastSessionCheck = 0;
 
   // Force debug mode for investigation
@@ -90,7 +90,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     this.config.headless =
       config.headless !== undefined ? config.headless : false;
     this.config.timeout = config.timeout || 60000;
-    this.config.sessionTimeout = config.sessionTimeout || 3600000;
+    this.config.sessionTimeout = config.sessionTimeout || 86400000; // 24 hours instead of 1 hour
     this.config.userDataDir =
       this.config.userDataDir || path.join(process.env.USERPROFILE, 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default');
   }
@@ -102,12 +102,25 @@ class ChatGPTProvider extends BaseLLMProvider {
     try {
       this.logger.info('Initializing ChatGPT provider...'); // crucial
       this.logger.debug('Provider config:', this.config);
+
+      this.logger.info('Using browser automation mode');
+      
+      // Check if Chrome is running with remote debugging, if not, start it
+      const isChromeDebuggingEnabled = await this.checkChromeDebugging();
+      if (!isChromeDebuggingEnabled) {
+        this.logger.info('Starting Chrome with remote debugging enabled...');
+        await this.startChromeWithDebugging();
+        // Wait a moment for Chrome to start
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,
         userDataDir: this.config.userDataDir,
         minimizeWindow: true, // Minimize window since not headless
-        debug: true // Force debug for browser manager
+        debug: true, // Force debug for browser manager
+        connectToExisting: true, // Connect to existing Chrome session
       };
       this.browserManager = new BrowserManager(browserConfig);
       await this.browserManager.initialize();
@@ -533,6 +546,33 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Try multiple extraction strategies
       const extractionStrategies = [
         {
+          name: 'react-data-attributes-expected-content',
+          selector: '[data-message-author-role="assistant"] [data-end]:not([data-end="0"])',
+          extractLogic: async (elements) => {
+            // Special logic for elements with data-end suggesting content should be there
+            for (const el of elements) {
+              const dataEnd = el.getAttribute('data-end');
+              if (dataEnd && parseInt(dataEnd) > 0) {
+                // Wait a bit more for content to populate
+                await this.browserManager.delay(2000);
+                const text = el.textContent || el.innerText || '';
+                if (text.trim().length > 0) {
+                  return text.trim();
+                }
+                // If still empty, try to get content from parent or siblings
+                const parent = el.parentElement;
+                if (parent) {
+                  const parentText = parent.textContent || parent.innerText || '';
+                  if (parentText.trim().length > 0 && parentText.trim() !== 'ChatGPT said:') {
+                    return parentText.trim();
+                  }
+                }
+              }
+            }
+            return null;
+          }
+        },
+        {
           name: 'react-data-attributes',
           selector: '[data-message-author-role="assistant"] [data-start], [data-message-author-role="assistant"] [data-end]',
         },
@@ -598,6 +638,21 @@ class ChatGPTProvider extends BaseLLMProvider {
             selector: strategy.selector,
           });
 
+          // Check if strategy has custom extraction logic
+          if (strategy.extractLogic) {
+            const customResult = await strategy.extractLogic(await this.browserManager.page.$$(strategy.selector));
+            if (customResult) {
+              extractedResponse = customResult;
+              usedStrategy = strategy.name;
+              this.logger.debug('Successfully extracted response with custom logic', {
+                strategy: strategy.name,
+                responseLength: extractedResponse.length,
+              });
+              break;
+            }
+            continue; // Skip normal extraction for custom logic strategies
+          }
+
           const elements = await this.browserManager.page.$$eval(
             strategy.selector,
             (elements) => {
@@ -605,7 +660,7 @@ class ChatGPTProvider extends BaseLLMProvider {
               return elements.map((el) => {
                 // Try different methods to extract text
                 let text = '';
-                
+
                 if (el.tagName === 'DIV' && el.hasAttribute('data-message-author-role')) {
                   // For message containers, get all text including nested elements
                   text = el.innerText || el.textContent || '';
@@ -613,7 +668,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   // Prefer innerText (renders as visible), fall back to textContent
                   text = el.innerText || el.textContent || '';
                 }
-                
+
                 return {
                   text: text,
                   html: el.innerHTML?.substring(0, 200) || '',
@@ -992,14 +1047,16 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for assistant message content to be populated (critical for headless mode)
    */
   async waitForAssistantContent() {
-    // AGGRESSIVE TIMEOUT: In non-headless mode, content should appear within 10 seconds
-    // If it doesn't, something is wrong and we should fail fast
-    const maxWait = this.config.headless ? 30000 : 15000; // 30s for headless, 15s for normal
+    // INCREASED TIMEOUT: Wait longer for content to appear in DOM
+    // ChatGPT uses dynamic rendering that may take time to populate
+    // Use longer timeout in CI environments where responses may be slower
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    const maxWait = isCI ? 120000 : (this.config.headless ? 30000 : 30000); // 2 minutes in CI, 30s locally
     const pollInterval = 500; // Check every 500ms
     const start = Date.now();
     let timeoutSaveAttempted = false;
 
-    this.logger.debug('Waiting for assistant message content to be populated...', { maxWait });
+    this.logger.debug('Waiting for assistant message content to be populated...', { maxWait, isCI });
 
     while (Date.now() - start < maxWait) {
       try {
@@ -1010,8 +1067,8 @@ class ChatGPTProvider extends BaseLLMProvider {
           }
 
           const lastMessage = assistantMessages[assistantMessages.length - 1];
-          
-          // Check for React-rendered content in data attributes
+
+          // Check for React-rendered content in data attributes (this is key for ChatGPT)
           const reactContent = lastMessage.querySelector('[data-start], [data-end]');
           if (reactContent) {
             const reactText = reactContent.textContent || reactContent.innerText || '';
@@ -1024,8 +1081,20 @@ class ChatGPTProvider extends BaseLLMProvider {
                 source: 'react-data'
               };
             }
+            // Even if empty, check if data-end attribute suggests content should be there
+            const dataEnd = reactContent.getAttribute('data-end');
+            if (dataEnd && parseInt(dataEnd) > 0) {
+              return {
+                hasAssistantMessage: true,
+                contentLength: 0,
+                content: '',
+                hasActualContent: false,
+                source: 'react-data-empty-but-expected',
+                expectedLength: parseInt(dataEnd)
+              };
+            }
           }
-          
+
           // Check for markdown/prose content
           const markdownContent = lastMessage.querySelector('.markdown, .prose, p');
           if (markdownContent) {
@@ -1044,7 +1113,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           // Check all text in the message container
           const allText = lastMessage.textContent || lastMessage.innerText || '';
           const textContent = allText.trim();
-          
+
           // Filter out "ChatGPT said:" which is just UI text
           if (textContent && textContent !== 'ChatGPT said:' && textContent !== 'ChatGPT said') {
             return {
@@ -1074,16 +1143,26 @@ class ChatGPTProvider extends BaseLLMProvider {
           return;
         }
 
+        // Special case: if we have data-end attribute suggesting content should be there but it's empty,
+        // wait a bit longer as it might still be streaming
+        if (contentStatus.source === 'react-data-empty-but-expected') {
+          this.logger.debug('Detected expected content via data attributes, waiting for streaming to complete', {
+            expectedLength: contentStatus.expectedLength
+          });
+          // Continue waiting in this case
+        }
+
         const elapsedMs = Date.now() - start;
-        if (elapsedMs > 5000 && !timeoutSaveAttempted) {
-          // After 5 seconds of waiting with no content, save HTML for debugging
-          this.logger.warn('Assistant content not appearing after 5 seconds, saving debug HTML', {
+        if (elapsedMs > 10000 && !timeoutSaveAttempted) {
+          // After 10 seconds of waiting with no content, save HTML for debugging
+          this.logger.warn('Assistant content not appearing after 10 seconds, saving debug HTML', {
             elapsedMs,
             hasAssistantMessage: contentStatus.hasAssistantMessage,
-            contentLength: contentStatus.contentLength
+            contentLength: contentStatus.contentLength,
+            source: contentStatus.source
           });
           try {
-            await this.saveHtmlArtifact('wait-timeout-5s');
+            await this.saveHtmlArtifact('wait-timeout-10s');
             timeoutSaveAttempted = true;
           } catch (e) {
             this.logger.debug('Failed to save timeout HTML', { error: e.message });
@@ -1094,7 +1173,8 @@ class ChatGPTProvider extends BaseLLMProvider {
           elapsedMs,
           hasAssistantMessage: contentStatus.hasAssistantMessage,
           contentLength: contentStatus.contentLength,
-          contentPreview: contentStatus.content
+          contentPreview: contentStatus.content,
+          source: contentStatus.source
         });
 
         await this.browserManager.delay(pollInterval);
@@ -1107,9 +1187,10 @@ class ChatGPTProvider extends BaseLLMProvider {
     }
 
     const elapsedTime = Date.now() - start;
-    this.logger.warn('Assistant content wait timeout - proceeding with extraction', {
+    this.logger.warn('Assistant content wait timeout - proceeding with extraction anyway', {
       elapsedMs: elapsedTime,
-      maxWait
+      maxWait,
+      isCI
     });
 
     // Save HTML when timeout occurs for debugging
@@ -1118,6 +1199,14 @@ class ChatGPTProvider extends BaseLLMProvider {
     } catch (e) {
       this.logger.debug('Failed to save timeout HTML artifact', { error: e.message });
     }
+  }
+
+  /**
+   * Check if the current session is still valid based on time
+   */
+  isSessionValid() {
+    const timeSinceLastCheck = Date.now() - this.lastSessionCheck;
+    return timeSinceLastCheck < this.sessionTimeout;
   }
 
   /**
@@ -1224,8 +1313,10 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Ensure session is valid, refresh if needed
    */
   async ensureSessionValid() {
-    // First check time-based expiration
-    if (!this.isSessionValid()) {
+    // For CI/testing, be more lenient with session validation
+    // Only check time-based expiration if it's been more than 24 hours
+    const timeSinceLastCheck = Date.now() - this.lastSessionCheck;
+    if (timeSinceLastCheck > this.sessionTimeout) {
       this.logger.info('Session expired (time-based), refreshing...');
       this.isLoggedIn = false;
       await this.ensureLoggedIn();
@@ -1247,7 +1338,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       this.isLoggedIn = false;
       // Try to recover by navigating back to chat page
       await this.browserManager.navigateToUrl(this.urls.chat);
-      
+
       // Wait for text area to appear after navigation
       try {
         await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -1634,6 +1725,87 @@ class ChatGPTProvider extends BaseLLMProvider {
     } catch (error) {
       this.logger.error('Error handling popup', { error: error.message });
       return false;
+    }
+  }
+
+  /**
+   * Check if Chrome is running with remote debugging enabled
+   */
+  async checkChromeDebugging() {
+    try {
+      const net = require('net');
+      return new Promise((resolve) => {
+        const client = net.createConnection({ port: 9222, host: 'localhost' });
+        client.on('connect', () => {
+          client.end();
+          resolve(true);
+        });
+        client.on('error', () => {
+          resolve(false);
+        });
+        // Timeout after 1 second
+        setTimeout(() => {
+          client.destroy();
+          resolve(false);
+        }, 1000);
+      });
+    } catch (error) {
+      this.logger.debug('Error checking Chrome debugging port', { error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Start Chrome with remote debugging enabled
+   */
+  async startChromeWithDebugging() {
+    try {
+      const { spawn } = require('child_process');
+      const path = require('path');
+      
+      // Find Chrome executable path
+      let chromePath = 'chrome';
+      if (process.platform === 'win32') {
+        const possiblePaths = [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe'
+        ];
+        for (const p of possiblePaths) {
+          if (require('fs').existsSync(p)) {
+            chromePath = p;
+            break;
+          }
+        }
+      }
+
+      // Use the same user data directory as configured
+      const userDataDir = this.config.userDataDir || path.join(process.env.USERPROFILE, 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default');
+      
+      const chromeArgs = [
+        `--remote-debugging-port=9222`,
+        `--user-data-dir=${userDataDir}`,
+        `--start-maximized`,
+        `--no-first-run`,
+        `--disable-default-apps`,
+        `--disable-web-security`,
+        `--disable-features=VizDisplayCompositor`
+      ];
+
+      this.logger.info('Starting Chrome with debugging', { chromePath, userDataDir });
+      
+      const chromeProcess = spawn(chromePath, chromeArgs, {
+        detached: true,
+        stdio: 'ignore'
+      });
+
+      // Don't wait for the process, let it run in background
+      chromeProcess.unref();
+      
+      this.logger.info('Chrome started with remote debugging enabled');
+    } catch (error) {
+      this.logger.error('Failed to start Chrome with debugging', { error: error.message });
+      throw new Error(`Could not start Chrome with debugging: ${error.message}`);
     }
   }
 
