@@ -1051,7 +1051,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     // ChatGPT uses dynamic rendering that may take time to populate
     // Use longer timeout in CI environments where responses may be slower
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
-    const maxWait = isCI ? 120000 : (this.config.headless ? 30000 : 30000); // 2 minutes in CI, 30s locally
+    const maxWait = isCI ? 300000 : (this.config.headless ? 30000 : 30000); // 5 minutes in CI, 30s locally
     const pollInterval = 500; // Check every 500ms
     const start = Date.now();
     let timeoutSaveAttempted = false;
