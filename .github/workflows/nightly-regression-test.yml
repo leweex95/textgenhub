@@ -65,7 +65,7 @@ jobs:
           CHATGPT_HEADLESS: 'false'
         run: |
           $headlessArg = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { "--headless false" } else { "" }
-          $output = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" $headlessArg --debug 2>&1
+          $output = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 5 + 0? Respond with only the number, no other text." --expected "4" $headlessArg --debug 2>&1
           $output | Out-File -FilePath artifacts/chatgpt_cli_raw_output.txt
           $jsonLine = $output | Select-String '{' | Select-Object -Last 1
           $exitCode = 0
@@ -152,7 +152,7 @@ jobs:
           DEEPSEEK_HEADLESS: ${{ inputs.headless || 'true' }}
         run: |
           $headless = if ([System.Environment]::GetEnvironmentVariable('DEEPSEEK_HEADLESS') -eq 'false') { $false } else { $true }
-          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 7 + 13? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $jsonOutput = node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 5 + 0? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
             Write-Error "DeepSeek regression test failed: No output from CLI script."
             throw "DeepSeek regression test failed: No output from CLI script."
@@ -245,7 +245,7 @@ jobs:
           PERPLEXITY_HEADLESS: ${{ inputs.headless || 'true' }}
         run: |
           $headless = if ([System.Environment]::GetEnvironmentVariable('PERPLEXITY_HEADLESS') -eq 'false') { $false } else { $true }
-          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          $jsonOutput = node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 5 + 0? Answer with only the number, no text, no explanation, just the single number." --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
           if (-not $jsonOutput) {
             Write-Error "Perplexity regression test failed: No output from CLI script."
             throw "Perplexity regression test failed: No output from CLI script."
@@ -340,7 +340,7 @@ jobs:
           $headlessArg = if ([System.Environment]::GetEnvironmentVariable('GROK_HEADLESS') -eq 'false') { "--headless false" } else { "" }
           $job = Start-Job -ScriptBlock {
             param($headlessArg)
-            $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 2 + 2? Answer with only the number, no text, no explanation, just the single number." $headlessArg --debug 2>&1
+            $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 5 + 0? Answer with only the number, no text, no explanation, just the single number." $headlessArg --debug 2>&1
             return $allOutput
           } -ArgumentList $headlessArg
           
