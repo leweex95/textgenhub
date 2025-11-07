@@ -554,7 +554,36 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Try multiple extraction strategies
       const extractionStrategies = [
         {
-          name: 'react-data-attributes-expected-content',
+          name: 'data-start-end-element-wait',
+          selector: 'p[data-start][data-end]:not([data-end="0"])',
+          extractLogic: async () => {
+            // Wait for the specific p element with data-start/data-end to have content
+            const maxWait = isCI ? 15000 : 10000; // 15s in CI, 10s locally
+            const startTime = Date.now();
+            
+            while (Date.now() - startTime < maxWait) {
+              const result = await this.browserManager.page.evaluate(() => {
+                const element = document.querySelector('p[data-start][data-end]:not([data-end="0"])');
+                if (element) {
+                  const text = element.textContent || element.innerText || '';
+                  if (text.trim().length > 0) {
+                    return text.trim();
+                  }
+                }
+                return null;
+              });
+              
+              if (result) {
+                return result;
+              }
+              
+              // Wait a bit before checking again
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            return null;
+          }
+        },
           selector: '[data-message-author-role="assistant"] [data-end]:not([data-end="0"])',
           extractLogic: async () => {
             // Special logic for elements with data-end suggesting content should be there
