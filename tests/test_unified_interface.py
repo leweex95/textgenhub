@@ -45,9 +45,9 @@ def test_provider_classes():
 
 def test_deepseek_functions():
     """Test that DeepSeek module has required functions"""
-    from textgenhub.deepseek import ask_deepseek, DeepSeek
+    from textgenhub.deepseek import ask, DeepSeek
     
-    assert callable(ask_deepseek), "ask_deepseek should be callable"
+    assert callable(ask), "ask should be callable"
     assert DeepSeek is not None, "DeepSeek class should exist"
 
 
