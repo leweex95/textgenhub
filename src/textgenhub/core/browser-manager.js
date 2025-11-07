@@ -90,6 +90,46 @@ class BrowserManager {
       '--disable-gpu'
     ];
     
+    // Add CI-specific optimizations for faster performance
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    if (isCI) {
+      browserArgs.push(
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images', // Disable images for faster loading
+        '--disable-javascript-harmony-shipping', // Disable experimental JS features
+        '--memory-pressure-off', // Disable memory pressure handling
+        '--max_old_space_size=4096', // Increase memory limit
+        '--disable-dev-tools', // Disable dev tools
+        '--disable-hang-monitor', // Disable hang monitor
+        '--disable-prompt-on-repost', // Disable repost prompts
+        '--force-color-profile=srgb', // Force color profile
+        '--disable-component-extensions-with-background-pages', // Disable extensions
+        '--disable-default-apps', // Disable default apps
+        '--disable-sync', // Disable sync
+        '--no-default-browser-check', // Skip default browser check
+        '--no-pings', // Disable hyperlink auditing
+        '--password-store=basic', // Use basic password store
+        '--use-mock-keychain', // Use mock keychain
+        '--disable-background-networking', // Disable background networking
+        '--disable-client-side-phishing-detection', // Disable phishing detection
+        '--disable-component-update', // Disable component updates
+        '--disable-domain-reliability', // Disable domain reliability
+        '--disable-logging', // Disable logging
+        '--disable-notifications', // Disable notifications
+        '--disable-permissions-api', // Disable permissions API
+        '--disable-session-crashed-bubble', // Disable crash bubble
+        '--disable-infobars', // Disable infobars
+        '--disable-features=VizDisplayCompositor' // Disable display compositor
+      );
+      this.logger.info('Added CI-specific browser optimizations for faster performance');
+    }
+    
     // In headless mode, add special configuration
     if (this.config.headless) {
       // Use new headless mode and add necessary flags

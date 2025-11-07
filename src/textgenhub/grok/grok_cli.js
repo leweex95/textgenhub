@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-const ChatGPTProvider = require('./chatgpt');
+const GrokProvider = require('./grok');
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 
@@ -9,14 +9,14 @@ const { hideBin } = require('yargs/helpers');
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', demandOption: false })
     .option('expected', { type: 'string', demandOption: false })
-    .option('headless', { type: 'boolean', default: false })  // Default to false - responses don't render in headless mode
+    .option('headless', { type: 'boolean', default: true })
     .option('remove-cache', { type: 'boolean', default: false })
     .option('continuous', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: true }) // Force debug true
     .argv;
 
   // Always enable debug mode for investigation
-  const provider = new ChatGPTProvider({
+  const provider = new GrokProvider({
     headless: argv.headless,
     removeCache: argv['remove-cache'],
     continuous: argv.continuous,
@@ -66,7 +66,7 @@ const { hideBin } = require('yargs/helpers');
           if (typeof provider.saveHtmlArtifact === 'function') {
             artifactPath = await provider.saveHtmlArtifact('wrong-answer');
           }
-          throw new Error(`ChatGPT regression test failed: expected \"${argv.expected}\", got \"${response}\"`);
+          throw new Error(`Grok regression test failed: expected "${argv.expected}", got "${response}"`);
         }
         // Success: print response JSON
         console.log(JSON.stringify({ response }));
@@ -84,7 +84,7 @@ const { hideBin } = require('yargs/helpers');
     }
   } catch (err) {
     // Print full error context for debugging
-    console.error('[ChatGPT CLI ERROR]', {
+    console.error('[Grok CLI ERROR]', {
       message: err.message,
       stack: err.stack,
       originalError: err.originalError ? {

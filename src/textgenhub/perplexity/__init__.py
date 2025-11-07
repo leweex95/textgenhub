@@ -1,3 +1,8 @@
 from .perplexity import ask
 
-__all__ = ['ask']
+class Perplexity:
+    """Perplexity provider class"""
+    def chat(self, prompt: str) -> str:
+        return ask(prompt)
+
+__all__ = ['ask', 'Perplexity']

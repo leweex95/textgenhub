@@ -31,7 +31,12 @@ try:
     from . import deepseek  
     from . import perplexity
     
-    __all__ = ['chatgpt', 'deepseek', 'perplexity']
+    # Import classes
+    from .chatgpt import ChatGPT
+    from .deepseek import DeepSeek
+    from .perplexity import Perplexity
+    
+    __all__ = ['chatgpt', 'deepseek', 'perplexity', 'ChatGPT', 'DeepSeek', 'Perplexity']
 except ImportError as e:
     print(f"Warning: Could not import some providers: {e}", file=sys.stderr)
     __all__ = []
