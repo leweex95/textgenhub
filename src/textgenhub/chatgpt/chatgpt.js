@@ -400,7 +400,9 @@ class ChatGPTProvider extends BaseLLMProvider {
       await this.waitForTypingComplete();
 
       // Add extra wait to ensure response is fully streamed, especially in CI
-      await this.browserManager.delay(2000);
+      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+      const extraWait = isCI ? 500 : 2000; // 500ms in CI, 2s locally
+      await this.browserManager.delay(extraWait);
 
       // In headless mode, try to detect if we're actually getting a response
       // by checking DOM changes and network activity
@@ -892,12 +894,13 @@ class ChatGPTProvider extends BaseLLMProvider {
   async waitForTypingComplete() {
     // AGGRESSIVE TIMEOUT: Max 60 seconds to wait for typing to complete
     // If it hasn't completed by then, save HTML and fail fast
-    const maxWait = 60000; // 60 seconds max
-    const pollInterval = 1000; // Check every second
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    const maxWait = isCI ? 120000 : 60000; // 2 minutes in CI, 1 minute locally
+    const pollInterval = isCI ? 500 : 1000; // Faster polling in CI (500ms vs 1000ms)
     const start = Date.now();
     let timeoutSaveAttempted = false;
 
-    this.logger.debug('Waiting for typing animation to complete...', { maxWait });
+    this.logger.debug('Waiting for typing animation to complete...', { maxWait, isCI });
 
     // First wait a minimum time for response to start
     await this.browserManager.delay(3000);
@@ -1052,7 +1055,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     // Use longer timeout in CI environments where responses may be slower
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     const maxWait = isCI ? 300000 : (this.config.headless ? 30000 : 30000); // 5 minutes in CI, 30s locally
-    const pollInterval = 500; // Check every 500ms
+    const pollInterval = isCI ? 200 : 500; // Faster polling in CI (200ms vs 500ms)
     const start = Date.now();
     let timeoutSaveAttempted = false;
 
