@@ -555,7 +555,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       const extractionStrategies = [
         {
           name: 'data-start-end-element-wait',
-          selector: 'p[data-start][data-end]:not([data-end="0"])',
+          selector: 'p[data-start][data-end]',
           extractLogic: async () => {
             // Wait for the specific p element with data-start/data-end to have content
             const maxWait = isCI ? 15000 : 10000; // 15s in CI, 10s locally
@@ -563,11 +563,15 @@ class ChatGPTProvider extends BaseLLMProvider {
             
             while (Date.now() - startTime < maxWait) {
               const result = await this.browserManager.page.evaluate(() => {
-                const element = document.querySelector('p[data-start][data-end]:not([data-end="0"])');
-                if (element) {
-                  const text = element.textContent || element.innerText || '';
-                  if (text.trim().length > 0) {
-                    return text.trim();
+                // Find p elements with data-start and data-end attributes, excluding those with data-end="0"
+                const elements = Array.from(document.querySelectorAll('p[data-start][data-end]'));
+                for (const element of elements) {
+                  const dataEnd = element.getAttribute('data-end');
+                  if (dataEnd && dataEnd !== '0') {
+                    const text = element.textContent || element.innerText || '';
+                    if (text.trim().length > 0) {
+                      return text.trim();
+                    }
                   }
                 }
                 return null;
@@ -584,6 +588,8 @@ class ChatGPTProvider extends BaseLLMProvider {
             return null;
           }
         },
+        {
+          name: 'react-data-attributes-expected-content',
           selector: '[data-message-author-role="assistant"] [data-end]:not([data-end="0"])',
           extractLogic: async () => {
             // Special logic for elements with data-end suggesting content should be there
