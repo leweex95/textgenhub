@@ -892,18 +892,18 @@ class ChatGPTProvider extends BaseLLMProvider {
    * Wait for typing animation to complete
    */
   async waitForTypingComplete() {
-    // AGGRESSIVE TIMEOUT: Max 60 seconds to wait for typing to complete
-    // If it hasn't completed by then, save HTML and fail fast
+    // AGGRESSIVE TIMEOUT: Max 30 seconds in CI, 45 seconds locally
+    // If it hasn't completed by then, proceed with extraction anyway
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
-    const maxWait = isCI ? 120000 : 60000; // 2 minutes in CI, 1 minute locally
-    const pollInterval = isCI ? 500 : 1000; // Faster polling in CI (500ms vs 1000ms)
+    const maxWait = isCI ? 30000 : 45000; // 30 seconds in CI, 45 seconds locally
+    const pollInterval = isCI ? 200 : 500; // Faster polling in CI (200ms vs 500ms)
     const start = Date.now();
     let timeoutSaveAttempted = false;
 
     this.logger.debug('Waiting for typing animation to complete...', { maxWait, isCI });
 
     // First wait a minimum time for response to start
-    await this.browserManager.delay(3000);
+    await this.browserManager.delay(2000);
     
     let previousContentLength = 0;
     let stableCount = 0;
@@ -969,11 +969,11 @@ class ChatGPTProvider extends BaseLLMProvider {
           elapsedMs 
         });
 
-        // Save HTML if we're waiting too long (after 10 seconds with no content)
-        if (elapsedMs > 10000 && status.status === 'waiting' && !timeoutSaveAttempted) {
-          this.logger.warn('No content after 10 seconds, saving debug HTML', { elapsedMs });
+        // Save HTML if we're waiting too long (after 5 seconds with no content)
+        if (elapsedMs > 5000 && status.status === 'waiting' && !timeoutSaveAttempted) {
+          this.logger.warn('No content after 5 seconds, saving debug HTML', { elapsedMs });
           try {
-            await this.saveHtmlArtifact('typing-timeout-10s');
+            await this.saveHtmlArtifact('typing-timeout-5s');
             timeoutSaveAttempted = true;
           } catch (e) {
             this.logger.debug('Failed to save typing timeout HTML', { error: e.message });
@@ -1006,7 +1006,7 @@ class ChatGPTProvider extends BaseLLMProvider {
             elapsedMs 
           });
           // Add a small delay to ensure content is fully rendered
-          await this.browserManager.delay(1000);
+          await this.browserManager.delay(500);
           return;
         } else if (status.status === 'typing') {
           this.logger.debug('Still generating response...', { 
@@ -1031,19 +1031,20 @@ class ChatGPTProvider extends BaseLLMProvider {
     }
 
     const elapsedTime = Date.now() - start;
-    this.logger.error('TIMEOUT: Typing animation check exceeded maximum wait time', {
+    this.logger.warn('TIMEOUT: Typing animation check exceeded maximum wait time - proceeding with extraction', {
       elapsedMs: elapsedTime,
       maxWait
     });
 
-    // Save HTML when timeout occurs
+    // Save HTML when timeout occurs for debugging
     try {
-      await this.saveHtmlArtifact('typing-timeout-exceeded');
+      await this.saveHtmlArtifact('typing-timeout-proceeding');
     } catch (e) {
       this.logger.debug('Failed to save typing timeout HTML artifact', { error: e.message });
     }
 
-    throw new Error(`Response generation timeout after ${elapsedTime}ms - ChatGPT interface may be unresponsive`);
+    // DON'T THROW ERROR - just proceed with extraction
+    // throw new Error(`Response generation timeout after ${elapsedTime}ms - ChatGPT interface may be unresponsive`);
   }
 
   /**
@@ -1052,9 +1053,9 @@ class ChatGPTProvider extends BaseLLMProvider {
   async waitForAssistantContent() {
     // INCREASED TIMEOUT: Wait longer for content to appear in DOM
     // ChatGPT uses dynamic rendering that may take time to populate
-    // Use longer timeout in CI environments where responses may be slower
+    // Use shorter timeout in CI to avoid hanging
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
-    const maxWait = isCI ? 300000 : (this.config.headless ? 30000 : 30000); // 5 minutes in CI, 30s locally
+    const maxWait = isCI ? 60000 : (this.config.headless ? 30000 : 30000); // 1 minute in CI, 30s locally
     const pollInterval = isCI ? 200 : 500; // Faster polling in CI (200ms vs 500ms)
     const start = Date.now();
     let timeoutSaveAttempted = false;
