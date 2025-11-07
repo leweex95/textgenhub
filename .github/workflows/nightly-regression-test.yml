@@ -22,21 +22,112 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      
+      - name: Verify Node
+        run: |
+          node -v
+          npm -v
+        shell: pwsh
+
+      - name: Install Poetry
+        run: python -m pip install --upgrade poetry==2.2.0
+
+      - name: Install dependencies
+        run: |
+          poetry install
+        shell: pwsh
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+        shell: pwsh
+
+      - name: Validate textgenhub installation
+        run: |
+          poetry run pip show textgenhub
+        shell: pwsh
+
       - name: Create artifacts directory
         run: mkdir -p artifacts
         shell: pwsh
 
-      - name: Mock ChatGPT regression test (CI workaround)
+      - name: Run ChatGPT regression test
+        env:
+          CHATGPT_HEADLESS: 'false'
         run: |
-          # Mock successful ChatGPT test for CI - real test works locally
-          $mockResult = @{
-            response = "4"
-            success = $true
-            mock = $true
-            message = "ChatGPT test mocked for CI - works locally"
-          } | ConvertTo-Json
-          Write-Output "ChatGPT regression test passed (mocked): $($mockResult)"
-          $mockResult | Out-File -FilePath artifacts/chatgpt_cli_raw_output.txt
+          $headlessArg = if ([System.Environment]::GetEnvironmentVariable('CHATGPT_HEADLESS') -eq 'false') { "--headless false" } else { "" }
+          $output = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" $headlessArg --debug 2>&1
+          $output | Out-File -FilePath artifacts/chatgpt_cli_raw_output.txt
+          $jsonLine = $output | Select-String '{' | Select-Object -Last 1
+          $exitCode = 0
+          if (-not $jsonLine) {
+            Write-Error "ChatGPT regression test failed: No JSON output from CLI script. Raw output: $output"
+            $exitCode = 1
+          } else {
+            $result = $jsonLine.Line | ConvertFrom-Json
+            if ($result.error) {
+              Write-Error "ChatGPT error occurred: $($result.error)"
+              if ($result.artifactPath) {
+                Write-Output "HTML artifact saved at: $($result.artifactPath)"
+              }
+              $exitCode = 1
+            } elseif (-not $result -or -not $result.response) {
+              Write-Error "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $output"
+              $exitCode = 1
+            } else {
+              Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
+            }
+          }
+          exit $exitCode
+        shell: pwsh
+
+      - name: Upload ChatGPT artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: chatgpt-artifacts
+          path: |
+            artifacts/chatgpt_*.html
+            artifacts/chatgpt_cli_raw_output.txt
+          if-no-files-found: ignore
+  
+      - name: Run ChatGPT regression test retry
+        env:
+          CHATGPT_HEADLESS: 'false'
+        run: |
+          $headless = $false
+          $jsonOutput = node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What is 2 + 2? Respond with only the number, no other text." --expected "4" --headless $headless --debug 2>$null | Select-String '^\{.*\}$' | ForEach-Object { $_.Line }
+          if (-not $jsonOutput) {
+            Write-Error "ChatGPT regression test failed: No output from CLI script."
+            throw "ChatGPT regression test failed: No output from CLI script."
+          }
+          $result = $jsonOutput | ConvertFrom-Json
+          
+          # Check if error occurred and HTML artifact was saved
+          if ($result.error) {
+            Write-Error "ChatGPT error occurred: $($result.error)"
+            if ($result.artifactPath) {
+              Write-Output "HTML artifact saved at: $($result.artifactPath)"
+            }
+            throw "ChatGPT regression test failed: $($result.error)"
+          }
+          
+          if (-not $result -or -not $result.response) {
+            Write-Error "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+            throw "ChatGPT regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
+          }
+          
+          Write-Output "ChatGPT regression test passed: ChatGPT output: $($result.response)"
         shell: pwsh
 
   deepseek-test:
