@@ -1,3 +1,8 @@
 from .chatgpt import ask
 
-__all__ = ['ask']
+class ChatGPT:
+    """ChatGPT provider class"""
+    def chat(self, prompt: str) -> str:
+        return ask(prompt)
+
+__all__ = ['ask', 'ChatGPT']
