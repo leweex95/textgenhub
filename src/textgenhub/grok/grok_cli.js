@@ -13,6 +13,7 @@ const { hideBin } = require('yargs/helpers');
     .option('remove-cache', { type: 'boolean', default: false })
     .option('continuous', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: true }) // Force debug true
+    .option('output-format', { type: 'string', choices: ['json', 'html'], default: 'json' })
     .argv;
 
   // Always enable debug mode for investigation
@@ -68,8 +69,19 @@ const { hideBin } = require('yargs/helpers');
           }
           throw new Error(`Grok regression test failed: expected "${argv.expected}", got "${response}"`);
         }
-        // Success: print response JSON
-        console.log(JSON.stringify({ response }));
+        // Success: print response based on format
+        if (argv['output-format'] === 'html') {
+          // For HTML output, try to get HTML content if available
+          const html = provider.getLastHtml ? await provider.getLastHtml() : '';
+          console.log(html || response);
+        } else {
+          // JSON output with metadata
+          const html = provider.getLastHtml ? await provider.getLastHtml() : '';
+          console.log(JSON.stringify({ 
+            response,
+            html
+          }, null, 2));
+        }
       } catch (err) {
         if (!artifactPath && typeof provider.saveHtmlArtifact === 'function') {
           artifactPath = await provider.saveHtmlArtifact('error');

@@ -11,6 +11,7 @@ const { hideBin } = require('yargs/helpers');
     .option('headless', { type: 'boolean', default: true })
     .option('remove-cache', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: false })
+    .option('output-format', { type: 'string', choices: ['json', 'html'], default: 'json' })
     .argv;
 
   const provider = new DeepSeekProvider({
@@ -22,7 +23,20 @@ const { hideBin } = require('yargs/helpers');
   try {
     await provider.initialize();
     const response = await provider.generateContent(argv.prompt);
-    console.log(JSON.stringify({ response }));
+    
+    if (argv['output-format'] === 'html') {
+      // For HTML output, try to get HTML content if available
+      const html = provider.getLastHtml ? await provider.getLastHtml() : '';
+      console.log(html || response);
+    } else {
+      // JSON output with metadata
+      const html = provider.getLastHtml ? await provider.getLastHtml() : '';
+      console.log(JSON.stringify({ 
+        response,
+        html
+      }, null, 2));
+    }
+    
     await provider.cleanup();
   } catch (err) {
     // Always output a JSON error object for CI artifact capture
