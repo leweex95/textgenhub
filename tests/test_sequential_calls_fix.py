@@ -22,7 +22,7 @@ class MockChatGPTTest:
             from textgenhub.core.browser_manager import BrowserManager
 
             # Check method exists
-            if not hasattr(BrowserManager, 'takeScreenshot'):
+            if not hasattr(BrowserManager, "takeScreenshot"):
                 raise AssertionError("BrowserManager missing takeScreenshot method")
 
             print("✓ BrowserManager.takeScreenshot method exists")
@@ -45,7 +45,7 @@ class MockChatGPTTest:
             source = inspect.getsource(ChatGPTProvider)
 
             # Verify the method calls takeScreenshot in error handler
-            if 'takeScreenshot' in source:
+            if "takeScreenshot" in source:
                 print("✓ takeScreenshot is called in error handling code")
             else:
                 print("⚠ takeScreenshot call not found (might be indirect)")
@@ -74,17 +74,17 @@ class MockChatGPTTest:
             print("  (These are mock tests - actual ChatGPT calls require browser)")
 
             # Verify method can be called without crashing
-            manager = BrowserManager({'headless': True})
+            manager = BrowserManager({"headless": True})
 
             # Test 1: Method exists
-            assert hasattr(manager, 'takeScreenshot'), "takeScreenshot method missing"
+            assert hasattr(manager, "takeScreenshot"), "takeScreenshot method missing"
             print("  ✓ Call 1-5: takeScreenshot method is available")
 
             # Test 2: Method can be called safely
             # This won't actually take a screenshot without initializing the browser,
             # but it won't crash either
             with tempfile.TemporaryDirectory() as tmpdir:
-                await manager.takeScreenshot('test.png', {'directory': tmpdir})
+                await manager.takeScreenshot("test.png", {"directory": tmpdir})
                 print("  ✓ Screenshot method called successfully (uninitialized)")
 
             print("✓ Sequential calls scenario test passed")
@@ -92,6 +92,7 @@ class MockChatGPTTest:
         except Exception as e:
             print(f"✗ Failed: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -105,7 +106,7 @@ class MockChatGPTTest:
         try:
             from textgenhub.core.browser_manager import BrowserManager
 
-            manager = BrowserManager({'headless': True})
+            manager = BrowserManager({"headless": True})
 
             # Simulate error recovery scenario
             print("\nTesting error recovery:")
@@ -115,13 +116,10 @@ class MockChatGPTTest:
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Uninitialized browser scenario (common error condition)
                 try:
-                    await manager.takeScreenshot(
-                        'chatgpt-error-test.png',
-                        {'directory': tmpdir}
-                    )
+                    await manager.takeScreenshot("chatgpt-error-test.png", {"directory": tmpdir})
                     print("  ✓ Error handler screenshot attempt handled safely")
                 except TypeError as e:
-                    if 'takeScreenshot is not a function' in str(e):
+                    if "takeScreenshot is not a function" in str(e):
                         raise AssertionError("BUG NOT FIXED: takeScreenshot is still missing")
                     raise
 
@@ -139,14 +137,10 @@ async def run_all_tests():
     print("=" * 60)
 
     tests = [
-        ("BrowserManager has takeScreenshot",
-         MockChatGPTTest.test_browser_manager_has_take_screenshot),
-        ("Multiple sequential calls structure",
-         MockChatGPTTest.test_multiple_sequential_calls_structure),
-        ("Sequential calls scenario",
-         MockChatGPTTest.test_sequential_calls_scenario),
-        ("Error recovery mechanism",
-         MockChatGPTTest.test_error_recovery),
+        ("BrowserManager has takeScreenshot", MockChatGPTTest.test_browser_manager_has_take_screenshot),
+        ("Multiple sequential calls structure", MockChatGPTTest.test_multiple_sequential_calls_structure),
+        ("Sequential calls scenario", MockChatGPTTest.test_sequential_calls_scenario),
+        ("Error recovery mechanism", MockChatGPTTest.test_error_recovery),
     ]
 
     passed = 0
@@ -181,7 +175,8 @@ def test_bug_scenario():
     """
     print("\nBUG SCENARIO (BEFORE FIX):")
     print("-" * 60)
-    print("""
+    print(
+        """
     User makes multiple sequential ChatGPT API calls:
 
     from textgenhub.chatgpt import ask
@@ -208,11 +203,12 @@ def test_bug_scenario():
     - Implement takeScreenshot() method in BrowserManager class
     - Add error handling to gracefully handle screenshot failures
     - Prevent cascading failures in error handlers
-    """)
+    """
+    )
     print("-" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_bug_scenario()
 
     # Run async tests

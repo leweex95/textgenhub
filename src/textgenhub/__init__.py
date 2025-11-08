@@ -13,12 +13,7 @@ def _ensure_node_deps():
 
     if not node_modules.exists():
         try:
-            subprocess.run(
-                ["npm", "install"],
-                cwd=root,
-                check=True,
-                shell=True  # required on Windows
-            )
+            subprocess.run(["npm", "install"], cwd=root, check=True, shell=True)  # required on Windows
         except subprocess.CalledProcessError as e:
             print(f"npm install failed: {e}", file=sys.stderr)
             raise
@@ -38,7 +33,7 @@ try:
     from .deepseek import DeepSeek  # noqa: F401
     from .perplexity import Perplexity  # noqa: F401
 
-    __all__ = ['chatgpt', 'deepseek', 'perplexity', 'ChatGPT', 'DeepSeek', 'Perplexity']
+    __all__ = ["chatgpt", "deepseek", "perplexity", "ChatGPT", "DeepSeek", "Perplexity"]
 except ImportError as e:
     print(f"Warning: Could not import some providers: {e}", file=sys.stderr)
     __all__ = []

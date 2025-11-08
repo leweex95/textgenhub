@@ -24,8 +24,8 @@ class TestCLIFunctionality:
         mock_result.stdout = '{"response": "Test response", "html": "<p>Test</p>"}'
         mock_result.stderr = ""
 
-        with patch('subprocess.run', return_value=mock_result):
-            response, html = run_provider_old('chatgpt', 'test prompt', True, 'json')
+        with patch("subprocess.run", return_value=mock_result):
+            response, html = run_provider_old("chatgpt", "test prompt", True, "json")
 
         assert response == "Test response"
         assert html == "<p>Test</p>"
@@ -34,13 +34,13 @@ class TestCLIFunctionality:
         """Test run_provider_old with HTML output format"""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = '<div>Test HTML</div>'
+        mock_result.stdout = "<div>Test HTML</div>"
         mock_result.stderr = ""
 
-        with patch('subprocess.run', return_value=mock_result):
-            response, html = run_provider_old('chatgpt', 'test prompt', True, 'html')
+        with patch("subprocess.run", return_value=mock_result):
+            response, html = run_provider_old("chatgpt", "test prompt", True, "html")
 
-        assert response == '<div>Test HTML</div>'
+        assert response == "<div>Test HTML</div>"
         assert html == ""
 
     def test_run_provider_old_subprocess_error(self):
@@ -49,16 +49,16 @@ class TestCLIFunctionality:
         mock_result.returncode = 1
         mock_result.stderr = "Node.js error occurred"
 
-        with patch('subprocess.run', return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result):
             with pytest.raises(Exception, match="Chatgpt old method failed"):
-                run_provider_old('chatgpt', 'test prompt', True, 'json')
+                run_provider_old("chatgpt", "test prompt", True, "json")
 
     def test_run_provider_old_unknown_provider(self):
         """Test run_provider_old with unknown provider"""
         with pytest.raises(ValueError, match="Unknown provider: unknown"):
-            run_provider_old('unknown', 'test prompt', True, 'json')
+            run_provider_old("unknown", "test prompt", True, "json")
 
-    @patch('websockets.connect')
+    @patch("websockets.connect")
     def test_run_chatgpt_extension_success(self, mock_connect):
         """Test successful WebSocket connection for ChatGPT extension"""
         # Mock the WebSocket connection
@@ -67,44 +67,38 @@ class TestCLIFunctionality:
         mock_connect.return_value.__aexit__.return_value = None
 
         # Mock the response
-        mock_websocket.recv.return_value = json.dumps({
-            'type': 'response',
-            'response': 'Extension response',
-            'html': '<p>Extension HTML</p>'
-        })
+        mock_websocket.recv.return_value = json.dumps({"type": "response", "response": "Extension response", "html": "<p>Extension HTML</p>"})
 
-        response, html = run_chatgpt_extension('test message', 120, 'json')
+        response, html = run_chatgpt_extension("test message", 120, "json")
 
-        assert response == 'Extension response'
-        assert html == '<p>Extension HTML</p>'
+        assert response == "Extension response"
+        assert html == "<p>Extension HTML</p>"
 
-    @patch('websockets.connect')
+    @patch("websockets.connect")
     def test_run_chatgpt_extension_error_response(self, mock_connect):
         """Test ChatGPT extension error response"""
         mock_websocket = AsyncMock()
         mock_connect.return_value.__aenter__.return_value = mock_websocket
         mock_connect.return_value.__aexit__.return_value = None
 
-        mock_websocket.recv.return_value = json.dumps({
-            'type': 'error',
-            'message': 'Extension error'
-        })
+        mock_websocket.recv.return_value = json.dumps({"type": "error", "message": "Extension error"})
 
         with pytest.raises(Exception, match="Extension error"):
-            run_chatgpt_extension('test message', 120, 'json')
+            run_chatgpt_extension("test message", 120, "json")
 
-    @patch('websockets.connect')
+    @patch("websockets.connect")
     def test_run_chatgpt_extension_connection_refused(self, mock_connect):
         """Test ChatGPT extension connection refused"""
         mock_connect.side_effect = ConnectionRefusedError()
 
         with pytest.raises(Exception, match="Could not connect to server"):
-            run_chatgpt_extension('test message', 120, 'json')
+            run_chatgpt_extension("test message", 120, "json")
 
-    @patch('websockets.connect')
+    @patch("websockets.connect")
     def test_run_chatgpt_extension_timeout(self, mock_connect):
         """Test ChatGPT extension timeout"""
         import asyncio
+
         mock_websocket = AsyncMock()
         mock_connect.return_value.__aenter__.return_value = mock_websocket
         mock_connect.return_value.__aexit__.return_value = None
@@ -113,7 +107,7 @@ class TestCLIFunctionality:
         mock_websocket.recv.side_effect = asyncio.TimeoutError()
 
         with pytest.raises(Exception, match="Timeout waiting for response"):
-            run_chatgpt_extension('test message', 120, 'json')
+            run_chatgpt_extension("test message", 120, "json")
 
 
 class TestCLIIntegration:
@@ -121,62 +115,62 @@ class TestCLIIntegration:
 
     def test_cli_no_provider(self):
         """Test CLI with no provider specified"""
-        with patch('sys.argv', ['textgenhub']):
-            with patch('argparse.ArgumentParser.print_help') as mock_help:
+        with patch("sys.argv", ["textgenhub"]):
+            with patch("argparse.ArgumentParser.print_help") as mock_help:
                 with pytest.raises(SystemExit):
                     main()
                 mock_help.assert_called_once()
 
-    @patch('textgenhub.cli.run_chatgpt_extension')
+    @patch("textgenhub.cli.run_chatgpt_extension")
     def test_cli_chatgpt_extension_mode(self, mock_run_extension):
         """Test CLI ChatGPT in extension mode"""
-        mock_run_extension.return_value = ('Response text', '<p>HTML</p>')
+        mock_run_extension.return_value = ("Response text", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test prompt']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test prompt"]):
             main()
 
         # Verify extension method was called
-        mock_run_extension.assert_called_once_with('test prompt', 120, 'json')
+        mock_run_extension.assert_called_once_with("test prompt", 120, "json")
 
-    @patch('textgenhub.cli.run_chatgpt_old')
+    @patch("textgenhub.cli.run_chatgpt_old")
     def test_cli_chatgpt_old_mode(self, mock_run_old):
         """Test CLI ChatGPT in old mode"""
-        mock_run_old.return_value = ('Response text', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response text", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test prompt', '--old']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test prompt", "--old"]):
             main()
 
-        mock_run_old.assert_called_once_with('test prompt', True, 'json')
+        mock_run_old.assert_called_once_with("test prompt", True, "json")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_deepseek_html_output(self, mock_run_old):
         """Test CLI DeepSeek with HTML output"""
-        mock_run_old.return_value = ('Response text', '<div>HTML</div>')
+        mock_run_old.return_value = ("Response text", "<div>HTML</div>")
 
-        with patch('sys.argv', ['textgenhub', 'deepseek', '--prompt', 'test prompt', '--output-format', 'html']):
+        with patch("sys.argv", ["textgenhub", "deepseek", "--prompt", "test prompt", "--output-format", "html"]):
             main()
 
-        mock_run_old.assert_called_once_with('deepseek', 'test prompt', True, 'html')
+        mock_run_old.assert_called_once_with("deepseek", "test prompt", True, "html")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_perplexity_json_output(self, mock_run_old):
         """Test CLI Perplexity with JSON output"""
-        mock_run_old.return_value = ('Response text', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response text", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'perplexity', '--prompt', 'test prompt']):
+        with patch("sys.argv", ["textgenhub", "perplexity", "--prompt", "test prompt"]):
             main()
 
-        mock_run_old.assert_called_once_with('perplexity', 'test prompt', True, 'json')
+        mock_run_old.assert_called_once_with("perplexity", "test prompt", True, "json")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_grok_headless_false(self, mock_run_old):
         """Test CLI Grok with headless disabled"""
-        mock_run_old.return_value = ('Response text', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response text", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'grok', '--prompt', 'test prompt', '--headless']):
+        with patch("sys.argv", ["textgenhub", "grok", "--prompt", "test prompt", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('grok', 'test prompt', True, 'json')
+        mock_run_old.assert_called_once_with("grok", "test prompt", True, "json")
 
 
 class TestCLIArgumentValidation:
@@ -184,126 +178,126 @@ class TestCLIArgumentValidation:
 
     def test_cli_missing_required_prompt_chatgpt(self):
         """Test CLI ChatGPT with missing required --prompt argument"""
-        with patch('sys.argv', ['textgenhub', 'chatgpt']):
+        with patch("sys.argv", ["textgenhub", "chatgpt"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_missing_required_prompt_deepseek(self):
         """Test CLI DeepSeek with missing required --prompt argument"""
-        with patch('sys.argv', ['textgenhub', 'deepseek']):
+        with patch("sys.argv", ["textgenhub", "deepseek"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_missing_required_prompt_perplexity(self):
         """Test CLI Perplexity with missing required --prompt argument"""
-        with patch('sys.argv', ['textgenhub', 'perplexity']):
+        with patch("sys.argv", ["textgenhub", "perplexity"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_missing_required_prompt_grok(self):
         """Test CLI Grok with missing required --prompt argument"""
-        with patch('sys.argv', ['textgenhub', 'grok']):
+        with patch("sys.argv", ["textgenhub", "grok"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_invalid_output_format_chatgpt(self):
         """Test CLI ChatGPT with invalid output format"""
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--output-format', 'invalid']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--output-format", "invalid"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_invalid_output_format_deepseek(self):
         """Test CLI DeepSeek with invalid output format"""
-        with patch('sys.argv', ['textgenhub', 'deepseek', '--prompt', 'test', '--output-format', 'invalid']):
+        with patch("sys.argv", ["textgenhub", "deepseek", "--prompt", "test", "--output-format", "invalid"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_invalid_timeout_negative(self):
         """Test CLI ChatGPT with negative timeout"""
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--timeout', '-1']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--timeout", "-1"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_cli_invalid_timeout_non_integer(self):
         """Test CLI ChatGPT with non-integer timeout"""
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--timeout', 'abc']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--timeout", "abc"]):
             with pytest.raises(SystemExit):
                 main()
 
-    @patch('textgenhub.cli.run_chatgpt_extension')
+    @patch("textgenhub.cli.run_chatgpt_extension")
     def test_cli_chatgpt_timeout_parameter_passed(self, mock_run_extension):
         """Test CLI ChatGPT passes timeout parameter correctly"""
-        mock_run_extension.return_value = ('Response', '<p>HTML</p>')
+        mock_run_extension.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--timeout', '300']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--timeout", "300"]):
             main()
 
-        mock_run_extension.assert_called_once_with('test', 300, 'json')
+        mock_run_extension.assert_called_once_with("test", 300, "json")
 
-    @patch('textgenhub.cli.run_chatgpt_old')
+    @patch("textgenhub.cli.run_chatgpt_old")
     def test_cli_chatgpt_headless_parameter_passed(self, mock_run_old):
         """Test CLI ChatGPT passes headless parameter in old mode"""
-        mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--old', '--headless']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--old", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('test', True, 'json')
+        mock_run_old.assert_called_once_with("test", True, "json")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_deepseek_headless_parameter(self, mock_run_old):
         """Test CLI DeepSeek passes headless parameter"""
-        mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'deepseek', '--prompt', 'test', '--headless']):
+        with patch("sys.argv", ["textgenhub", "deepseek", "--prompt", "test", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('deepseek', 'test', True, 'json')
+        mock_run_old.assert_called_once_with("deepseek", "test", True, "json")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_perplexity_headless_parameter(self, mock_run_old):
         """Test CLI Perplexity passes headless parameter"""
-        mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'perplexity', '--prompt', 'test', '--headless']):
+        with patch("sys.argv", ["textgenhub", "perplexity", "--prompt", "test", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('perplexity', 'test', True, 'json')
+        mock_run_old.assert_called_once_with("perplexity", "test", True, "json")
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_grok_headless_parameter(self, mock_run_old):
         """Test CLI Grok passes headless parameter"""
-        mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'grok', '--prompt', 'test', '--headless']):
+        with patch("sys.argv", ["textgenhub", "grok", "--prompt", "test", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('grok', 'test', True, 'json')
+        mock_run_old.assert_called_once_with("grok", "test", True, "json")
 
 
 class TestCLIErrorHandling:
     """Test CLI error handling and edge cases"""
 
-    @patch('textgenhub.cli.run_chatgpt_extension')
+    @patch("textgenhub.cli.run_chatgpt_extension")
     def test_cli_extension_runtime_error(self, mock_run_extension):
         """Test CLI handles runtime errors from extension"""
         mock_run_extension.side_effect = Exception("Extension failed")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test']):
-            with patch('sys.stderr') as mock_stderr:
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test"]):
+            with patch("sys.stderr") as mock_stderr:
                 with pytest.raises(SystemExit):
                     main()
 
         # Check that error was printed to stderr
         mock_stderr.write.assert_called()
 
-    @patch('textgenhub.cli.run_provider_old')
+    @patch("textgenhub.cli.run_provider_old")
     def test_cli_provider_runtime_error(self, mock_run_old):
         """Test CLI handles runtime errors from providers"""
         mock_run_old.side_effect = Exception("Provider failed")
 
-        with patch('sys.argv', ['textgenhub', 'deepseek', '--prompt', 'test']):
-            with patch('sys.stderr') as mock_stderr:
+        with patch("sys.argv", ["textgenhub", "deepseek", "--prompt", "test"]):
+            with patch("sys.stderr") as mock_stderr:
                 with pytest.raises(SystemExit):
                     main()
 
@@ -312,59 +306,59 @@ class TestCLIErrorHandling:
 
     def test_cli_empty_prompt(self):
         """Test CLI with empty prompt (should still work)"""
-        with patch('textgenhub.cli.run_chatgpt_extension') as mock_run_extension:
-            mock_run_extension.return_value = ('Response', '<p>HTML</p>')
+        with patch("textgenhub.cli.run_chatgpt_extension") as mock_run_extension:
+            mock_run_extension.return_value = ("Response", "<p>HTML</p>")
 
-            with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', '']):
+            with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", ""]):
                 main()
 
-            mock_run_extension.assert_called_once_with('', 120, 'json')
+            mock_run_extension.assert_called_once_with("", 120, "json")
 
     def test_cli_long_prompt(self):
         """Test CLI with very long prompt"""
-        long_prompt = 'x' * 10000
+        long_prompt = "x" * 10000
 
-        with patch('textgenhub.cli.run_chatgpt_extension') as mock_run_extension:
-            mock_run_extension.return_value = ('Response', '<p>HTML</p>')
+        with patch("textgenhub.cli.run_chatgpt_extension") as mock_run_extension:
+            mock_run_extension.return_value = ("Response", "<p>HTML</p>")
 
-            with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', long_prompt]):
+            with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", long_prompt]):
                 main()
 
-            mock_run_extension.assert_called_once_with(long_prompt, 120, 'json')
+            mock_run_extension.assert_called_once_with(long_prompt, 120, "json")
 
     def test_cli_special_characters_prompt(self):
         """Test CLI with special characters in prompt"""
-        special_prompt = 'Hello "world" & <test> \'quotes\' \n newlines \t tabs'
+        special_prompt = "Hello \"world\" & <test> 'quotes' \n newlines \t tabs"
 
-        with patch('textgenhub.cli.run_chatgpt_extension') as mock_run_extension:
-            mock_run_extension.return_value = ('Response', '<p>HTML</p>')
+        with patch("textgenhub.cli.run_chatgpt_extension") as mock_run_extension:
+            mock_run_extension.return_value = ("Response", "<p>HTML</p>")
 
-            with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', special_prompt]):
+            with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", special_prompt]):
                 main()
 
-            mock_run_extension.assert_called_once_with(special_prompt, 120, 'json')
+            mock_run_extension.assert_called_once_with(special_prompt, 120, "json")
 
-    @patch('textgenhub.cli.run_chatgpt_extension')
+    @patch("textgenhub.cli.run_chatgpt_extension")
     def test_cli_chatgpt_old_mode_ignores_timeout(self, mock_run_extension):
         """Test that --timeout is ignored in old mode"""
         # This test verifies that when --old is used, extension is not called
         # so timeout parameter doesn't matter
-        with patch('textgenhub.cli.run_chatgpt_old') as mock_run_old:
-            mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        with patch("textgenhub.cli.run_chatgpt_old") as mock_run_old:
+            mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-            with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--old', '--timeout', '999']):
+            with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--old", "--timeout", "999"]):
                 main()
 
             # Should call old method, not extension method
-            mock_run_old.assert_called_once_with('test', True, 'json')
+            mock_run_old.assert_called_once_with("test", True, "json")
             mock_run_extension.assert_not_called()
 
-    @patch('textgenhub.cli.run_chatgpt_old')
+    @patch("textgenhub.cli.run_chatgpt_old")
     def test_cli_chatgpt_old_mode_uses_headless(self, mock_run_old):
         """Test that --headless parameter is used in old mode"""
-        mock_run_old.return_value = ('Response', '<p>HTML</p>')
+        mock_run_old.return_value = ("Response", "<p>HTML</p>")
 
-        with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test', '--old', '--headless']):
+        with patch("sys.argv", ["textgenhub", "chatgpt", "--prompt", "test", "--old", "--headless"]):
             main()
 
-        mock_run_old.assert_called_once_with('test', True, 'json')
+        mock_run_old.assert_called_once_with("test", True, "json")

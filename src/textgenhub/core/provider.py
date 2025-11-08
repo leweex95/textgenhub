@@ -28,13 +28,7 @@ class SimpleProvider:
         Returns:
             str: The response from the provider
         """
-        cmd = [
-            self.node_path,
-            str(self.cli_script),
-            "--prompt", prompt,
-            "--headless", str(headless).lower(),
-            "--remove-cache", str(remove_cache).lower()
-        ]
+        cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--headless", str(headless).lower(), "--remove-cache", str(remove_cache).lower()]
 
         if debug:
             cmd.append("--debug")
@@ -42,12 +36,7 @@ class SimpleProvider:
 
         stdout_json_line = None
 
-        with subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=self.cli_script.parent
-        ) as proc:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.cli_script.parent) as proc:
             if proc.stdout is not None:
                 raw_bytes = proc.stdout.read()
                 try:
