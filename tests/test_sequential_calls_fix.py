@@ -9,9 +9,7 @@ that was called in the error handler of ChatGPTProvider.waitForResponse().
 """
 
 import asyncio
-import os
 import tempfile
-from pathlib import Path
 
 
 class MockChatGPTTest:
@@ -118,7 +116,7 @@ class MockChatGPTTest:
                 # Uninitialized browser scenario (common error condition)
                 try:
                     await manager.takeScreenshot(
-                        f'chatgpt-error-test.png',
+                        'chatgpt-error-test.png',
                         {'directory': tmpdir}
                     )
                     print("  ✓ Error handler screenshot attempt handled safely")

@@ -156,11 +156,11 @@ def main():
 
         if args.provider == 'chatgpt':
             if args.old:
-                print(f"[ChatGPT] Using old headless method...", file=sys.stderr)
+                print("[ChatGPT] Using old headless method...", file=sys.stderr)
                 response_text, html_content = run_chatgpt_old(args.prompt, args.headless, args.output_format)
                 method = 'headless'
             else:
-                print(f"[ChatGPT] Connecting to extension server...", file=sys.stderr)
+                print("[ChatGPT] Connecting to extension server...", file=sys.stderr)
                 response_text, html_content = run_chatgpt_extension(args.prompt, args.timeout, args.output_format)
                 method = 'extension'
 
@@ -179,7 +179,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == 'deepseek':
-            print(f"[DeepSeek] Using headless browser method...", file=sys.stderr)
+            print("[DeepSeek] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old('deepseek', args.prompt, args.headless, args.output_format)
 
             if args.output_format == 'html':
@@ -196,7 +196,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == 'perplexity':
-            print(f"[Perplexity] Using headless browser method...", file=sys.stderr)
+            print("[Perplexity] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old('perplexity', args.prompt, args.headless, args.output_format)
 
             if args.output_format == 'html':
@@ -213,7 +213,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == 'grok':
-            print(f"[Grok] Using headless browser method...", file=sys.stderr)
+            print("[Grok] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old('grok', args.prompt, args.headless, args.output_format)
 
             if args.output_format == 'html':

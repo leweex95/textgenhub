@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import shutil
 
+
 def _ensure_node_deps():
     if not shutil.which("npm"):
         raise RuntimeError("npm is not installed or not in PATH")
@@ -22,19 +23,20 @@ def _ensure_node_deps():
             print(f"npm install failed: {e}", file=sys.stderr)
             raise
 
+
 # Automatically install Node dependencies on first import
 _ensure_node_deps()
 
 # Import providers to make them available at package level
 try:
-    from . import chatgpt
-    from . import deepseek
-    from . import perplexity
+    from . import chatgpt  # noqa: F401
+    from . import deepseek  # noqa: F401
+    from . import perplexity  # noqa: F401
 
     # Import classes
-    from .chatgpt import ChatGPT
-    from .deepseek import DeepSeek
-    from .perplexity import Perplexity
+    from .chatgpt import ChatGPT  # noqa: F401
+    from .deepseek import DeepSeek  # noqa: F401
+    from .perplexity import Perplexity  # noqa: F401
 
     __all__ = ['chatgpt', 'deepseek', 'perplexity', 'ChatGPT', 'DeepSeek', 'Perplexity']
 except ImportError as e:

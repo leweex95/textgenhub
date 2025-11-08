@@ -2,8 +2,10 @@ import asyncio
 import json
 import websockets
 
+
 extension_ws = None
 pending_response = None
+
 
 async def handler(websocket, path=None):
     global extension_ws, pending_response
@@ -56,6 +58,7 @@ async def handler(websocket, path=None):
         if websocket == extension_ws:
             extension_ws = None
             print("Extension disconnected")
+
 
 async def main():
     async with websockets.serve(handler, "127.0.0.1", 8765):

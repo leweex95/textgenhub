@@ -4,6 +4,7 @@ import asyncio
 import json
 import websockets
 
+
 async def main():
     parser = argparse.ArgumentParser(description='ChatGPT CLI Automation')
     parser.add_argument('message', type=str, help='Message to send to ChatGPT')
@@ -11,7 +12,7 @@ async def main():
 
     try:
         async with websockets.connect('ws://localhost:8765') as websocket:
-            print(f"Connected to server")
+            print("Connected to server")
             print(f"Sending: {args.message}")
 
             # Send request to server to inject message into ChatGPT

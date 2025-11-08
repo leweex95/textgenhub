@@ -3,15 +3,14 @@ Test CLI functionality for TextGenHub
 """
 import sys
 import json
-import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
+from textgenhub.cli import run_provider_old, run_chatgpt_extension, main
+
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from textgenhub.cli import run_provider_old, run_chatgpt_extension, main
 
 
 class TestCLIFunctionality:
@@ -134,14 +133,10 @@ class TestCLIIntegration:
         mock_run_extension.return_value = ('Response text', '<p>HTML</p>')
 
         with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test prompt']):
-            with patch('sys.stdout') as mock_stdout:
-                main()
+            main()
 
         # Verify extension method was called
         mock_run_extension.assert_called_once_with('test prompt', 120, 'json')
-
-        # Verify JSON output was printed (checking that json.dumps was called indirectly)
-        # This is tricky to test directly, but we can check the method was called
 
     @patch('textgenhub.cli.run_chatgpt_old')
     def test_cli_chatgpt_old_mode(self, mock_run_old):
@@ -149,8 +144,7 @@ class TestCLIIntegration:
         mock_run_old.return_value = ('Response text', '<p>HTML</p>')
 
         with patch('sys.argv', ['textgenhub', 'chatgpt', '--prompt', 'test prompt', '--old']):
-            with patch('sys.stdout') as mock_stdout:
-                main()
+            main()
 
         mock_run_old.assert_called_once_with('test prompt', True, 'json')
 
@@ -160,8 +154,7 @@ class TestCLIIntegration:
         mock_run_old.return_value = ('Response text', '<div>HTML</div>')
 
         with patch('sys.argv', ['textgenhub', 'deepseek', '--prompt', 'test prompt', '--output-format', 'html']):
-            with patch('sys.stdout') as mock_stdout:
-                main()
+            main()
 
         mock_run_old.assert_called_once_with('deepseek', 'test prompt', True, 'html')
 
@@ -171,8 +164,7 @@ class TestCLIIntegration:
         mock_run_old.return_value = ('Response text', '<p>HTML</p>')
 
         with patch('sys.argv', ['textgenhub', 'perplexity', '--prompt', 'test prompt']):
-            with patch('sys.stdout') as mock_stdout:
-                main()
+            main()
 
         mock_run_old.assert_called_once_with('perplexity', 'test prompt', True, 'json')
 
@@ -182,8 +174,7 @@ class TestCLIIntegration:
         mock_run_old.return_value = ('Response text', '<p>HTML</p>')
 
         with patch('sys.argv', ['textgenhub', 'grok', '--prompt', 'test prompt', '--headless']):
-            with patch('sys.stdout') as mock_stdout:
-                main()
+            main()
 
         mock_run_old.assert_called_once_with('grok', 'test prompt', True, 'json')
 

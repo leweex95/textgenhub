@@ -1,6 +1,7 @@
 import json
 import re
 
+
 def extract_response_json(stdout: str) -> str:
     """
     Scan stdout for a JSON line starting with {"response": and return it as a string.

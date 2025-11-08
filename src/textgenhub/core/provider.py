@@ -4,7 +4,6 @@ No overengineering, just the essentials.
 """
 from pathlib import Path
 import subprocess
-from typing import Optional
 from ..utils.scrape_response import extract_response_json
 
 

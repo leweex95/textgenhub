@@ -9,7 +9,6 @@ This test validates the fixes for:
 5. Retry logic for element detection
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -122,7 +121,6 @@ class SessionManagementTests:
 
             # Should NOT return immediately after clicking (old behavior)
             # Check that there's logic after dismissal
-            click_count = method_code.count('.click(')
             return_after_click_count = method_code.count('return true; // Return immediately after successful popup dismissal')
 
             assert return_after_click_count == 0, "Should NOT return immediately after clicking (should wait for textarea)"
