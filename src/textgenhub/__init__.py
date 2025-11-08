@@ -13,7 +13,10 @@ def _ensure_node_deps():
 
     if not node_modules.exists():
         try:
-            subprocess.run(["npm", "install"], cwd=root, check=True, shell=True)  # required on Windows
+            # On Windows, npm sometimes needs shell=True
+            use_shell = sys.platform == "win32"
+            cmd = "npm install" if use_shell else ["npm", "install"]
+            subprocess.run(cmd, cwd=root, check=True, shell=use_shell)
         except subprocess.CalledProcessError as e:
             print(f"npm install failed: {e}", file=sys.stderr)
             raise
