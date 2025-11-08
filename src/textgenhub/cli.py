@@ -7,31 +7,73 @@ import argparse
 import asyncio
 import json
 import subprocess
+import time
 from pathlib import Path
 from datetime import datetime
+from textgenhub.browser_utils import ensure_chrome_running
+from textgenhub.chatgpt_extension_cli.cli.error_handler import categorize_error, get_error_message
+from textgenhub.chatgpt_extension_cli.cli.logger import log_info, log_error
 
 
 def run_chatgpt_extension(message: str, timeout: int = 120, output_format: str = "json"):
     """Run using the new WebSocket-based extension (default)"""
     import websockets
+    import uuid
 
     async def main():
+        # CRITICAL: Ensure Chrome is running before attempting connection
+        if not ensure_chrome_running():
+            raise Exception("Failed to start Chrome. Please ensure Google Chrome is installed.")
+
+        message_id = str(uuid.uuid4())
+
         try:
             async with websockets.connect("ws://127.0.0.1:8765") as websocket:
-                payload = {"type": "cli_request", "message": message, "output_format": output_format}
+                # Send request with message ID
+                payload = {"type": "cli_request", "messageId": message_id, "message": message, "output_format": output_format}
                 await websocket.send(json.dumps(payload))
-                response = await asyncio.wait_for(websocket.recv(), timeout=timeout)
-                data = json.loads(response)
 
-                if data.get("type") == "response":
-                    return data.get("response", "No response"), data.get("html", "")
-                elif data.get("type") == "error":
-                    raise Exception(data.get("message", "Unknown error"))
-                else:
-                    raise Exception(f"Unexpected response: {data}")
+                # Wait for ACK
+                ack_response = await asyncio.wait_for(websocket.recv(), timeout=5)
+                ack_data = json.loads(ack_response)
+                if ack_data.get("type") != "ack":
+                    raise Exception("Expected ACK from server")
+                print("[CLI] Request acknowledged by server", file=sys.stderr)
+
+                # Now wait for actual response (with heartbeat handling)
+                start_time = time.time()
+                while True:
+                    elapsed = time.time() - start_time
+                    remaining = timeout - elapsed
+
+                    if remaining <= 0:
+                        raise Exception(f"Timeout waiting for response after {timeout}s")
+
+                    try:
+                        response = await asyncio.wait_for(websocket.recv(), timeout=min(remaining, 15))  # Read with timeout
+                        data = json.loads(response)
+
+                        if data.get("type") == "response":
+                            return data.get("response", "No response"), data.get("html", "")
+                        elif data.get("type") == "error":
+                            error_msg = data.get("error", "Unknown error")
+                            error_type = data.get("error_type", "unknown")
+                            raise Exception(f"[{error_type}] {error_msg}")
+                        elif data.get("type") == "heartbeat":
+                            print("[CLI] Heartbeat received, still processing...", file=sys.stderr)
+                            continue
+                        else:
+                            raise Exception(f"Unexpected response: {data}")
+                    except asyncio.TimeoutError:
+                        elapsed = time.time() - start_time
+                        if elapsed >= timeout:
+                            raise Exception(f"Timeout waiting for response after {timeout}s")
+                        # Just a read timeout, continue waiting
+                        print(f"[CLI] Waiting... ({elapsed:.0f}s elapsed)", file=sys.stderr)
+                        continue
 
         except asyncio.TimeoutError:
-            raise Exception(f"Timeout waiting for response after {timeout}s")
+            raise Exception(f"Timeout waiting for connection after {timeout}s")
         except ConnectionRefusedError:
             raise Exception("Could not connect to server on ws://127.0.0.1:8765\nMake sure the Windows service ChatGPTServer is running")
 
@@ -105,7 +147,6 @@ def run_chatgpt_old(prompt: str, headless: bool = True, output_format: str = "js
 
 def main():
     parser = argparse.ArgumentParser(description="TextGenHub CLI - Unified interface for LLM providers", prog="textgenhub")
-
     subparsers = parser.add_subparsers(dest="provider", help="LLM provider")
 
     # ChatGPT subcommand
@@ -145,7 +186,7 @@ def main():
 
         if args.provider == "chatgpt":
             if args.old:
-                print("[ChatGPT] Using old headless method...", file=sys.stderr)
+                log_info("Using old headless method...")
                 response_text, html_content = run_chatgpt_old(args.prompt, args.headless, args.output_format)
                 method = "headless"
             else:
@@ -191,7 +232,17 @@ def main():
                 print(json.dumps(result, indent=2))
 
     except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
+        # Categorize and handle error
+        error_type = categorize_error(str(e))
+        error_info = get_error_message(error_type)
+
+        log_error(f"Operation failed: {error_type}", error_message=str(e))
+
+        print(f"\n❌ {error_info['title']}", file=sys.stderr)
+        print(f"{error_info['description']}", file=sys.stderr)
+        print(f"Recovery: {error_info['recovery']}\n", file=sys.stderr)
+
+        sys.exit(1)
         sys.exit(1)
 
 

@@ -40,11 +40,12 @@ function connectToServer() {
                 console.log('[ChatGPT CLI] Received message type:', data.type);
 
                 if (data.type === 'inject') {
-                    console.log('[ChatGPT CLI] Injecting message');
+                    console.log('[ChatGPT CLI] Injecting message with ID:', data.messageId);
                     const response = await injectAndWaitForResponse(data.message, data.output_format || 'json');
                     console.log('[ChatGPT CLI] Got response, sending back...');
                     ws.send(JSON.stringify({
                         type: 'response',
+                        messageId: data.messageId,
                         response: response.text,
                         html: response.html
                     }));
@@ -74,24 +75,65 @@ function connectToServer() {
     }
 }
 
+// NEW: Helper function to find element with retry
+async function findElementWithRetry(selectors, maxAttempts = 10, delayMs = 200) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        for (const selector of selectors) {
+            try {
+                const el = document.querySelector(selector);
+                if (el && !el.disabled) {
+                    console.log(`[ChatGPT CLI] Found element with selector: "${selector}" on attempt ${attempt + 1}`);
+                    return el;
+                }
+            } catch (e) {
+                // Selector might be invalid, skip it
+            }
+        }
+
+        if (attempt < maxAttempts - 1) {
+            await new Promise(r => setTimeout(r, delayMs));
+            console.log(`[ChatGPT CLI] Retry ${attempt + 1}/${maxAttempts} finding element...`);
+        }
+    }
+
+    return null;
+}
+
+// NEW: Check and report tab visibility
+function checkTabVisibility() {
+    const status = {
+        hidden: document.hidden,
+        visibilityState: document.visibilityState,
+        readyState: document.readyState
+    };
+    console.log('[ChatGPT CLI] Tab visibility:', JSON.stringify(status));
+    return status;
+}
+
 async function injectAndWaitForResponse(message, outputFormat = 'json') {
     try {
         console.log('[ChatGPT CLI] ===== INJECT START =====');
         console.log('[ChatGPT CLI] Message:', message.substring(0, 100));
         console.log('[ChatGPT CLI] Output format:', outputFormat);
 
-        // Find input field
-        let inputField = document.querySelector('#prompt-textarea');
-        if (!inputField) {
-            inputField = document.querySelector('textarea[placeholder*="Message"]');
-        }
-        if (!inputField) {
-            inputField = document.querySelector('[contenteditable="true"]');
+        // NEW: Check tab visibility first
+        const visibility = checkTabVisibility();
+        if (document.hidden) {
+            console.warn('[ChatGPT CLI] WARNING: Tab is hidden - performance may be affected');
         }
 
+        // Find input field WITH RETRY
+        const textareaSelectors = [
+            '#prompt-textarea',
+            'textarea[placeholder*="Message"]',
+            '[contenteditable="true"]'
+        ];
+
+        let inputField = await findElementWithRetry(textareaSelectors, 10, 200);
+
         if (!inputField) {
-            console.error('[ChatGPT CLI] Input field not found');
-            return { text: 'ERROR: input field not found', html: '' };
+            console.error('[ChatGPT CLI] Input field not found after 10 attempts');
+            return { text: 'ERROR: input field not found after retries', html: '' };
         }
 
         console.log('[ChatGPT CLI] Input field found, type:', inputField.tagName);
@@ -111,11 +153,19 @@ async function injectAndWaitForResponse(message, outputFormat = 'json') {
         console.log('[ChatGPT CLI] Message typed, waiting 500ms...');
         await new Promise(r => setTimeout(r, 500));
 
-        // Find and click send button
-        const sendButton = findSendButton();
+        // Find and click send button WITH RETRY
+        const sendButtonSelectors = [
+            'button[data-testid="send-button"]',
+            'button[id="composer-submit-button"]',
+            'button[aria-label="Send prompt"]',
+            'button.composer-submit-btn'
+        ];
+
+        const sendButton = await findElementWithRetry(sendButtonSelectors, 10, 200);
+
         if (!sendButton) {
-            console.error('[ChatGPT CLI] Send button not found');
-            return { text: 'ERROR: send button not found', html: '' };
+            console.error('[ChatGPT CLI] Send button not found after 10 attempts');
+            return { text: 'ERROR: send button not found after retries', html: '' };
         }
 
         console.log('[ChatGPT CLI] Send button found, clicking...');

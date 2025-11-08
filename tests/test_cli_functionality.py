@@ -66,8 +66,8 @@ class TestCLIFunctionality:
         mock_connect.return_value.__aenter__.return_value = mock_websocket
         mock_connect.return_value.__aexit__.return_value = None
 
-        # Mock the response
-        mock_websocket.recv.return_value = json.dumps({"type": "response", "response": "Extension response", "html": "<p>Extension HTML</p>"})
+        # Mock the responses: first ACK, then actual response
+        mock_websocket.recv.side_effect = [json.dumps({"type": "ack"}), json.dumps({"type": "response", "response": "Extension response", "html": "<p>Extension HTML</p>"})]
 
         response, html = run_chatgpt_extension("test message", 120, "json")
 
@@ -81,7 +81,7 @@ class TestCLIFunctionality:
         mock_connect.return_value.__aenter__.return_value = mock_websocket
         mock_connect.return_value.__aexit__.return_value = None
 
-        mock_websocket.recv.return_value = json.dumps({"type": "error", "message": "Extension error"})
+        mock_websocket.recv.side_effect = [json.dumps({"type": "ack"}), json.dumps({"type": "error", "error": "Extension error"})]
 
         with pytest.raises(Exception, match="Extension error"):
             run_chatgpt_extension("test message", 120, "json")
@@ -103,10 +103,20 @@ class TestCLIFunctionality:
         mock_connect.return_value.__aenter__.return_value = mock_websocket
         mock_connect.return_value.__aexit__.return_value = None
 
-        # Mock timeout
-        mock_websocket.recv.side_effect = asyncio.TimeoutError()
+        # Mock ACK first, then timeout on response
+        call_count = 0
 
-        with pytest.raises(Exception, match="Timeout waiting for response"):
+        def mock_recv():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return json.dumps({"type": "ack"})
+            else:
+                raise asyncio.TimeoutError()
+
+        mock_websocket.recv.side_effect = mock_recv
+
+        with pytest.raises(Exception, match="Timeout waiting for response after 120s"):
             run_chatgpt_extension("test message", 120, "json")
 
 
