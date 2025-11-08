@@ -28,14 +28,14 @@ _ensure_node_deps()
 # Import providers to make them available at package level
 try:
     from . import chatgpt
-    from . import deepseek  
+    from . import deepseek
     from . import perplexity
-    
+
     # Import classes
     from .chatgpt import ChatGPT
     from .deepseek import DeepSeek
     from .perplexity import Perplexity
-    
+
     __all__ = ['chatgpt', 'deepseek', 'perplexity', 'ChatGPT', 'DeepSeek', 'Perplexity']
 except ImportError as e:
     print(f"Warning: Could not import some providers: {e}", file=sys.stderr)

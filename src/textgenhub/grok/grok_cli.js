@@ -77,7 +77,7 @@ const { hideBin } = require('yargs/helpers');
         } else {
           // JSON output with metadata
           const html = provider.getLastHtml ? await provider.getLastHtml() : '';
-          console.log(JSON.stringify({ 
+          console.log(JSON.stringify({
             response,
             html
           }, null, 2));

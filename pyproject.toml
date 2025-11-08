@@ -24,8 +24,35 @@ include = [
 python = ">=3.9"
 websockets = "^15.0.1"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+flake8 = "^6.0.0"
+pre-commit = "^3.5.0"
+
 [tool.poetry.scripts]
 textgenhub = "textgenhub.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.flake8]
+max-line-length = 200
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "node_modules",
+    "temp",
+    "artifacts"
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

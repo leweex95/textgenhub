@@ -89,7 +89,7 @@ class BrowserManager {
       '--no-zygote',
       '--disable-gpu'
     ];
-    
+
     // Add CI-specific optimizations for faster performance
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     if (isCI) {
@@ -129,7 +129,7 @@ class BrowserManager {
       );
       this.logger.info('Added CI-specific browser optimizations for faster performance');
     }
-    
+
     // In headless mode, add special configuration
     if (this.config.headless) {
       // Use new headless mode and add necessary flags
@@ -155,7 +155,7 @@ class BrowserManager {
       const { execSync } = require('child_process');
       const fs = require('fs');
       const path = require('path');
-      
+
       if (process.platform === 'win32') {
         // Check multiple common Chrome installation paths on Windows
         const chromePaths = [
@@ -166,7 +166,7 @@ class BrowserManager {
           process.env.PROGRAMFILES + '\\Google\\Chrome\\Application\\chrome.exe',
           process.env['PROGRAMFILES(X86)'] + '\\Google\\Chrome\\Application\\chrome.exe'
         ];
-        
+
         for (const chromePath of chromePaths) {
           try {
             if (chromePath === 'chrome') {
@@ -193,7 +193,7 @@ class BrowserManager {
           // Chrome not in PATH
         }
       }
-      
+
       if (!executablePath) {
         this.logger.warn('Chrome not found in common locations, Puppeteer will use bundled Chromium');
       }
@@ -518,7 +518,7 @@ class BrowserManager {
       // Use evaluateHandle to avoid JavaScript world issues
       // This approach works better with iframes and cross-origin content
       const elementHandle = await this.page.$(selector);
-      
+
       if (!elementHandle) {
         throw new Error(`Element not found: ${selector}`);
       }
@@ -870,7 +870,7 @@ class BrowserManager {
       }
     }
   }
-  
+
   /**
    * Check if element is visible on page
    * @param {string} selector - CSS selector for the element
@@ -910,21 +910,21 @@ class BrowserManager {
       }
 
       const fullPath = path.join(screenshotDir, filename);
-      
+
       this.logger.debug('Taking screenshot', { filename, fullPath });
-      
+
       // Take the screenshot with provided options
       await this.page.screenshot({
         path: fullPath,
         fullPage: options.fullPage !== false, // Default to full page screenshot
         ...options
       });
-      
+
       this.logger.debug('Screenshot saved successfully', { fullPath });
     } catch (error) {
-      this.logger.warn('Failed to take screenshot', { 
-        filename, 
-        error: error.message 
+      this.logger.warn('Failed to take screenshot', {
+        filename,
+        error: error.message
       });
       // Don't throw - screenshot failures shouldn't crash the application
     }

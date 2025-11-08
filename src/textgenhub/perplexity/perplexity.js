@@ -148,8 +148,8 @@ class PerplexityProvider extends BaseLLMProvider {
       try {
         await this.browserManager.page.evaluate(() => {
           // Try to find and click "New Chat" button first
-          const newChatBtn = Array.from(document.querySelectorAll('button')).find(btn => 
-            btn.textContent?.toLowerCase().includes('new chat') || 
+          const newChatBtn = Array.from(document.querySelectorAll('button')).find(btn =>
+            btn.textContent?.toLowerCase().includes('new chat') ||
             btn.getAttribute('aria-label')?.toLowerCase().includes('new chat')
           );
           if (newChatBtn) {
@@ -203,7 +203,7 @@ class PerplexityProvider extends BaseLLMProvider {
           ].filter(el => {
             const isVisible = el.offsetParent !== null;
             const notInPopup = !el.closest('div[role="dialog"]') && !el.closest('[class*="popup"]') && !el.closest('[class*="modal"]');
-            const notEmail = !el.getAttribute('placeholder')?.toLowerCase().includes('email') && 
+            const notEmail = !el.getAttribute('placeholder')?.toLowerCase().includes('email') &&
                            !el.getAttribute('type')?.includes('email') &&
                            !el.className?.toLowerCase().includes('email');
             const notHidden = !el.getAttribute('hidden') && el.style.display !== 'none' && el.style.visibility !== 'hidden';
@@ -232,7 +232,7 @@ class PerplexityProvider extends BaseLLMProvider {
         // Type the prompt
         await this.browserManager.page.keyboard.type(prompt);
         if (this.config.debug) this.logger.debug('Prompt typed successfully');
-        
+
         // Submit the prompt - try multiple methods
         let submitted = false;
         try {
@@ -243,7 +243,7 @@ class PerplexityProvider extends BaseLLMProvider {
         } catch (e) {
           if (this.config.debug) this.logger.debug('Enter key failed, trying button click');
         }
-        
+
         if (!submitted) {
           // Try clicking submit button
           try {
@@ -267,14 +267,14 @@ class PerplexityProvider extends BaseLLMProvider {
             if (this.config.debug) this.logger.debug('Button click failed');
           }
         }
-        
+
         if (!submitted) {
           throw new Error('Could not submit the prompt');
         }
-        
+
         // Wait for response
         const response = await this.waitForResponse();
-        
+
         const duration = Date.now() - startTime;
         this.logRequest(prompt, response, duration);
 
@@ -300,10 +300,10 @@ class PerplexityProvider extends BaseLLMProvider {
           console.log('Checking for response elements...');
           const allDivs = document.querySelectorAll('div');
           console.log('Total divs found:', allDivs.length);
-          
+
           const responseDivs = Array.from(document.querySelectorAll(
             // Selectors for finding responses in the DOM
-            'div[class*="CopyableOutputText"], ' + // Primary answer text 
+            'div[class*="CopyableOutputText"], ' + // Primary answer text
             'div[data-testid="answer-text"], ' + // Secondary answer test container
             'div[class*="answer-text"], ' + // Generic answer containers
             'div[class*="perplexity-answer"], ' + // Branded answer containers
@@ -316,7 +316,7 @@ class PerplexityProvider extends BaseLLMProvider {
           });
 
           console.log('Found response divs:', responseDivs.length);
-          
+
           if (responseDivs.length > 0) {
             // Get the last visible response
             const lastResponse = responseDivs[responseDivs.length - 1];
@@ -329,7 +329,7 @@ class PerplexityProvider extends BaseLLMProvider {
 
         if (response.length > 0) {
           const cleanedResponse = this.cleanResponse(response);
-          
+
           return cleanedResponse;
         }
 

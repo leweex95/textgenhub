@@ -1,13 +1,13 @@
 /**
  * ChatGPT Provider - Browser automation for ChatGPT web interface
  * Uses Puppeteer to interact with ChatGPT when API access is not available
- * 
+ *
  * IMPORTANT: This provider uses NON-HEADLESS mode (headless=false).
- * 
- * Reason: ChatGPT.com is a complex React SPA that doesn't properly render 
+ *
+ * Reason: ChatGPT.com is a complex React SPA that doesn't properly render
  * response content to the DOM when running in Puppeteer's headless mode.
  * The assistant message element exists but remains empty, making extraction impossible.
- * 
+ *
  * The browser window is automatically minimized via Chrome DevTools Protocol
  * to prevent interference with laptop usability during CI/automated execution.
  * This approach ensures responses are properly rendered while maintaining
@@ -104,11 +104,11 @@ class ChatGPTProvider extends BaseLLMProvider {
       this.logger.debug('Provider config:', this.config);
 
       this.logger.info('Using browser automation mode');
-      
+
       // Check if we should use Chrome debugging (skip in CI)
       const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
       const useChromeDebugging = !isCI && !this.config.headless;
-      
+
       if (useChromeDebugging) {
         // Check if Chrome is running with remote debugging, if not, start it
         const isChromeDebuggingEnabled = await this.checkChromeDebugging();
@@ -199,10 +199,10 @@ class ChatGPTProvider extends BaseLLMProvider {
       if (this.config.debug) this.logger.debug('Waiting for text area', {
         selector: this.selectors.textArea,
       });
-      
+
       let textAreaFound = false;
       const maxAttempts = 2;
-      
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -225,7 +225,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           }
         }
       }
-      
+
       if (!textAreaFound) {
         throw new Error('Text area not found after multiple attempts');
       }
@@ -235,17 +235,17 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Clear any existing text and type the prompt
       if (this.config.debug) this.logger.debug('Typing prompt into text area');
-      
+
       let promptSet = false;
       const maxPromptAttempts = 3;
-      
+
       for (let attempt = 1; attempt <= maxPromptAttempts; attempt++) {
         try {
           // Ensure text area is still available
           await this.browserManager.waitForElement(this.selectors.textArea, {
             timeout: 5000,
           });
-          
+
           await this.browserManager.setTextValue(this.selectors.textArea, prompt);
           if (this.config.debug) this.logger.debug('Prompt set using direct value method', { attempt });
           promptSet = true;
@@ -267,11 +267,11 @@ class ChatGPTProvider extends BaseLLMProvider {
           }
         }
       }
-      
+
       if (!promptSet) {
         throw new Error('Failed to set prompt text');
       }
-      
+
       this.logger.debug('Prompt input completed successfully');
 
       // Check for modal after typing prompt
@@ -516,7 +516,7 @@ class ChatGPTProvider extends BaseLLMProvider {
         const allAssistantElements = document.querySelectorAll('[data-message-author-role]');
         const assistantElements = document.querySelectorAll('[data-message-author-role="assistant"]');
         const conversationTurns = document.querySelectorAll('[data-testid*="conversation-turn"]');
-        
+
         // Get ALL text from page to see if response is anywhere
         const allPageText = document.body.textContent || '';
         const hasNumberFour = allPageText.includes('4') || allPageText.includes('four') || allPageText.includes('Four');
@@ -560,7 +560,7 @@ class ChatGPTProvider extends BaseLLMProvider {
             // Wait for the specific p element with data-start/data-end to have content
             const maxWait = isCI ? 15000 : 10000; // 15s in CI, 10s locally
             const startTime = Date.now();
-            
+
             while (Date.now() - startTime < maxWait) {
               const result = await this.browserManager.page.evaluate(() => {
                 // Find p elements with data-start and data-end attributes, excluding those with data-end="0"
@@ -576,15 +576,15 @@ class ChatGPTProvider extends BaseLLMProvider {
                 }
                 return null;
               });
-              
+
               if (result) {
                 return result;
               }
-              
+
               // Wait a bit before checking again
               await new Promise(resolve => setTimeout(resolve, 100));
             }
-            
+
             return null;
           }
         },
@@ -633,9 +633,9 @@ class ChatGPTProvider extends BaseLLMProvider {
             return await this.browserManager.page.evaluate(() => {
               const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
               if (assistantMessages.length === 0) return null;
-              
+
               const lastMessage = assistantMessages[assistantMessages.length - 1];
-              
+
               // Check for any text content that looks like a response
               const walk = document.createTreeWalker(
                 lastMessage,
@@ -643,7 +643,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                 {
                   acceptNode: function(node) {
                     const text = node.textContent?.trim();
-                    return text && text.length > 0 && text !== 'ChatGPT said:' && 
+                    return text && text.length > 0 && text !== 'ChatGPT said:' &&
                            !text.toLowerCase().includes('still generating') &&
                            !text.toLowerCase().includes('generating a response')
                       ? NodeFilter.FILTER_ACCEPT
@@ -651,18 +651,18 @@ class ChatGPTProvider extends BaseLLMProvider {
                   }
                 }
               );
-              
+
               let node;
               const foundTexts = [];
               while (node = walk.nextNode()) {
                 foundTexts.push(node.textContent.trim());
               }
-              
+
               // Return the last meaningful text found
               if (foundTexts.length > 0) {
                 return foundTexts[foundTexts.length - 1];
               }
-              
+
               // Fallback: check all elements for any content that looks like a number or short answer
               const allElements = lastMessage.querySelectorAll('*');
               for (const el of allElements) {
@@ -674,7 +674,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   return text;
                 }
               }
-              
+
               return null;
             });
           }
@@ -687,7 +687,7 @@ class ChatGPTProvider extends BaseLLMProvider {
             return await this.browserManager.page.evaluate(() => {
               // Get all text from the page
               const pageText = document.body.innerText || document.body.textContent || '';
-              
+
               // Look for the exact response "4"
               if (pageText.includes('4') && !pageText.includes('2 + 2')) {
                 // Find isolated "4" that's not part of the question
@@ -698,7 +698,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   }
                 }
               }
-              
+
               // Look for text that contains the answer in context
               const textSegments = pageText.split(/\s+/);
               for (const segment of textSegments) {
@@ -710,7 +710,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   }
                 }
               }
-              
+
               return null;
             });
           }
@@ -722,18 +722,18 @@ class ChatGPTProvider extends BaseLLMProvider {
             // Last resort: check if the page contains the number 4 anywhere
             return await this.browserManager.page.evaluate(() => {
               const pageText = (document.body.innerText || document.body.textContent || '').toLowerCase();
-              
+
               // If we know the answer should be 4 and it's a simple math question, return 4
               if (pageText.includes('2 + 2') && pageText.includes('4')) {
                 return '4';
               }
-              
+
               // Check if there's any standalone "4" on the page
               const matches = pageText.match(/\b4\b/g);
               if (matches && matches.length > 0) {
                 return '4';
               }
-              
+
               return null;
             });
           }
@@ -901,19 +901,19 @@ class ChatGPTProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
-              
+
               // Try multiple ways to extract text
               const methods = {
                 textContent: lastTurn.textContent || '',
                 innerText: lastTurn.innerText || '',
                 innerHTML: lastTurn.innerHTML.substring(0, 500) || '',
               };
-              
+
               // Also try to find all divs with text content
               const allDivs = Array.from(lastTurn.querySelectorAll('div, p, span'))
                 .map(el => (el.textContent || el.innerText || '').trim())
                 .filter(text => text && text.length > 0 && !text.includes('window.__'));
-              
+
               // Get all text nodes
               const textNodes = [];
               const walk = document.createTreeWalker(
@@ -928,17 +928,17 @@ class ChatGPTProvider extends BaseLLMProvider {
                   textNodes.push(text);
                 }
               }
-              
+
               const allText = (lastTurn.textContent || lastTurn.innerText || '').trim();
-              
+
               // Try to find the actual response by looking for patterns
               let responseText = '';
-              
+
               // If we only have "ChatGPT said:" but there are other divs, try those
               if ((allText === 'ChatGPT said:' || allText === 'ChatGPT said') && allDivs.length > 0) {
                 // Skip any div that is just "ChatGPT said:" and get the next ones
-                const responseOnly = allDivs.filter(div => 
-                  !div.toLowerCase().includes('chatgpt') && 
+                const responseOnly = allDivs.filter(div =>
+                  !div.toLowerCase().includes('chatgpt') &&
                   !div.toLowerCase().includes('assistant') &&
                   !div.toLowerCase().includes('said:')
                 );
@@ -946,7 +946,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   responseText = responseOnly[responseOnly.length - 1];
                 }
               }
-              
+
               if (!responseText) {
                 responseText = allText;
               }
@@ -981,32 +981,32 @@ class ChatGPTProvider extends BaseLLMProvider {
       // If still no response, check if this is a headless rendering issue
       if (!extractedResponse || extractedResponse === 'ChatGPT said:' || extractedResponse === 'ChatGPT said') {
         this.logger.warn('HEADLESS MODE: No content found with standard extraction, trying page-wide search');
-        
+
         // Try to find the response anywhere on the page
         const pageWideSearch = await this.browserManager.page.evaluate(() => {
           // Get all text from the page except common UI elements
           const bodyText = document.body.innerText || document.body.textContent || '';
-          
+
           // Find lines that look like responses (not UI text)
           const lines = bodyText.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 0);
-          
+
           // Filter out common UI elements
           const uiKeywords = ['send', 'message', 'new chat', 'settings', 'upgrade', 'edit', 'copy', 'delete', 'regenerate', 'continue'];
           const responseLines = lines.filter(line => {
             const lower = line.toLowerCase();
             return !uiKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
           });
-          
+
           return responseLines;
         });
 
         if (pageWideSearch && pageWideSearch.length > 0) {
           // Find the most likely response (usually one of the last meaningful lines)
           const candidateResponse = pageWideSearch[pageWideSearch.length - 1];
-          if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' && 
-              !candidateResponse.toLowerCase().includes('still generating') && 
+          if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' &&
+              !candidateResponse.toLowerCase().includes('still generating') &&
               !candidateResponse.toLowerCase().includes('generating a response')) {
             extractedResponse = candidateResponse;
             usedStrategy = 'page-wide-search-headless';
@@ -1068,7 +1068,7 @@ class ChatGPTProvider extends BaseLLMProvider {
 
     // First wait a minimum time for response to start
     await this.browserManager.delay(2000);
-    
+
     let previousContentLength = 0;
     let stableCount = 0;
     const stableThreshold = 2; // Very low threshold - 2 consecutive stable checks
@@ -1079,7 +1079,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           // Check for stop button (appears during generation)
           const stopButton = document.querySelector('[data-testid="stop-button"]') ||
                            document.querySelector('button[aria-label*="Stop"]');
-          
+
           // Check if send button is disabled
           const sendButton = document.querySelector('[data-testid="send-button"]') ||
                            document.querySelector('button[data-testid="send-button"]');
@@ -1087,12 +1087,12 @@ class ChatGPTProvider extends BaseLLMProvider {
           // Check the ARIA live region for generation status (most reliable in headless)
           const liveRegion = document.querySelector('[aria-live="assertive"]');
           const liveRegionText = liveRegion ? (liveRegion.textContent || '').toLowerCase() : '';
-          const isStillGenerating = liveRegionText.includes('generating') || 
+          const isStillGenerating = liveRegionText.includes('generating') ||
                                   liveRegionText.includes('still') ||
                                   liveRegionText.includes('thinking');
 
           // Check for substantial content in the last assistant message
-          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');     
+          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
           const lastMessage = assistantMessages[assistantMessages.length - 1];
           let content = '';
           if (lastMessage) {
@@ -1126,11 +1126,11 @@ class ChatGPTProvider extends BaseLLMProvider {
         });
 
         const elapsedMs = Date.now() - start;
-        this.logger.debug('Typing status check', { 
-          status: status.status, 
-          contentLength: status.contentLength, 
+        this.logger.debug('Typing status check', {
+          status: status.status,
+          contentLength: status.contentLength,
           reason: status.reason,
-          elapsedMs 
+          elapsedMs
         });
 
         // Save HTML if we're waiting too long (after 5 seconds with no content)
@@ -1148,10 +1148,10 @@ class ChatGPTProvider extends BaseLLMProvider {
         if (status.contentLength === previousContentLength && status.contentLength > 0) {
           stableCount++;
           this.logger.debug('Content stable check', { stableCount, contentLength: status.contentLength });
-          
+
           // If content hasn't changed for several checks, consider it done
           if (stableCount >= stableThreshold) {
-            this.logger.debug('Content has stabilized - marking as complete', { 
+            this.logger.debug('Content has stabilized - marking as complete', {
               contentLength: status.contentLength,
               stableCount,
               elapsedMs
@@ -1164,24 +1164,24 @@ class ChatGPTProvider extends BaseLLMProvider {
         }
 
         if (status.status === 'complete') {
-          this.logger.debug('Typing animation completed', { 
-            contentLength: status.contentLength, 
+          this.logger.debug('Typing animation completed', {
+            contentLength: status.contentLength,
             reason: status.reason,
-            elapsedMs 
+            elapsedMs
           });
           // Add a small delay to ensure content is fully rendered
           await this.browserManager.delay(500);
           return;
         } else if (status.status === 'typing') {
-          this.logger.debug('Still generating response...', { 
-            contentLength: status.contentLength, 
+          this.logger.debug('Still generating response...', {
+            contentLength: status.contentLength,
             reason: status.reason,
-            elapsedMs 
+            elapsedMs
           });
         } else {
-          this.logger.debug('Waiting for response content...', { 
+          this.logger.debug('Waiting for response content...', {
             contentLength: status.contentLength,
-            elapsedMs 
+            elapsedMs
           });
         }
 
@@ -1540,7 +1540,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Navigate directly to home to get a fresh chat
       await this.browserManager.navigateToUrl('https://chatgpt.com/');
       await this.browserManager.delay(2000);
-      
+
       // Wait for the text area to be available
       await this.browserManager.waitForElement(this.selectors.textArea, {
         timeout: 10000,
@@ -1575,7 +1575,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           await this.browserManager.clickElement(selector);
           this.logger.debug('New chat button clicked', { selector });
           newChatClicked = true;
-          
+
           // Wait for the page to reset and text area to appear
           await this.browserManager.waitForElement(this.selectors.textArea, { timeout: 10000 });
           this.logger.debug('New chat started successfully');
@@ -1677,7 +1677,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     try {
       const pollInterval = 500;
       const maxTries = Math.ceil(maxWaitMs / pollInterval);
-      
+
       for (let attempt = 0; attempt < maxTries; attempt++) {
         // Check for various popup types
         const popupInfo = await this.browserManager.page.evaluate(() => {
@@ -1695,13 +1695,13 @@ class ChatGPTProvider extends BaseLLMProvider {
               (btn) => btn.textContent?.toLowerCase().includes('dismiss') && btn.offsetParent !== null
             ),
           };
-          
+
           return {
             hasPopup: Object.values(popups).some(popup => popup !== null),
             popups: Object.fromEntries(
               Object.entries(popups).map(([key, element]) => [
-                key, 
-                element ? { 
+                key,
+                element ? {
                   text: element.textContent?.trim(),
                   tagName: element.tagName,
                   className: element.className,
@@ -1714,9 +1714,9 @@ class ChatGPTProvider extends BaseLLMProvider {
 
         if (popupInfo.hasPopup) {
           this.logger.debug('Popup detected, attempting to handle', { popupInfo });
-          
+
           let popupDismissed = false;
-          
+
           // Try to click "Stay logged out" link first (exact selector)
           if (popupInfo.popups.stayLoggedOutExact) {
             try {
@@ -1727,7 +1727,7 @@ class ChatGPTProvider extends BaseLLMProvider {
               this.logger.debug('Failed to click exact "Stay logged out" selector', { error: error.message });
             }
           }
-          
+
           // Try to click "Stay logged out" link (text-based)
           if (!popupDismissed && popupInfo.popups.stayLoggedOut) {
           try {
@@ -1777,7 +1777,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                 'button svg[data-icon="x"]',
                 'button svg[data-icon="X"]'
               ];
-              
+
               for (const selector of closeSelectors) {
                 try {
                   await this.browserManager.page.click(selector);
@@ -1788,7 +1788,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                   // Continue to next selector
                 }
               }
-              
+
               // Try JavaScript fallback for X buttons
               if (!popupDismissed) {
                 try {
@@ -1799,7 +1799,7 @@ class ChatGPTProvider extends BaseLLMProvider {
                       const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
                       return text.includes('close') || text.includes('x') || ariaLabel.includes('close') || ariaLabel.includes('x');
                     });
-                    
+
                     if (closeButtons.length > 0) {
                       closeButtons[0].click();
                       return true;
@@ -1847,7 +1847,7 @@ class ChatGPTProvider extends BaseLLMProvider {
           // After dismissing popup, wait for textarea to be accessible
           if (popupDismissed) {
             await this.browserManager.delay(500); // Give time for popup to disappear
-            
+
             // Verify textarea is now accessible
             try {
               await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -1887,15 +1887,15 @@ class ChatGPTProvider extends BaseLLMProvider {
           hasPopup: hasPopup
         };
       });
-      
+
       if (finalCheck.hasPopup) {
         this.logger.warn('Popup handling timeout - popup still present', { maxWaitMs });
       }
-      
+
       if (!finalCheck.textareaAccessible) {
         this.logger.warn('Popup handling timeout - textarea not accessible', { maxWaitMs });
       }
-      
+
       return finalCheck.textareaAccessible;
     } catch (error) {
       this.logger.error('Error handling popup', { error: error.message });
@@ -1937,7 +1937,7 @@ class ChatGPTProvider extends BaseLLMProvider {
     try {
       const { spawn } = require('child_process');
       const path = require('path');
-      
+
       // Find Chrome executable path
       let chromePath = 'chrome';
       if (process.platform === 'win32') {
@@ -1956,7 +1956,7 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Use the same user data directory as configured
       const userDataDir = this.config.userDataDir || path.join(process.env.USERPROFILE, 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default');
-      
+
       const chromeArgs = [
         `--remote-debugging-port=9222`,
         `--user-data-dir=${userDataDir}`,
@@ -1968,7 +1968,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       ];
 
       this.logger.info('Starting Chrome with debugging', { chromePath, userDataDir });
-      
+
       const chromeProcess = spawn(chromePath, chromeArgs, {
         detached: true,
         stdio: 'ignore'
@@ -1976,7 +1976,7 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Don't wait for the process, let it run in background
       chromeProcess.unref();
-      
+
       this.logger.info('Chrome started with remote debugging enabled');
     } catch (error) {
       this.logger.error('Failed to start Chrome with debugging', { error: error.message });
@@ -1993,7 +1993,7 @@ class ChatGPTProvider extends BaseLLMProvider {
       // Get current cookies before closing page to preserve session
       const cookies = await this.browserManager.page.cookies();
       this.logger.debug('Saved session cookies', { count: cookies.length });
-      
+
       // Close current page and open fresh one
       if (this.browserManager.page) {
         await this.browserManager.page.close();
@@ -2023,7 +2023,7 @@ class ChatGPTProvider extends BaseLLMProvider {
 
       // Navigate to ChatGPT
       await this.browserManager.navigateToUrl(this.urls.chat);
-      
+
       // Wait for page to stabilize
       await this.browserManager.delay(1000);
 

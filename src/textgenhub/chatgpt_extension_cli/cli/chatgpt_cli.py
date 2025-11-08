@@ -13,26 +13,26 @@ async def main():
         async with websockets.connect('ws://localhost:8765') as websocket:
             print(f"Connected to server")
             print(f"Sending: {args.message}")
-            
+
             # Send request to server to inject message into ChatGPT
             payload = {
                 'type': 'cli_request',
                 'message': args.message
             }
             await websocket.send(json.dumps(payload))
-            
+
             # Wait for response
             print("Waiting for ChatGPT response...")
             response = await asyncio.wait_for(websocket.recv(), timeout=120)
             data = json.loads(response)
-            
+
             if data.get('type') == 'response':
                 print("\n=== ChatGPT Response ===")
                 print(data.get('response', 'No response'))
                 print("=======================\n")
             else:
                 print(f"Unexpected response: {data}")
-    
+
     except asyncio.TimeoutError:
         print("ERROR: Timeout waiting for response from ChatGPT")
         sys.exit(1)
@@ -47,5 +47,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
-

@@ -153,7 +153,7 @@ poetry run textgenhub chatgpt --prompt "What day is it today?" --old
 # DeepSeek (headless browser method)
 poetry run textgenhub deepseek --prompt "What day is it today?"
 
-# Perplexity (headless browser method)  
+# Perplexity (headless browser method)
 poetry run textgenhub perplexity --prompt "What day is it today?"
 
 # Grok (headless browser method)

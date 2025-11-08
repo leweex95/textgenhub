@@ -28,7 +28,7 @@ jobs:
             mkdir -p dist
             exit 0
           fi
-          
+
           cd dist
           current_tag="${GITHUB_REF_NAME#refs/tags/}"
           echo "Current tag: $current_tag"

@@ -45,7 +45,7 @@ applyTo: "**"
   - Start with lowercase letter.
   - Use past tense verbs.
   - Never use prefixes like `feat:` or `fix:`.
-- Never use `git add .` or `git add -A`. Always stage specific files. 
+- Never use `git add .` or `git add -A`. Always stage specific files.
 - If there is a pre-commit hook blocking the commit, fix the underlying issue instead of bypassing it.
 - After successful automated workflow validation, commit and push final results cleanly.
 - Avoid committing or leaving behind debug, tmp, cache, or test artifacts (e.g., `__pycache__`, `.pytest_cache`, `.ipynb_checkpoints`).

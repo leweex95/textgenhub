@@ -10,7 +10,7 @@ let server_connection = null;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('[ChatGPT CLI] Background received:', request.type, 'from tab:', sender.tab?.id);
-    
+
     if (request.type === 'ping') {
         sendResponse({ pong: true });
     }

@@ -7,12 +7,12 @@ from ..core.provider import SimpleProvider
 def ask(prompt: str, headless: bool = True, remove_cache: bool = True) -> str:
     """
     Send a prompt to Grok and get a response.
-    
+
     Args:
         prompt (str): The prompt to send to Grok
         headless (bool): Whether to run browser in headless mode
         remove_cache (bool): Whether to remove browser cache
-        
+
     Returns:
         str: The response from Grok
     """

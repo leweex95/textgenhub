@@ -57,14 +57,14 @@ describe('Perplexity Provider Headless Tests', () => {
     it('should work in headless mode', async () => {
         await headlessProvider.initialize();
         assert.strictEqual(headlessProvider.isInitialized, true, 'Provider should be initialized in headless mode');
-        
+
         // Using an extremely simple prompt for headless mode
         const prompt = '1+1=?';
         const response = await headlessProvider.generateContent(prompt);
         assert.ok(response && response.length > 0, 'Response should not be empty in headless mode');
         assert.ok(
-            response.toLowerCase().includes('2') || 
-            response.toLowerCase().includes('sum') || 
+            response.toLowerCase().includes('2') ||
+            response.toLowerCase().includes('sum') ||
             response.toLowerCase().includes('equals'),
             'Response should contain a recognizable answer'
         );

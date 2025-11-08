@@ -10,22 +10,22 @@ from ..utils.scrape_response import extract_response_json
 
 class SimpleProvider:
     """Simple base class for all text generation providers"""
-    
+
     def __init__(self, provider_name: str, cli_script: str):
         self.provider_name = provider_name
         self.cli_script = Path(__file__).parent.parent / provider_name / cli_script
         self.node_path = "node"
-        
+
     def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False) -> str:
         """
         Send a prompt to the provider and get a response.
-        
+
         Args:
             prompt (str): The prompt to send
             headless (bool): Whether to run browser in headless mode
             remove_cache (bool): Whether to remove browser cache
             debug (bool): Whether to enable debug mode
-            
+
         Returns:
             str: The response from the provider
         """
@@ -36,17 +36,17 @@ class SimpleProvider:
             "--headless", str(headless).lower(),
             "--remove-cache", str(remove_cache).lower()
         ]
-        
+
         if debug:
             cmd.append("--debug")
             cmd.append("true")
-        
+
         stdout_json_line = None
-        
+
         with subprocess.Popen(
-            cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             cwd=self.cli_script.parent
         ) as proc:
             if proc.stdout is not None:
