@@ -5,6 +5,9 @@ on:
     tags:
       - '*'  # Trigger on any tag push
 
+permissions:
+  contents: write
+
 jobs:
   cleanup-dist:
     runs-on: ubuntu-latest
