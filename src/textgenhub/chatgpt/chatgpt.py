@@ -7,13 +7,13 @@ from ..core.provider import SimpleProvider
 def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False) -> str:
     """
     Send a prompt to ChatGPT and get a response.
-    
+
     Args:
         prompt (str): The prompt to send to ChatGPT
         headless (bool): Whether to run browser in headless mode
         remove_cache (bool): Whether to remove browser cache
         debug (bool): Whether to enable debug mode
-        
+
     Returns:
         str: The response from ChatGPT
     """

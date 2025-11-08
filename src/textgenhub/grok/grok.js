@@ -1,13 +1,13 @@
 /**
  * Grok Provider - Browser automation for Grok web interface
  * Uses Puppeteer to interact with Grok when API access is not available
- * 
+ *
  * IMPORTANT: This provider uses NON-HEADLESS mode (headless=false).
- * 
- * Reason: Grok.com is a complex React SPA that doesn't properly render 
+ *
+ * Reason: Grok.com is a complex React SPA that doesn't properly render
  * response content to the DOM when running in Puppeteer's headless mode.
  * The assistant message element exists but remains empty, making extraction impossible.
- * 
+ *
  * The browser window is automatically minimized via Chrome DevTools Protocol
  * to prevent interference with laptop usability during CI/automated execution.
  * This approach ensures responses are properly rendered while maintaining
@@ -443,7 +443,7 @@ class GrokProvider extends BaseLLMProvider {
               return elements.map((el) => {
                 // Try different methods to extract text
                 let text = '';
-                
+
                 if (el.tagName === 'DIV' && el.hasAttribute('data-message-author-role')) {
                   // For message containers, get all text including nested elements
                   text = el.innerText || el.textContent || '';
@@ -451,7 +451,7 @@ class GrokProvider extends BaseLLMProvider {
                   // Prefer innerText (renders as visible), fall back to textContent
                   text = el.innerText || el.textContent || '';
                 }
-                
+
                 return {
                   text: text,
                   html: el.innerHTML?.substring(0, 200) || '',
@@ -518,19 +518,19 @@ class GrokProvider extends BaseLLMProvider {
             if (turns.length >= 2) {
               // Get the last turn (should be assistant response)
               const lastTurn = turns[turns.length - 1];
-              
+
               // Try multiple ways to extract text
               const methods = {
                 textContent: lastTurn.textContent || '',
                 innerText: lastTurn.innerText || '',
                 innerHTML: lastTurn.innerHTML.substring(0, 500) || '',
               };
-              
+
               // Also try to find all divs with text content
               const allDivs = Array.from(lastTurn.querySelectorAll('div, p, span'))
                 .map(el => (el.textContent || el.innerText || '').trim())
                 .filter(text => text && text.length > 0 && !text.includes('window.__'));
-              
+
               // Get all text nodes
               const textNodes = [];
               const walk = document.createTreeWalker(
@@ -545,17 +545,17 @@ class GrokProvider extends BaseLLMProvider {
                   textNodes.push(text);
                 }
               }
-              
+
               const allText = (lastTurn.textContent || lastTurn.innerText || '').trim();
-              
+
               // Try to find the actual response by looking for patterns
               let responseText = '';
-              
+
               // If we only have "Grok said:" but there are other divs, try those
               if ((allText === 'Grok said:' || allText === 'Grok said') && allDivs.length > 0) {
                 // Skip any div that is just "ChatGPT said:" and get the next ones
-                const responseOnly = allDivs.filter(div => 
-                  !div.toLowerCase().includes('chatgpt') && 
+                const responseOnly = allDivs.filter(div =>
+                  !div.toLowerCase().includes('chatgpt') &&
                   !div.toLowerCase().includes('assistant') &&
                   !div.toLowerCase().includes('said:')
                 );
@@ -563,7 +563,7 @@ class GrokProvider extends BaseLLMProvider {
                   responseText = responseOnly[responseOnly.length - 1];
                 }
               }
-              
+
               if (!responseText) {
                 responseText = allText;
               }
@@ -598,24 +598,24 @@ class GrokProvider extends BaseLLMProvider {
       // If still no response, check if this is a headless rendering issue
       if (!extractedResponse || extractedResponse === 'ChatGPT said:' || extractedResponse === 'ChatGPT said') {
         this.logger.warn('HEADLESS MODE: No content found with standard extraction, trying page-wide search');
-        
+
         // Try to find the response anywhere on the page
         const pageWideSearch = await this.browserManager.page.evaluate(() => {
           // Get all text from the page except common UI elements
           const bodyText = document.body.innerText || document.body.textContent || '';
-          
+
           // Find lines that look like responses (not UI text)
           const lines = bodyText.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 0);
-          
+
           // Filter out common UI elements
           const uiKeywords = ['send', 'message', 'new chat', 'settings', 'upgrade', 'edit', 'copy', 'delete', 'regenerate', 'continue'];
           const responseLines = lines.filter(line => {
             const lower = line.toLowerCase();
             return !uiKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
           });
-          
+
           return responseLines;
         });
 
@@ -649,11 +649,11 @@ class GrokProvider extends BaseLLMProvider {
           currentResponse: extractedResponse.substring(0, 100)
         });
         await this.browserManager.delay(5000);
-        
+
         // Retry extraction with the same strategies
         extractedResponse = null;
         usedStrategy = null;
-        
+
         for (const strategy of extractionStrategies) {
           try {
             this.logger.debug(`Retrying extraction strategy: ${strategy.name}`, {
@@ -665,13 +665,13 @@ class GrokProvider extends BaseLLMProvider {
               (elements) => {
                 return elements.map((el) => {
                   let text = '';
-                  
+
                   if (el.tagName === 'DIV' && el.hasAttribute('data-message-author-role')) {
                     text = el.innerText || el.textContent || '';
                   } else {
                     text = el.innerText || el.textContent || '';
                   }
-                  
+
                   return {
                     text: text,
                     html: el.innerHTML?.substring(0, 200) || '',
@@ -706,7 +706,7 @@ class GrokProvider extends BaseLLMProvider {
             });
           }
         }
-        
+
         // If still no response or still generating, try page-wide search again
         if (!extractedResponse || extractedResponse.toLowerCase().includes('still generating') || extractedResponse.toLowerCase().includes('generating a response')) {
           this.logger.warn('Retry extraction still indicates generating, trying page-wide search again');
@@ -715,20 +715,20 @@ class GrokProvider extends BaseLLMProvider {
             const lines = bodyText.split('\n')
               .map(line => line.trim())
               .filter(line => line.length > 0);
-            
+
             const uiKeywords = ['send', 'message', 'new chat', 'settings', 'upgrade', 'edit', 'copy', 'delete', 'regenerate', 'continue'];
             const responseLines = lines.filter(line => {
               const lower = line.toLowerCase();
               return !uiKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
             });
-            
+
             return responseLines;
           });
 
           if (pageWideSearch && pageWideSearch.length > 0) {
             const candidateResponse = pageWideSearch[pageWideSearch.length - 1];
-            if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' && 
-                !candidateResponse.toLowerCase().includes('still generating') && 
+            if (candidateResponse && candidateResponse.length > 0 && candidateResponse !== 'ChatGPT said:' &&
+                !candidateResponse.toLowerCase().includes('still generating') &&
                 !candidateResponse.toLowerCase().includes('generating a response')) {
               extractedResponse = candidateResponse;
               usedStrategy = 'page-wide-search-retry';
@@ -739,7 +739,7 @@ class GrokProvider extends BaseLLMProvider {
             }
           }
         }
-        
+
         if (!extractedResponse) {
           throw new Error('No valid response found even after retry');
         }
@@ -760,7 +760,7 @@ class GrokProvider extends BaseLLMProvider {
 
     // First wait a minimum time for response to start
     await this.browserManager.delay(2000);
-    
+
     let previousContentLength = 0;
     let stableCount = 0;
     const stableThreshold = 3; // Need 3 consecutive checks with same content length
@@ -771,7 +771,7 @@ class GrokProvider extends BaseLLMProvider {
           // Check for stop button (appears during generation)
           const stopButton = document.querySelector('[data-testid="stop-button"]') ||
                            document.querySelector('button[aria-label*="Stop"]');
-          
+
           // Check if send button is disabled
           const sendButton = document.querySelector('[data-testid="send-button"]') ||
                            document.querySelector('button[data-testid="send-button"]');
@@ -782,7 +782,7 @@ class GrokProvider extends BaseLLMProvider {
           const isStillGenerating = liveRegionText.includes('generating') || liveRegionText.includes('still');
 
           // Check for substantial content in the last assistant message
-          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');     
+          const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
           const lastMessage = assistantMessages[assistantMessages.length - 1];
           const content = lastMessage ? (lastMessage.textContent || lastMessage.innerText || '') : '';
           const contentLength = content.trim().length;
@@ -817,12 +817,12 @@ class GrokProvider extends BaseLLMProvider {
         if (status.contentLength === previousContentLength && status.contentLength > 0) {
           stableCount++;
           this.logger.debug('Content stable check', { stableCount, contentLength: status.contentLength });
-          
+
           // If content hasn't changed for a few checks, consider it done
           if (stableCount >= stableThreshold) {
-            this.logger.debug('Content has stabilized - marking as complete', { 
+            this.logger.debug('Content has stabilized - marking as complete', {
               contentLength: status.contentLength,
-              stableCount 
+              stableCount
             });
             return;
           }
@@ -871,7 +871,7 @@ class GrokProvider extends BaseLLMProvider {
           }
 
           const lastMessage = assistantMessages[assistantMessages.length - 1];
-          
+
           // Check for React-rendered content in data attributes
           const reactContent = lastMessage.querySelector('[data-start], [data-end]');
           if (reactContent) {
@@ -886,7 +886,7 @@ class GrokProvider extends BaseLLMProvider {
               };
             }
           }
-          
+
           // Check for markdown/prose content
           const markdownContent = lastMessage.querySelector('.markdown, .prose, p');
           if (markdownContent) {
@@ -905,7 +905,7 @@ class GrokProvider extends BaseLLMProvider {
           // Check all text in the message container
           const allText = lastMessage.textContent || lastMessage.innerText || '';
           const textContent = allText.trim();
-          
+
           // Filter out "ChatGPT said:" which is just UI text
           if (textContent && textContent !== 'ChatGPT said:' && textContent !== 'ChatGPT said') {
             return {
@@ -1080,7 +1080,7 @@ class GrokProvider extends BaseLLMProvider {
       this.isLoggedIn = false;
       // Try to recover by navigating back to chat page
       await this.browserManager.navigateToUrl(this.urls.chat);
-      
+
       // Wait for text area to appear after navigation
       try {
         await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -1107,7 +1107,7 @@ class GrokProvider extends BaseLLMProvider {
       // Navigate directly to home to get a fresh chat
       await this.browserManager.navigateToUrl('https://grok.com/');
       await this.browserManager.delay(2000);
-      
+
       // Wait for the text area to be available
       await this.browserManager.waitForElement(this.selectors.textArea, {
         timeout: 10000,
@@ -1142,7 +1142,7 @@ class GrokProvider extends BaseLLMProvider {
           await this.browserManager.clickElement(selector);
           this.logger.debug('New chat button clicked', { selector });
           newChatClicked = true;
-          
+
           // Wait for the page to reset and text area to appear
           await this.browserManager.waitForElement(this.selectors.textArea, { timeout: 10000 });
           this.logger.debug('New chat started successfully');
@@ -1244,7 +1244,7 @@ class GrokProvider extends BaseLLMProvider {
     try {
       const pollInterval = 500;
       const maxTries = Math.ceil(maxWaitMs / pollInterval);
-      
+
       for (let attempt = 0; attempt < maxTries; attempt++) {
         // Check for various popup types
         const popupInfo = await this.browserManager.page.evaluate(() => {
@@ -1262,13 +1262,13 @@ class GrokProvider extends BaseLLMProvider {
               (btn) => btn.textContent?.toLowerCase().includes('dismiss') && btn.offsetParent !== null
             ),
           };
-          
+
           return {
             hasPopup: Object.values(popups).some(popup => popup !== null),
             popups: Object.fromEntries(
               Object.entries(popups).map(([key, element]) => [
-                key, 
-                element ? { 
+                key,
+                element ? {
                   text: element.textContent?.trim(),
                   tagName: element.tagName,
                   className: element.className,
@@ -1281,9 +1281,9 @@ class GrokProvider extends BaseLLMProvider {
 
         if (popupInfo.hasPopup) {
           this.logger.debug('Popup detected, attempting to handle', { popupInfo });
-          
+
           let popupDismissed = false;
-          
+
           // Try to click "Stay logged out" link first (exact selector)
           if (popupInfo.popups.stayLoggedOutExact) {
             try {
@@ -1294,7 +1294,7 @@ class GrokProvider extends BaseLLMProvider {
               this.logger.debug('Failed to click exact "Stay logged out" selector', { error: error.message });
             }
           }
-          
+
           // Try to click "Stay logged out" link (text-based)
           if (!popupDismissed && popupInfo.popups.stayLoggedOut) {
           try {
@@ -1344,7 +1344,7 @@ class GrokProvider extends BaseLLMProvider {
                 'button svg[data-icon="x"]',
                 'button svg[data-icon="X"]'
               ];
-              
+
               for (const selector of closeSelectors) {
                 try {
                   await this.browserManager.page.click(selector);
@@ -1355,7 +1355,7 @@ class GrokProvider extends BaseLLMProvider {
                   // Continue to next selector
                 }
               }
-              
+
               // Try JavaScript fallback for X buttons
               if (!popupDismissed) {
                 try {
@@ -1366,7 +1366,7 @@ class GrokProvider extends BaseLLMProvider {
                       const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
                       return text.includes('close') || text.includes('x') || ariaLabel.includes('close') || ariaLabel.includes('x');
                     });
-                    
+
                     if (closeButtons.length > 0) {
                       closeButtons[0].click();
                       return true;
@@ -1411,7 +1411,7 @@ class GrokProvider extends BaseLLMProvider {
           // After dismissing popup, wait for textarea to be accessible
           if (popupDismissed) {
             await this.browserManager.delay(500); // Give time for popup to disappear
-            
+
             // Verify textarea is now accessible
             try {
               await this.browserManager.waitForElement(this.selectors.textArea, {
@@ -1451,15 +1451,15 @@ class GrokProvider extends BaseLLMProvider {
           hasPopup: hasPopup
         };
       });
-      
+
       if (finalCheck.hasPopup) {
         this.logger.warn('Popup handling timeout - popup still present', { maxWaitMs });
       }
-      
+
       if (!finalCheck.textareaAccessible) {
         this.logger.warn('Popup handling timeout - textarea not accessible', { maxWaitMs });
       }
-      
+
       return finalCheck.textareaAccessible;
     } catch (error) {
       this.logger.error('Error handling popup', { error: error.message });
@@ -1476,7 +1476,7 @@ class GrokProvider extends BaseLLMProvider {
       // Get current cookies before closing page to preserve session
       const cookies = await this.browserManager.page.cookies();
       this.logger.debug('Saved session cookies', { count: cookies.length });
-      
+
       // Close current page and open fresh one
       if (this.browserManager.page) {
         await this.browserManager.page.close();
@@ -1506,7 +1506,7 @@ class GrokProvider extends BaseLLMProvider {
 
       // Navigate to ChatGPT
       await this.browserManager.navigateToUrl(this.urls.chat);
-      
+
       // Wait for page to stabilize
       await this.browserManager.delay(1000);
 

@@ -16,7 +16,7 @@ class BaseLLMProvider {
     this.logger = config.logger || console;
   }
 
-  
+
   async initialize() {
     throw new Error(`initialize() must be implemented by ${this.name}`);
   }
@@ -42,7 +42,7 @@ class BaseLLMProvider {
     if (!response || typeof response !== 'string') throw new Error('Invalid response');
     return response.trim();
   }
-  
+
   logRequest(prompt, response, duration, metadata = {}) {
     this.logger.info('LLM request completed', {
       provider: this.name,
@@ -53,7 +53,7 @@ class BaseLLMProvider {
       ...metadata,
     });
   }
-  
+
   async handleError(error, context = 'unknown') {
     // Try to capture the last HTML from the browser for debugging
     let htmlPath = null;

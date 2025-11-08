@@ -1,4 +1,4 @@
-[![Nightly regression tests](https://github.com/leweex95/textgenhub/actions/workflows/nightly-regression-test.yml/badge.svg)](https://github.com/leweex95/textgenhub/actions/workflows/nightly-regression-test.yml) ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue) ![License](https://img.shields.io/github/license/leweex95/textgenhub)
+[![Nightly regression tests](https://github.com/leweex95/textgenhub/actions/workflows/nightly-regression-test.yml/badge.svg)](https://github.com/leweex95/textgenhub/actions/workflows/nightly-regression-test.yml) ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue) ![License](https://img.shields.io/github/license/leweex95/textgenhub) [![codecov](https://codecov.io/gh/leweex95/textgenhub/branch/chatgpt-extension-cli/graph/badge.svg)](https://codecov.io/gh/leweex95/textgenhub)
 
 # TextGenHub
 
@@ -9,27 +9,12 @@ It consists of:
 - **Node.js backend** – handles direct interactions with LLMs using Puppeteer and related tools.
 - **Python wrapper** – allows seamless integration into Python applications and agents.
 
-## Recent Improvements (v0.6.9+)
-
-🎉 **Major Session Management Improvements for ChatGPT Provider**
-
-We've implemented critical fixes to address session management issues that were causing failures in automated pipelines:
-
-- ✅ **Fixed JavaScript Context Errors**: Resolved "Argument should belong to the same JavaScript world" errors
-- ✅ **Enhanced Session Validation**: Now validates element availability, not just time-based expiration
-- ✅ **Improved Popup Handling**: Better detection and dismissal of authentication popups
-- ✅ **Session Persistence**: Browser state reset now preserves cookies for better session continuity
-- ✅ **Retry Logic**: Added automatic retries for element detection and text input operations
-
-These improvements make the ChatGPT provider significantly more reliable for production use in automated translation pipelines and sequential API calls.
-
-📖 **[Read the detailed documentation](docs/SESSION_MANAGEMENT_IMPROVEMENTS.md)**
-
 ## Supported LLMs
 
 - **ChatGPT** - OpenAI's ChatGPT via web interface
 - **DeepSeek** - DeepSeek Chat via web interface (https://chat-deep.ai/deepseek-chat/)
 - **Perplexity** - Perplexity AI via web interface (https://www.perplexity.ai/)
+- **Grok** - Grok (X.com) via web interface (https://grok.com/)
 
 ## Development Notes
 
@@ -152,126 +137,105 @@ perplexity.chat("What day is it today?", { headless: true })
 
 ## Running the CLI
 
-### ChatGPT CLI
+### Unified CLI Interface
 
-From the project root, run:
-
-```bash
-# Python CLI
-poetry run python ./src/textgenhub/chatgpt/chatgpt.py --prompt "What day is it today?" --headless
-
-# Node.js CLI  
-node ./src/textgenhub/chatgpt/chatgpt_cli.js --prompt "What day is it today?" --headless
-```
-
-### DeepSeek CLI
-
-From the project root, run:
+TextGenHub now provides a unified CLI interface for all providers:
 
 ```bash
-# Node.js CLI
-node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What day is it today?" --headless
-```
+# Install and use the unified CLI
+poetry install
+poetry run textgenhub --help
 
-### Perplexity CLI
+# ChatGPT (extension method by default, --old for puppeteer-based fallback)
+poetry run textgenhub chatgpt --prompt "What day is it today?"
+poetry run textgenhub chatgpt --prompt "What day is it today?" --old
 
-From the project root, run:
+# DeepSeek (headless browser method)
+poetry run textgenhub deepseek --prompt "What day is it today?"
 
-```bash
-# Python CLI
-poetry run python ./src/textgenhub/perplexity/perplexity.py --prompt "What day is it today?" --headless
+# Perplexity (headless browser method)
+poetry run textgenhub perplexity --prompt "What day is it today?"
 
-# Node.js CLI
-node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What day is it today?" --headless
+# Grok (headless browser method)
+poetry run textgenhub grok --prompt "What day is it today?"
 ```
 
 #### CLI Options
 
-- `--prompt`: The text prompt to send to the LLM
+- `--prompt, -p`: The text prompt to send to the LLM (required)
+- `--old`: Use old headless browser method instead of extension (ChatGPT only)
 - `--headless`: Run browser in headless mode (default: true)
-- `--remove-cache`: Remove browser cache before running
+- `--output-format`: Output format - `json` (default) or `html`
+- `--timeout`: Timeout in seconds for extension mode (ChatGPT only, default: 120)
 
 #### CLI Examples
 
 ```bash
-# Basic usage
-node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "Explain quantum computing"
+# ChatGPT with extension (recommended) - JSON output (default)
+poetry run textgenhub chatgpt --prompt "Explain quantum computing"
 
-# With visible browser (for debugging)
-node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "What is 2+2?" --headless=false
+# ChatGPT with extension - HTML output
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format html
 
-# With cache removal
-node ./src/textgenhub/deepseek/deepseek_cli.js --prompt "Hello world" --remove-cache
+# ChatGPT with headless fallback
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old
 
-# Perplexity examples
-node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "Explain quantum computing"
-node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "What is 2+2?" --headless=false
-node ./src/textgenhub/perplexity/perplexity_cli.js --prompt "Hello world" --remove-cache
+# DeepSeek - JSON output
+poetry run textgenhub deepseek --prompt "What is machine learning?"
+
+# DeepSeek - HTML output
+poetry run textgenhub deepseek --prompt "What is machine learning?" --output-format html
+
+# Perplexity - JSON output
+poetry run textgenhub perplexity --prompt "What is the capital of France?"
+
+# Grok - JSON output
+poetry run textgenhub grok --prompt "Tell me a joke"
 ```
 
-## Daily regression testing
+#### JSON Output Format
 
-With such web-based automation solutions it is imperative to continuously monitor any regressions. Even more so, as I actively use this project in downstream agentic workflows I design. A simple UI redesign in which any of the providers modify their current CSS selectors would likely crash the current functionality. For this reason, the `regression_test.yml` Github Actions workflow was set up, scheduled for 2 AM each day. To make it even more robust, the tests validate specific functionality for each provider and the output is automatically evaluated.
+When using `--output-format json` (default), the CLI returns structured JSON:
 
-The regression testing includes:
-- **ChatGPT** - Daily date validation test to ensure real-time information access
-- **DeepSeek** - Daily math test (7+13=20) to ensure response generation and extraction
-- **Perplexity** - Daily math test (2+2=4) to ensure response extraction and formatting
+```json
+{
+  "provider": "chatgpt",
+  "method": "extension",
+  "timestamp": "2025-11-08T09:00:00.000000",
+  "prompt": "What is 2 + 2?",
+  "response": "2 + 2 equals 4.",
+  "html": "<div>HTML content here</div>"
+}
+```
 
-All tests run in parallel and any failure triggers email notifications with detailed information about which provider failed.
+#### HTML Output Format
 
-## Next steps with nightly regression failures
+When using `--output-format html`, the CLI returns raw HTML content directly, perfect for downstream processing:
 
-1. Persist Session Data Across CI Runs
-How:
+```bash
+# Get HTML content for further processing
+HTML_CONTENT=$(poetry run textgenhub chatgpt --prompt "Generate a report" --output-format html)
+```
 
-- Use a persistent userDataDir for the browser (e.g., chatgpt-session).
-- Store this directory as a CI artifact after a successful run.
-- Restore it at the start of each CI job.
+> 💡 **ChatGPT Extension Setup**: The ChatGPT provider uses a Chrome extension for optimal performance. Install the extension from `src/textgenhub/chatgpt_extension/` and ensure the Windows service `ChatGPTServer` is running for persistent operation.
 
-Steps:
+### ChatGPT Extension Architecture
 
-- Locally, log in to ChatGPT in non-headless mode and let the browser save cookies/session in userDataDir.
-- Upload the userDataDir folder to a secure location (e.g., as a GitHub Actions artifact or a private storage bucket).
-- In your CI workflow, download and restore this folder before running tests.
-- Configure textgenhub to use this restored userDataDir for browser automation.
+The ChatGPT provider offers two methods for automation:
 
-Impact:
+#### **Extension Method (Recommended)**
+- **How it works**: Uses a Chrome browser extension that injects JavaScript into ChatGPT web pages to automate interactions
+- **Communication**: Extension communicates with a local WebSocket server (running on `ws://127.0.0.1:8765`) to receive prompts and send responses
+- **Windows Service**: A persistent Windows service (`ChatGPTServer`) runs the WebSocket server continuously in the background
+- **Performance**: Faster and more reliable than headless browser automation
 
-- No need for manual login in CI.
-- Session persists until ChatGPT logs you out (may need periodic refresh).
+#### **Preconditions for Extension Method**
+- **Chrome browser must be running** (the extension does NOT launch Chrome automatically)
+- **ChatGPT website must be opened** in a Chrome tab (the extension does NOT navigate to ChatGPT automatically)
+- **Chrome extension must be installed** from `src/textgenhub/chatgpt_extension/`
+- **Windows service must be running** (`ChatGPTServer` service for the WebSocket server)
 
-2. Automate Login with Credentials (Best for Long-Term)
-How:
-
-- Set ChatGPT credentials (email and password) as CI environment variables.
-- Configure textgenhub to use these for automatic login.
-
-Steps:
-
-- Add your ChatGPT credentials to CI secrets (never hardcode in repo).
-- Update textgenhub config to read credentials from environment variables.
-- On each CI run, textgenhub will log in automatically if session is invalid.
-
-Impact:
-
-- Fully automated, no manual intervention.
-- Credentials must be kept secure.
-
-3. What to Avoid
-
-- Manual login in CI: Not possible, as CI is headless and non-interactive.
-- Relying on ephemeral sessions: Will break as soon as cookies expire or CI environment resets.
-
-Summary Table
-
-Option                 Feasibility   Steps Needed   Impact/Notes
-Persist session data   High          1-4            Works until session expires
-Auto-login w/ creds    High          1-3            Most robust, secure creds
-Manual login in CI     Not feasible  -              Not possible
-
-Recommendation:
-
-- For quick fix: Persist and restore your local session data in CI.
-- For robust solution: Use credentials for automatic login.
-
+#### **Headless Browser Method (Fallback)**
+- **How it works**: Uses Puppeteer to launch a headless Chrome browser and automate ChatGPT interactions
+- **No preconditions**: Automatically launches browser and navigates to ChatGPT
+- **Usage**: Add `--old` flag to use this method

@@ -14,6 +14,10 @@ on:
           - 'true'
           - 'false'
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   chatgpt-test:
     name: ChatGPT Regression Test
@@ -31,7 +35,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20"
-      
+
       - name: Verify Node
         run: |
           node -v
@@ -118,13 +122,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20"
-      
+
       - name: Verify Node
         run: |
           node -v
           npm -v
         shell: pwsh
-  
+
       - name: Install Poetry
         run: python -m pip install --upgrade poetry==2.2.0
 
@@ -142,11 +146,11 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
-      
+
       - name: Create artifacts directory
         run: mkdir -p artifacts
         shell: pwsh
-  
+
       - name: Run DeepSeek regression test
         env:
           DEEPSEEK_HEADLESS: ${{ inputs.headless || 'true' }}
@@ -159,7 +163,7 @@ jobs:
           }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "20"
-          
+
           # Check if error occurred and HTML artifact was saved
           if ($result.error) {
             Write-Error "DeepSeek error occurred: $($result.error)"
@@ -168,7 +172,7 @@ jobs:
             }
             throw "DeepSeek regression test failed: $($result.error)"
           }
-          
+
           if (-not $result -or -not $result.response) {
             Write-Error "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
             throw "DeepSeek regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
@@ -211,13 +215,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20"
-      
+
       - name: Verify Node
         run: |
           node -v
           npm -v
         shell: pwsh
-  
+
       - name: Install Poetry
         run: python -m pip install --upgrade poetry==2.2.0
 
@@ -235,11 +239,11 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
-      
+
       - name: Create artifacts directory
         run: mkdir -p artifacts
         shell: pwsh
-  
+
       - name: Run Perplexity regression test
         env:
           PERPLEXITY_HEADLESS: ${{ inputs.headless || 'true' }}
@@ -252,7 +256,7 @@ jobs:
           }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "4"
-          
+
           # Check if error occurred and HTML artifact was saved
           if ($result.error) {
             Write-Error "Perplexity error occurred: $($result.error)"
@@ -261,7 +265,7 @@ jobs:
             }
             throw "Perplexity regression test failed: $($result.error)"
           }
-          
+
           if (-not $result -or -not $result.response) {
             Write-Error "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
             throw "Perplexity regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
@@ -304,13 +308,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "20"
-      
+
       - name: Verify Node
         run: |
           node -v
           npm -v
         shell: pwsh
-  
+
       - name: Install Poetry
         run: python -m pip install --upgrade poetry==2.2.0
 
@@ -328,11 +332,11 @@ jobs:
         run: |
           poetry run pip show textgenhub
         shell: pwsh
-      
+
       - name: Create artifacts directory
         run: mkdir -p artifacts
         shell: pwsh
-  
+
       - name: Run Grok regression test
         env:
           GROK_HEADLESS: 'false'
@@ -343,16 +347,16 @@ jobs:
             $allOutput = node ./src/textgenhub/grok/grok_cli.js --prompt "What is 5 + 0? Answer with only the number, no text, no explanation, just the single number." $headlessArg --debug 2>&1
             return $allOutput
           } -ArgumentList $headlessArg
-          
+
           $timeout = 600  # 10 minutes timeout
           $completed = Wait-Job -Job $job -Timeout $timeout
-          
+
           if (-not $completed) {
             Stop-Job -Job $job -ErrorAction SilentlyContinue
             Write-Error "Grok CLI timed out after $timeout seconds"
             throw "Grok CLI timed out after $timeout seconds"
           }
-          
+
           $allOutput = Receive-Job -Job $job
           Write-Output "Full CLI output:"
           Write-Output $allOutput
@@ -363,7 +367,7 @@ jobs:
           }
           $result = $jsonOutput | ConvertFrom-Json
           $expected_answer = "4"
-          
+
           # Check if error occurred and HTML artifact was saved
           if ($result.error) {
             Write-Error "Grok error occurred: $($result.error)"
@@ -372,7 +376,7 @@ jobs:
             }
             throw "Grok regression test failed: $($result.error)"
           }
-          
+
           if (-not $result -or -not $result.response) {
             Write-Error "Grok regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
             throw "Grok regression test failed: Output JSON missing or null 'response' field. Raw output: $jsonOutput"
@@ -400,7 +404,7 @@ jobs:
 
   notify:
       name: Send Failure Notification
-      needs: [chatgpt-test, deepseek-test, perplexity-test, grok-test] 
+      needs: [chatgpt-test, deepseek-test, perplexity-test, grok-test]
       if: failure()
       runs-on: ubuntu-latest
       steps:

@@ -96,11 +96,11 @@ class DeepSeekProvider extends BaseLLMProvider {
       try {
   if (this.config.debug) this.logger.info('Checking for consent popup...');
         const consentDialog = await this.browserManager.page.$(this.selectors.consentDialog);
-        
+
         if (consentDialog) {
           if (this.config.debug) this.logger.info('Consent popup found, clicking Consent button...');
           const consentButton = await this.browserManager.page.$(this.selectors.consentButton);
-          
+
           if (consentButton) {
             await consentButton.click();
             if (this.config.debug) this.logger.info('Consent button clicked successfully');
@@ -118,7 +118,7 @@ class DeepSeekProvider extends BaseLLMProvider {
       // Check for text area to confirm we're on the chat page
       try {
   if (this.config.debug) this.logger.info('Waiting for DeepSeek Chat interface...');
-        
+
         let maxAttempts = 5;
         let attempt = 0;
         let success = false;
@@ -241,7 +241,7 @@ class DeepSeekProvider extends BaseLLMProvider {
       // Wait for response to appear
       this.logger.debug('Waiting for response...');
       const response = await this.waitForResponse(options);
-      
+
       const duration = Date.now() - startTime;
       const validatedResponse = this.validateResponse(response);
       return validatedResponse;
@@ -274,7 +274,7 @@ class DeepSeekProvider extends BaseLLMProvider {
       // Wait for response to start appearing (new message should appear)
       const newMessageTimeout = 30000; // 30 seconds to start responding
       const messageStartTime = Date.now();
-      
+
       while (Date.now() - messageStartTime < newMessageTimeout) {
         const currentMessageCount = await this.getMessageCount();
         if (currentMessageCount > initialMessageCount) {
@@ -350,7 +350,7 @@ class DeepSeekProvider extends BaseLLMProvider {
 
             // Filter out unwanted content (Copy, Retry buttons, UI elements)
             const text = this.cleanResponseText(lastElement.text);
-            
+
             if (text && text.trim().length > 0) {
               extractedResponse = text.trim();
               usedStrategy = strategy.name;
@@ -373,7 +373,7 @@ class DeepSeekProvider extends BaseLLMProvider {
       }
 
       const duration = Date.now() - startTime;
-      
+
       this.logger.info('Response extracted successfully', {
         responseLength: extractedResponse.length,
         extractionTime: `${duration}ms`,
@@ -421,7 +421,7 @@ class DeepSeekProvider extends BaseLLMProvider {
     ];
 
     let cleanedText = text;
-    
+
     // Apply filters
     for (const pattern of uiPatterns) {
       cleanedText = cleanedText.replace(pattern, '');
@@ -547,7 +547,7 @@ class DeepSeekProvider extends BaseLLMProvider {
     // Reset session state on any error for safety
     this.isLoggedIn = false;
     this.lastSessionCheck = 0;
-    
+
     // Parent handleError saves HTML and returns wrapped error
     return await super.handleError(error, operation);
   }
@@ -575,7 +575,7 @@ class DeepSeekProvider extends BaseLLMProvider {
   async clearChat() {
     try {
       this.logger.debug('Attempting to clear chat...');
-      
+
       // Try multiple selectors for the clear/new chat button
       const clearSelectors = [
         'button[aria-label*="New Chat"]',
