@@ -225,13 +225,14 @@ function findSendButton() {
     return null;
 }
 
-async function waitForChatResponse(outputFormat = 'json', maxWait = 120000) {
+async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
     const startTime = Date.now();
     let lastResponseText = '';
     let lastResponseHtml = '';
     let stableCount = 0;
     let pollCount = 0;
     let userPromptArticleFound = false;
+    let lastReportedLength = 0;
 
     console.log('[ChatGPT CLI] ===== RESPONSE POLLING START =====');
     console.log('[ChatGPT CLI] Output format:', outputFormat);
@@ -278,38 +279,82 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 120000) {
 
             // Extract text and HTML from assistant article
             if (assistantArticle) {
-                // Try to find markdown content div
+                // Try multiple approaches to get the full text
+                let text = '';
+
+                // Approach 1: Try to find markdown content div (most reliable)
                 let markdownDiv = assistantArticle.querySelector('.markdown');
                 if (!markdownDiv) {
                     markdownDiv = assistantArticle.querySelector('[class*="markdown"]');
                 }
 
-                const text = markdownDiv
-                    ? (markdownDiv.innerText || markdownDiv.textContent || '').trim()
-                    : (assistantArticle.innerText || assistantArticle.textContent || '').trim();
+                if (markdownDiv) {
+                    text = (markdownDiv.innerText || markdownDiv.textContent || '').trim();
+                    console.log(`[ChatGPT CLI] Extracted from markdown div: ${text.length} chars`);
+                } else {
+                    // Approach 2: Fallback to full article text
+                    text = (assistantArticle.innerText || assistantArticle.textContent || '').trim();
+                    console.log(`[ChatGPT CLI] Extracted from full article: ${text.length} chars`);
+                }
+
+                // Approach 3: If still short/incomplete, try getting all text nodes
+                if (text.length < 50) {
+                    const textNodes = [];
+                    const walker = document.createTreeWalker(
+                        assistantArticle,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    let node;
+                    while (node = walker.nextNode()) {
+                        const content = node.textContent.trim();
+                        if (content && content.length > 0) {
+                            textNodes.push(content);
+                        }
+                    }
+                    text = textNodes.join(' ').trim();
+                    console.log(`[ChatGPT CLI] Extracted from text nodes: ${text.length} chars`);
+                }
 
                 const html = outputFormat === 'html' ? assistantArticle.outerHTML : '';
 
                 console.log(`[ChatGPT CLI] Assistant text length: ${text.length}, previous: ${lastResponseText.length}`);
 
-                // Check if text has changed
-                if (text && text !== lastResponseText) {
+                // Filter out interim/placeholder states such as "Thinking" or short ellipses
+                const low = text.toLowerCase();
+                const isThinking = (low.includes('thinking') || low.includes('thinking...') || low.includes('searching the web') || /^\.\.\.$/.test(text.trim()) || text.trim().toLowerCase() === 'typing' || text.includes('ChatGPT said') || low.startsWith('chatgpt said')) && text.length < 100;
+
+                if (isThinking) {
+                    console.log(`[ChatGPT CLI] Detected interim/"Thinking" state, skipping and continuing to poll...`);
+                    // CRITICAL: Do NOT set lastResponseText; skip this poll and continue waiting
+                    stableCount = 0;
+                } else if (text && text !== lastResponseText && text.length > 20) {
+                    // Check if text has changed and is substantial (> 20 chars to avoid short placeholders)
                     lastResponseText = text;
                     lastResponseHtml = html;
                     stableCount = 0;
-                    console.log(`[ChatGPT CLI] Response text changed. New length: ${text.length}`);
-                } else if (text === lastResponseText && text.length > 0) {
+                    console.log(`[ChatGPT CLI] Response text CHANGED. New length: ${text.length} (was ${lastReportedLength})`);
+                    console.log(`[ChatGPT CLI] First 100 chars: "${text.substring(0, 100)}..."`);
+                    lastReportedLength = text.length;
+                } else if (text === lastResponseText && text.length > 20) {
                     stableCount++;
-                    console.log(`[ChatGPT CLI] Response text stable (count: ${stableCount}/5)`);
+                    if (stableCount % 3 === 1) {
+                        console.log(`[ChatGPT CLI] Response text STABLE (count: ${stableCount}/15, length: ${text.length})`);
+                    }
 
-                    // Need 5 consecutive stable readings (2.5 seconds) to confirm generation complete
-                    if (stableCount >= 5) {
-                        console.log('[ChatGPT CLI] Response confirmed stable, returning');
+                    // Need 15 consecutive stable readings (7.5 seconds) to confirm generation complete
+                    // This prevents returning incomplete responses mid-stream
+                    if (stableCount >= 15) {
+                        console.log('[ChatGPT CLI] Response confirmed STABLE, returning');
+                        console.log(`[ChatGPT CLI] Final response length: ${text.length}`);
+                        console.log(`[ChatGPT CLI] First 150 chars: "${text.substring(0, 150)}..."`);
                         console.log('[ChatGPT CLI] ===== RESPONSE POLLING END (SUCCESS) =====');
                         return { text: text, html: lastResponseHtml };
                     }
-                } else if (text.length === 0) {
-                    console.log('[ChatGPT CLI] Assistant article found but has no text yet');
+                } else if (text.length === 0 || text.length <= 20) {
+                    console.log(`[ChatGPT CLI] Assistant article text too short or empty (${text.length}), continuing...`);
+                    stableCount = 0;
                 }
             } else if (userPromptArticleFound) {
                 console.log('[ChatGPT CLI] Waiting for assistant article to appear after user prompt...');
@@ -318,8 +363,9 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 120000) {
             console.log('[ChatGPT CLI] No <article> elements found on page');
         }
 
-        // Poll every 500ms
-        await new Promise(r => setTimeout(r, 500));
+        // Poll every 200ms (5x per second) for responsive UI and faster completion detection
+        // This is critical when the tab is in focus - we want near-real-time updates
+        await new Promise(r => setTimeout(r, 200));
     }
 
     console.error('[ChatGPT CLI] Timeout waiting for response after', maxWait, 'ms');

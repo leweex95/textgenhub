@@ -98,11 +98,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     return;
                 }
 
-                // Focus the tab
+                // CRITICAL: Focus the tab IMMEDIATELY so polling runs at full speed
                 await focusChatGPTTab();
+
+                // Keep tab focused during polling (refresh focus every 100ms)
+                const focusInterval = setInterval(async () => {
+                    try {
+                        await chrome.tabs.update(chatgptTabId, { active: true });
+                    } catch (e) {
+                        console.log('[ChatGPT CLI] Tab focus refresh ended:', e.message);
+                        clearInterval(focusInterval);
+                    }
+                }, 100);
+
+                console.log('[ChatGPT CLI] Started focus maintenance loop');
 
                 // Send injection request to content script
                 chrome.tabs.sendMessage(tab.id, request, (result) => {
+                    // Stop maintaining focus once we get response
+                    clearInterval(focusInterval);
+                    console.log('[ChatGPT CLI] Stopped focus maintenance loop');
                     sendResponse(result);
                 });
             } catch (e) {
