@@ -15,7 +15,7 @@ from textgenhub.chatgpt_extension_cli.cli.error_handler import categorize_error,
 from textgenhub.chatgpt_extension_cli.cli.logger import log_info, log_error
 
 
-def run_chatgpt_extension(message: str, timeout: int = 120, output_format: str = "json"):
+def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str = "json"):
     """Run using the new WebSocket-based extension (default)"""
     import websockets
     import uuid

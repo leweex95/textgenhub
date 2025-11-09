@@ -87,7 +87,9 @@ async def handler(websocket, path=None):
                 print(f"[Server] Forwarded injection request {message_id} to extension")
 
                 # Wait for response with heartbeat and timeout
-                timeout = 120
+                # Use a very long timeout (300s) since the CLI client sets its own timeout
+                # We never want the server to timeout before the client does
+                timeout = 300
                 heartbeat_interval = 10
                 last_heartbeat = time.time()
                 start_time = time.time()
@@ -109,12 +111,13 @@ async def handler(websocket, path=None):
                     # Check if response arrived
                     if pending_requests[message_id]["response"] is not None:
                         response_data = pending_requests[message_id]
-                        print(f"[Server] Sending response for {message_id}")
+                        response_preview = response_data["response"][:50] if len(response_data["response"]) > 50 else response_data["response"]
+                        print(f"[Server] Sending response for {message_id}: {response_preview}")
                         await send_message(websocket, "response", message_id, response=response_data["response"], html=response_data["html"])
                         del pending_requests[message_id]
                         break
 
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.1)  # Check every 100ms for faster response detection
 
     except Exception as e:
         print(f"[Server] Error: {e}")
