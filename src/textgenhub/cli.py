@@ -151,7 +151,7 @@ def main():
 
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
-    chatgpt_parser.add_argument("--prompt", "-p", required=True, help="Message to send to ChatGPT")
+    chatgpt_parser.add_argument("--prompt", "-p", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
     chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
@@ -185,20 +185,44 @@ def main():
         timestamp = datetime.now().isoformat()
 
         if args.provider == "chatgpt":
+            # Use provided prompt or rotating question from JSON
+            if args.prompt is not None:
+                actual_prompt = args.prompt
+                print(f"[ChatGPT] Using provided prompt: {actual_prompt[:60]}...", file=sys.stderr)
+            else:
+                # Load questions from JSON file and cycle through them
+                questions_file = Path(__file__).parent / "questions.json"
+                if questions_file.exists():
+                    try:
+                        with open(questions_file, "r", encoding="utf-8") as f:
+                            questions = json.load(f)
+                        # Use a simple rotation based on current time
+                        import time
+
+                        question_index = int(time.time()) % len(questions)
+                        actual_prompt = questions[question_index]
+                        print(f"[ChatGPT] Using rotating question {question_index + 1}/{len(questions)}: {actual_prompt[:60]}...", file=sys.stderr)
+                    except Exception as e:
+                        print(f"[ChatGPT] Failed to load questions.json ({e}), using fallback prompt", file=sys.stderr)
+                        actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
+                else:
+                    print("[ChatGPT] questions.json not found, using fallback prompt", file=sys.stderr)
+                    actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
+
             if args.old:
                 log_info("Using old headless method...")
-                response_text, html_content = run_chatgpt_old(args.prompt, args.headless, args.output_format)
+                response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
                 method = "headless"
             else:
                 print("[ChatGPT] Connecting to extension server...", file=sys.stderr)
-                response_text, html_content = run_chatgpt_extension(args.prompt, args.timeout, args.output_format)
+                response_text, html_content = run_chatgpt_extension(actual_prompt, args.timeout, args.output_format)
                 method = "extension"
 
             if args.output_format == "html":
                 print(html_content)
             else:
                 # JSON output with metadata
-                result = {"provider": "chatgpt", "method": method, "timestamp": timestamp, "prompt": args.prompt, "response": response_text, "html": html_content}
+                result = {"provider": "chatgpt", "method": method, "timestamp": timestamp, "prompt": actual_prompt, "response": response_text, "html": html_content}
                 print(json.dumps(result, indent=2))
 
         elif args.provider == "deepseek":

@@ -7,12 +7,14 @@ let chatgptTabId = null;
 async function findChatGPTTab() {
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
-        if (tab.url && (tab.url.includes('chatgpt.com') || tab.url.includes('chat.openai.com'))) {
-            console.log('[ChatGPT CLI] Found existing ChatGPT tab:', tab.id);
+        if (tab.url && (tab.url.includes('chatgpt.com') || tab.url.includes('chat.openai.com') || tab.url.includes('openai.com'))) {
+            console.log('[ChatGPT CLI] Found existing ChatGPT tab:', tab.id, 'URL:', tab.url);
             chatgptTabId = tab.id;
             return tab;
         }
     }
+    console.log('[ChatGPT CLI] No ChatGPT tab found. Available tabs:');
+    tabs.forEach(tab => console.log(`  Tab ${tab.id}: ${tab.url}`));
     return null;
 }
 
@@ -22,19 +24,31 @@ async function ensureChatGPTTab() {
 
     if (!tab) {
         console.log('[ChatGPT CLI] ChatGPT tab not found, creating new one...');
-        tab = await chrome.tabs.create({ url: 'https://chatgpt.com/' });
-        chatgptTabId = tab.id;
+        try {
+            tab = await chrome.tabs.create({ url: 'https://chat.openai.com/' });
+            console.log('[ChatGPT CLI] Created new tab:', tab.id);
+            chatgptTabId = tab.id;
 
-        // Wait for tab to fully load (max 10 seconds)
-        for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 500));
-            const updatedTab = await chrome.tabs.get(tab.id);
-            if (updatedTab.status === 'complete') {
-                console.log('[ChatGPT CLI] ChatGPT tab loaded successfully');
-                return updatedTab;
+            // Wait for tab to fully load (max 10 seconds)
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 500));
+                try {
+                    const updatedTab = await chrome.tabs.get(tab.id);
+                    if (updatedTab.status === 'complete') {
+                        console.log('[ChatGPT CLI] ChatGPT tab loaded successfully');
+                        return updatedTab;
+                    }
+                } catch (e) {
+                    console.log('[ChatGPT CLI] Tab disappeared during loading:', e.message);
+                    return null;
+                }
             }
+            console.warn('[ChatGPT CLI] ChatGPT tab still loading after 10 seconds');
+            return tab; // Return anyway, might still work
+        } catch (e) {
+            console.error('[ChatGPT CLI] Failed to create ChatGPT tab:', e);
+            return null;
         }
-        console.warn('[ChatGPT CLI] ChatGPT tab still loading after 10 seconds');
     }
 
     return tab;

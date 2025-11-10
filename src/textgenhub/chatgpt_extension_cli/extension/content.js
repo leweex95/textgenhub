@@ -279,9 +279,6 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
 
             // Extract text and HTML from assistant article
             if (assistantArticle) {
-                // Try multiple approaches to get the full text
-                let text = '';
-
                 // Approach 1: Try to find markdown content div (most reliable)
                 let markdownDiv = assistantArticle.querySelector('.markdown');
                 if (!markdownDiv) {
@@ -292,12 +289,14 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
                     text = (markdownDiv.innerText || markdownDiv.textContent || '').trim();
                     console.log(`[ChatGPT CLI] Extracted from markdown div: ${text.length} chars`);
                 } else {
-                    // Approach 2: Fallback to full article text
-                    text = (assistantArticle.innerText || assistantArticle.textContent || '').trim();
-                    console.log(`[ChatGPT CLI] Extracted from full article: ${text.length} chars`);
+                    // Approach 2: Fallback to full article text but exclude UI elements
+                    const allText = (assistantArticle.innerText || assistantArticle.textContent || '').trim();
+                    // Remove "ChatGPT said:" and similar UI text
+                    text = allText.replace(/^ChatGPT said:\s*/i, '').replace(/^\s*ChatGPT said\s*/i, '').trim();
+                    console.log(`[ChatGPT CLI] Extracted from full article (filtered): ${text.length} chars`);
                 }
 
-                // Approach 3: If still short/incomplete, try getting all text nodes
+                // Approach 3: If still short/incomplete, try getting all text nodes but filter aggressively
                 if (text.length < 50) {
                     const textNodes = [];
                     const walker = document.createTreeWalker(
@@ -309,12 +308,22 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
                     let node;
                     while (node = walker.nextNode()) {
                         const content = node.textContent.trim();
-                        if (content && content.length > 0) {
+                        // Filter out UI text, thinking states, and short fragments
+                        if (content && content.length > 0 &&
+                            content !== 'ChatGPT said:' &&
+                            !content.toLowerCase().includes('chatgpt said') &&
+                            !content.toLowerCase().includes('thinking') &&
+                            !content.toLowerCase().includes('typing') &&
+                            !content.toLowerCase().includes('searching') &&
+                            !/^\.\.\.$/.test(content) &&
+                            content.length > 3) {  // Filter out very short fragments
                             textNodes.push(content);
                         }
                     }
-                    text = textNodes.join(' ').trim();
-                    console.log(`[ChatGPT CLI] Extracted from text nodes: ${text.length} chars`);
+                    if (textNodes.length > 0) {
+                        text = textNodes.join(' ').trim();
+                        console.log(`[ChatGPT CLI] Extracted from filtered text nodes: ${text.length} chars`);
+                    }
                 }
 
                 const html = outputFormat === 'html' ? assistantArticle.outerHTML : '';

@@ -231,7 +231,7 @@ The ChatGPT provider offers two methods for automation:
 
 #### **Preconditions for Extension Method**
 - **Chrome browser must be running** (the extension does NOT launch Chrome automatically)
-- **ChatGPT website must be opened** in a Chrome tab (the extension does NOT navigate to ChatGPT automatically)
+- **ChatGPT tab must be open and active** in Chrome (navigate to https://chat.openai.com/ and make it the active/latest used tab)
 - **Chrome extension must be installed** from `src/textgenhub/chatgpt_extension/`
 - **Windows service must be running** (`ChatGPTServer` service for the WebSocket server)
 
