@@ -23,6 +23,9 @@ include = [
 [tool.poetry.dependencies]
 python = ">=3.9"
 websockets = "^15.0.1"
+websocket-client = "^1.6.4"
+requests = "^2.31.0"
+pywin32 = "^306"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

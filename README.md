@@ -235,6 +235,23 @@ The ChatGPT provider offers two methods for automation:
 - **Chrome extension must be installed** from `src/textgenhub/chatgpt_extension/`
 - **Windows service must be running** (`ChatGPTServer` service for the WebSocket server)
 
+#### **ChatGPT Tab Manager**
+A standalone utility script to ensure ChatGPT tabs are open and focused in existing Chrome sessions:
+
+```bash
+# Ensure ChatGPT tab is open and focused
+python src/textgenhub/chatgpt_tab_manager.py
+```
+
+**Features:**
+- Detects existing Chrome sessions (no new browser instances)
+- Finds and focuses existing ChatGPT tabs
+- Opens new ChatGPT tabs if none exist
+- Uses Windows API for native tab management
+- Avoids detection by working with existing browser sessions
+
+**Note:** Due to Chrome's window title behavior, newly opened tabs may require manual switching within Chrome.
+
 #### **Headless Browser Method (Fallback)**
 - **How it works**: Uses Puppeteer to launch a headless Chrome browser and automate ChatGPT interactions
 - **No preconditions**: Automatically launches browser and navigates to ChatGPT
