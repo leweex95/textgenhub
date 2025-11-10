@@ -1,90 +1,119 @@
 #!/usr/bin/env python3
 """
 ChatGPT Tab Manager - Ensures ChatGPT tab is open and focused in Chrome
-Uses Windows API to find and focus Chrome windows with ChatGPT tabs
+Uses WebSocket communication with Chrome extension for reliable tab management
 """
 
-import time
+import asyncio
+import json
 import sys
+import time
+import uuid
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from browser_utils import is_chrome_running
-
 try:
-    import win32gui
-    import win32con
-    import win32api
-    import win32process
+    import websockets
 
-    WINDOWS_API_AVAILABLE = True
+    WEBSOCKETS_AVAILABLE = True
 except ImportError:
-    WINDOWS_API_AVAILABLE = False
-    print("[Tab Manager] pywin32 not available, Windows API features disabled", file=sys.stderr)
+    WEBSOCKETS_AVAILABLE = False
+    print("[Tab Manager] websockets not available, WebSocket features disabled", file=sys.stderr)
+
+from browser_utils import is_chrome_running
 
 
 class ChatGPTTabManager:
     def __init__(self):
-        self.chatgpt_keywords = ["chatgpt", "chat gpt", "openai", "chat.openai.com", "chatgpt.com", "gpt", "ai chat"]
+        self.ws_url = "ws://127.0.0.1:8765"
+        self.timeout = 30  # seconds
 
-    def get_chrome_windows(self):
-        """Get all Chrome window handles and their titles"""
-        chrome_windows = []
+    def check_server_running(self):
+        """Check if the WebSocket server is running and accessible"""
+        if not WEBSOCKETS_AVAILABLE:
+            raise RuntimeError("websockets library not available. Please install websockets library.")
 
-        def enum_windows_callback(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
+        try:
+            # Try to connect to the server with a short timeout
+            import asyncio
+
+            async def test_connection():
                 try:
-                    title = win32gui.GetWindowText(hwnd)
-                    if title and ("Chrome" in title or "Google Chrome" in title):
-                        # Get process name to confirm it's Chrome
-                        _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                        try:
-                            handle = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ, False, pid)
-                            exe_name = win32process.GetModuleFileNameEx(handle, 0)
-                            win32api.CloseHandle(handle)
-                            if "chrome.exe" in exe_name.lower():
-                                chrome_windows.append((hwnd, title))
-                        except Exception:
-                            pass  # Skip if we can't get process info
-                except Exception:
-                    pass  # Skip windows we can't access
-            return True
+                    # Try to establish connection with timeout
+                    connect_coro = websockets.connect(self.ws_url)
+                    websocket = await asyncio.wait_for(connect_coro, timeout=2.0)
+                    # If we get here, connection succeeded - close it immediately
+                    await websocket.close()
+                    return True
+                except Exception as e:
+                    print(f"[DEBUG] Connection test failed: {e}", file=sys.stderr)
+                    return False
 
-        win32gui.EnumWindows(enum_windows_callback, None)
-        return chrome_windows
+            result = asyncio.run(test_connection())
+            if not result:
+                raise RuntimeError(f"WebSocket server not running at {self.ws_url}\n" "Please start the server first:\n" "  cd src/textgenhub/chatgpt_extension_cli/cli\n" "  python server.py")
+        except Exception as e:
+            if "WebSocket server not running" in str(e):
+                raise e
+            raise RuntimeError(
+                f"Cannot connect to WebSocket server at {self.ws_url}: {e}\n" "Please ensure the server is running:\n" "  cd src/textgenhub/chatgpt_extension_cli/cli\n" "  python server.py"
+            )
 
-    def is_chatgpt_window(self, title):
-        """Check if a window title indicates a ChatGPT tab"""
-        title_lower = title.lower()
+    async def send_focus_request(self):
+        """Send focus_tab request to the extension via WebSocket"""
+        print(f"[Tab Manager] DEBUG: Connecting to WebSocket at {self.ws_url}", file=sys.stderr)
+        try:
+            async with websockets.connect(self.ws_url) as websocket:
+                message_id = str(uuid.uuid4())
 
-        # Exclude extension pages and settings
-        exclude_keywords = ["extensions", "settings", "chrome://", "new tab", "downloads", "history", "bookmarks"]
+                # Send focus_tab request
+                request = {"type": "cli_request", "request_type": "focus_tab", "messageId": message_id}
 
-        for exclude in exclude_keywords:
-            if exclude in title_lower:
+                print(f"[Tab Manager] DEBUG: Sending focus_tab request: {json.dumps(request)}", file=sys.stderr)
+                await websocket.send(json.dumps(request))
+
+                # Wait for response
+                start_time = time.time()
+                timeout = 5  # 5 seconds for testing
+                print(f"[Tab Manager] DEBUG: Waiting for response (timeout: {timeout}s)...", file=sys.stderr)
+                while time.time() - start_time < timeout:
+                    try:
+                        print(f"[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
+                        response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        print(f"[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
+                        data = json.loads(response)
+
+                        if data.get("messageId") == message_id and data.get("type") == "response":
+                            success = data.get("success", False)
+                            error = data.get("error")
+
+                            print(f"[Tab Manager] DEBUG: Response success={success}, error={error}", file=sys.stderr)
+                            if success:
+                                print("[Tab Manager] ChatGPT tab focused successfully via extension!", file=sys.stderr)
+                                return True
+                            else:
+                                print(f"[Tab Manager] Failed to focus tab: {error}", file=sys.stderr)
+                                return False
+                        elif data.get("type") == "ack":
+                            print(f"[Tab Manager] DEBUG: Received ACK for message {data.get('messageId')}", file=sys.stderr)
+                            print(f"[Tab Manager] DEBUG: Extension is connected and responding!", file=sys.stderr)
+                        elif data.get("type") == "error":
+                            error_msg = data.get("error", "Unknown error")
+                            print(f"[Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
+                        else:
+                            print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
+
+                    except asyncio.TimeoutError:
+                        print(f"[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        continue
+
+                print(f"[Tab Manager] Timeout waiting for focus response after {timeout}s", file=sys.stderr)
                 return False
 
-        # Check for ChatGPT keywords
-        return any(keyword in title_lower for keyword in self.chatgpt_keywords)
-
-    def focus_window(self, hwnd):
-        """Bring window to front and focus it"""
-        try:
-            # Restore if minimized
-            if win32gui.IsIconic(hwnd):
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-
-            # Bring to front
-            win32gui.SetForegroundWindow(hwnd)
-
-            # Additional focus attempt
-            win32gui.BringWindowToTop(hwnd)
-
-            return True
         except Exception as e:
-            print(f"[Tab Manager] Failed to focus window: {e}", file=sys.stderr)
+            print(f"[Tab Manager] WebSocket error: {e}", file=sys.stderr)
             return False
 
     def open_chatgpt_in_chrome(self):
@@ -95,7 +124,7 @@ class ChatGPTTabManager:
             # Use start command to open URL in default browser
             subprocess.run(["cmd", "/c", "start", "https://chat.openai.com/"], shell=True)
             print("[Tab Manager] Opened ChatGPT in new tab", file=sys.stderr)
-            time.sleep(5)  # Wait longer for tab to open and title to update
+            time.sleep(5)  # Wait longer for tab to open and extension to load
             return True
         except Exception as e:
             print(f"[Tab Manager] Failed to open ChatGPT: {e}", file=sys.stderr)
@@ -103,9 +132,8 @@ class ChatGPTTabManager:
 
     def ensure_chatgpt_tab_focused(self):
         """Main function to ensure ChatGPT tab is open and focused"""
-        if not WINDOWS_API_AVAILABLE:
-            print("[Tab Manager] Windows API not available. Please install pywin32.", file=sys.stderr)
-            return False
+        # Check server first
+        self.check_server_running()
 
         print("[Tab Manager] Checking Chrome status...", file=sys.stderr)
 
@@ -114,54 +142,137 @@ class ChatGPTTabManager:
             print("[Tab Manager] Chrome is not running. Please start Chrome first.", file=sys.stderr)
             return False
 
-        # Get all Chrome windows
-        chrome_windows = self.get_chrome_windows()
-        print(f"[Tab Manager] Found {len(chrome_windows)} Chrome windows", file=sys.stderr)
+        # First, check for existing ChatGPT tabs
+        print("[Tab Manager] Checking for existing ChatGPT tabs...", file=sys.stderr)
+        tabs = asyncio.run(self.debug_tabs())
 
-        # Look for ChatGPT windows
-        chatgpt_windows = []
-        for hwnd, title in chrome_windows:
-            if self.is_chatgpt_window(title):
-                chatgpt_windows.append((hwnd, title))
+        # Look for ChatGPT tabs in the debug output
+        chatgpt_tabs = []
+        for tab in tabs:
+            url = tab.get("url", "").lower()
+            title = tab.get("title", "").lower()
+            # Exclude chrome:// URLs and be more specific about ChatGPT detection
+            if url.startswith("chrome://") or not any(domain in url for domain in ["chatgpt.com", "chat.openai.com", "openai.com"]):
+                continue
+            if "chatgpt" in title or "openai" in title:
+                chatgpt_tabs.append(tab)
 
-        if chatgpt_windows:
-            # Focus the first ChatGPT window found
-            hwnd, title = chatgpt_windows[0]
-            print(f"[Tab Manager] Found ChatGPT window: {title}", file=sys.stderr)
-            if self.focus_window(hwnd):
-                print("[Tab Manager] ChatGPT tab focused successfully!")
+        if chatgpt_tabs:
+            print(f"[Tab Manager] Found {len(chatgpt_tabs)} existing ChatGPT tab(s):", file=sys.stderr)
+            for tab in chatgpt_tabs:
+                print(f"[Tab Manager]   Tab {tab['id']}: {tab['url']} - '{tab['title']}' - active: {tab['active']}", file=sys.stderr)
+
+            # Try to focus existing ChatGPT tab via extension
+            print("[Tab Manager] Attempting to focus existing ChatGPT tab via extension...", file=sys.stderr)
+            success = asyncio.run(self.send_focus_request())
+            if success:
+                print("[Tab Manager] Successfully focused existing ChatGPT tab!")
                 return True
             else:
-                print("[Tab Manager] Failed to focus ChatGPT window", file=sys.stderr)
+                print("[Tab Manager] Failed to focus existing tab. Extension may not be connected.", file=sys.stderr)
                 return False
         else:
-            print("[Tab Manager] No ChatGPT tab found, opening new one...", file=sys.stderr)
+            print("[Tab Manager] No existing ChatGPT tabs found, opening new one...", file=sys.stderr)
             if self.open_chatgpt_in_chrome():
-                # Since window titles don't update immediately, let's focus the main Chrome window
-                # and inform the user that ChatGPT should be open
-                print("[Tab Manager] ChatGPT tab opened in Chrome.", file=sys.stderr)
-                print("[Tab Manager] Note: You may need to manually switch to the ChatGPT tab in Chrome.", file=sys.stderr)
+                # Wait for the new tab to load and extension to connect
+                print("[Tab Manager] Waiting for new tab to load...", file=sys.stderr)
+                time.sleep(3)
 
-                # Try to focus the first Chrome window to bring Chrome to front
-                if chrome_windows:
-                    hwnd, title = chrome_windows[0]
-                    print(f"[Tab Manager] Bringing Chrome window to front: {title}", file=sys.stderr)
-                    return self.focus_window(hwnd)
+                # Try focusing the newly opened tab
+                print("[Tab Manager] Attempting to focus the newly opened ChatGPT tab...", file=sys.stderr)
+                success = asyncio.run(self.send_focus_request())
+                if success:
+                    print("[Tab Manager] Successfully focused newly opened ChatGPT tab!")
+                    return True
 
-                return True
-            else:
-                return False
+        print("[Tab Manager] All focus attempts failed. ChatGPT may be open but not focused.", file=sys.stderr)
+        return False
+
+    async def debug_tabs(self):
+        """Get debug information about all tabs from the extension"""
+        print(f"[Tab Manager] DEBUG: Requesting tab information from extension", file=sys.stderr)
+        try:
+            async with websockets.connect(self.ws_url) as websocket:
+                message_id = str(uuid.uuid4())
+
+                # Send debug_tabs request
+                request = {"type": "cli_request", "request_type": "debug_tabs", "messageId": message_id}
+
+                print(f"[Tab Manager] DEBUG: Sending debug_tabs request: {json.dumps(request)}", file=sys.stderr)
+                await websocket.send(json.dumps(request))
+
+                # Wait for response
+                start_time = time.time()
+                timeout = 10
+                print(f"[Tab Manager] DEBUG: Waiting for debug response (timeout: {timeout}s)...", file=sys.stderr)
+                while time.time() - start_time < timeout:
+                    try:
+                        print(f"[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
+                        response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        print(f"[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
+                        data = json.loads(response)
+
+                        if data.get("messageId") == message_id and data.get("type") == "response":
+                            tabs = data.get("tabs", [])
+                            tab_count = data.get("tab_count", 0)
+
+                            print(f"[Tab Manager] DEBUG: Extension reports {tab_count} total tabs:", file=sys.stderr)
+                            for tab in tabs:
+                                print(f"[Tab Manager]   Tab {tab['id']}: {tab['url']} - '{tab['title']}' - active: {tab['active']}", file=sys.stderr)
+
+                            return tabs
+                        elif data.get("type") == "ack":
+                            print(f"[Tab Manager] DEBUG: Received ACK for debug message {data.get('messageId')}", file=sys.stderr)
+                        elif data.get("type") == "error":
+                            error_msg = data.get("error", "Unknown error")
+                            print(f"[Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
+                            return []
+                        else:
+                            print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
+
+                    except asyncio.TimeoutError:
+                        print(f"[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        continue
+
+                print(f"[Tab Manager] Timeout waiting for debug response after {timeout}s", file=sys.stderr)
+                return []
+
+        except Exception as e:
+            print(f"[Tab Manager] WebSocket error: {e}", file=sys.stderr)
+            return []
+
+    def debug_all_tabs(self):
+        """Debug function to print all currently opened tabs"""
+        # Check server first
+        self.check_server_running()
+
+        print("[Tab Manager] Getting all currently opened tabs...", file=sys.stderr)
+        try:
+            tabs = asyncio.run(self.debug_tabs())
+            print(f"\n[DEBUG] Found {len(tabs)} total tabs:", file=sys.stderr)
+            for i, tab in enumerate(tabs, 1):
+                print(f"[DEBUG] Tab {i}: ID={tab.get('id', 'N/A')}, URL='{tab.get('url', 'N/A')}', Title='{tab.get('title', 'N/A')}', Active={tab.get('active', 'N/A')}", file=sys.stderr)
+        except Exception as e:
+            print(f"[Tab Manager] Error getting tabs: {e}", file=sys.stderr)
 
 
 def main():
     """Main entry point"""
     manager = ChatGPTTabManager()
 
-    if manager.ensure_chatgpt_tab_focused():
-        print("[Tab Manager] Operation completed successfully!")
-        return True
-    else:
-        print("[Tab Manager] Operation failed.")
+    try:
+        # Actually focus ChatGPT tab instead of just debugging
+        if manager.ensure_chatgpt_tab_focused():
+            print("[Tab Manager] Successfully focused ChatGPT tab!")
+            return True
+        else:
+            print("[Tab Manager] Failed to focus ChatGPT tab.")
+            return False
+    except RuntimeError as e:
+        print(f"[ERROR] {e}", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"[ERROR] Unexpected error: {e}", file=sys.stderr)
         return False
 
 

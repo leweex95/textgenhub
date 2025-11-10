@@ -1,5 +1,5 @@
 // Content script for ChatGPT CLI automation
-console.log('[ChatGPT CLI] Content script LOADING');
+console.log('[ChatGPT CLI] Content script LOADING on URL:', window.location.href);
 
 let ws = null;
 let connectionAttempts = 0;
@@ -7,6 +7,7 @@ const MAX_ATTEMPTS = 10;
 const WS_URL = 'ws://127.0.0.1:8765';
 
 function connectToServer() {
+    console.log('[ChatGPT CLI] connectToServer() called on URL:', window.location.href);
     if (connectionAttempts >= MAX_ATTEMPTS) {
         console.error('[ChatGPT CLI] Max connection attempts reached');
         return;
@@ -35,9 +36,12 @@ function connectToServer() {
         };
 
         ws.onmessage = async (event) => {
+            console.log('[ChatGPT CLI] DEBUG: Raw WebSocket message received:', event.data);
             try {
+                console.log('[ChatGPT CLI] DEBUG: About to parse JSON...');
                 const data = JSON.parse(event.data);
-                console.log('[ChatGPT CLI] Received message type:', data.type);
+                console.log('[ChatGPT CLI] Received WebSocket message type:', data.type, 'messageId:', data.messageId);
+                console.log('[ChatGPT CLI] DEBUG: Full message data:', JSON.stringify(data));
 
                 if (data.type === 'inject') {
                     console.log('[ChatGPT CLI] Injecting message with ID:', data.messageId);
@@ -50,6 +54,46 @@ function connectToServer() {
                         html: response.html
                     }));
                     console.log('[ChatGPT CLI] Response sent');
+                } else if (data.type === 'focus_tab') {
+                    console.log('[ChatGPT CLI] DEBUG: Content script received focus_tab with ID:', data.messageId);
+                    // Forward to background script
+                    console.log('[ChatGPT CLI] DEBUG: Forwarding focus_tab to background script');
+                    chrome.runtime.sendMessage({
+                        type: 'focus_tab',
+                        messageId: data.messageId
+                    }, (response) => {
+                        console.log('[ChatGPT CLI] DEBUG: Background script response:', response);
+                        ws.send(JSON.stringify({
+                            type: 'response',
+                            messageId: data.messageId,
+                            success: response.success,
+                            error: response.error
+                        }));
+                    });
+                } else if (data.type === 'debug_tabs') {
+                    console.log('[ChatGPT CLI] DEBUG: Content script received debug_tabs with ID:', data.messageId);
+                    // Forward to background script
+                    chrome.runtime.sendMessage({
+                        type: 'debug_tabs',
+                        messageId: data.messageId
+                    }, (response) => {
+                        console.log('[ChatGPT CLI] DEBUG: Background script debug_tabs response:', response);
+                        if (chrome.runtime.lastError) {
+                            console.error('[ChatGPT CLI] DEBUG: Chrome runtime error:', chrome.runtime.lastError);
+                            ws.send(JSON.stringify({
+                                type: 'response',
+                                messageId: data.messageId,
+                                response: 'ERROR: ' + chrome.runtime.lastError.message
+                            }));
+                            return;
+                        }
+                        ws.send(JSON.stringify({
+                            type: 'response',
+                            messageId: data.messageId,
+                            tabs: response.tabs,
+                            tab_count: response.tab_count
+                        }));
+                    });
                 }
             } catch (e) {
                 console.error('[ChatGPT CLI] Error in message handler:', e);
@@ -388,8 +432,20 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         console.log('[ChatGPT CLI] Page loaded, connecting...');
         connectToServer();
+
+        // Test background script communication
+        console.log('[ChatGPT CLI] Testing background script communication...');
+        chrome.runtime.sendMessage({ type: 'ping' }, (response) => {
+            console.log('[ChatGPT CLI] Background script ping response:', response);
+        });
     });
 } else {
     console.log('[ChatGPT CLI] Page already loaded, connecting...');
     connectToServer();
+
+    // Test background script communication
+    console.log('[ChatGPT CLI] Testing background script communication...');
+    chrome.runtime.sendMessage({ type: 'ping' }, (response) => {
+        console.log('[ChatGPT CLI] Background script ping response:', response);
+    });
 }
