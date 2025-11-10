@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "textgenhub"
-version = "1.0.1"
+version = "1.0.2"
 description = "My personal LLM hub to connect to web-based LLMs"
 readme = "README.md"
 authors = ["Levente Csibi <csibi.levente14@gmail.com>"]
@@ -29,6 +29,7 @@ pywin32 = "^306"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
 pytest-cov = "^4.1.0"
 black = "^23.0.0"
 flake8 = "^6.0.0"
