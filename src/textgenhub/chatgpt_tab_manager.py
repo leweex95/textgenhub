@@ -11,18 +11,19 @@ import time
 import uuid
 from pathlib import Path
 
+from browser_utils import is_chrome_running
+
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     import websockets
-
     WEBSOCKETS_AVAILABLE = True
 except ImportError:
     WEBSOCKETS_AVAILABLE = False
-    print("[Tab Manager] websockets not available, WebSocket features disabled", file=sys.stderr)
 
-from browser_utils import is_chrome_running
+if not WEBSOCKETS_AVAILABLE:
+    print("[Tab Manager] websockets not available, WebSocket features disabled", file=sys.stderr)
 
 
 class ChatGPTTabManager:
@@ -77,12 +78,12 @@ class ChatGPTTabManager:
                 # Wait for response
                 start_time = time.time()
                 timeout = 5  # 5 seconds for testing
-                print(f"[Tab Manager] DEBUG: Waiting for response (timeout: {timeout}s)...", file=sys.stderr)
+                print("[Tab Manager] DEBUG: Waiting for response (timeout: {timeout}s)...", file=sys.stderr)
                 while time.time() - start_time < timeout:
                     try:
-                        print(f"[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
+                        print("[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
                         response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
-                        print(f"[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
+                        print("[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
                         data = json.loads(response)
 
                         if data.get("messageId") == message_id and data.get("type") == "response":
@@ -98,7 +99,7 @@ class ChatGPTTabManager:
                                 return False
                         elif data.get("type") == "ack":
                             print(f"[Tab Manager] DEBUG: Received ACK for message {data.get('messageId')}", file=sys.stderr)
-                            print(f"[Tab Manager] DEBUG: Extension is connected and responding!", file=sys.stderr)
+                            print("[Tab Manager] DEBUG: Extension is connected and responding!", file=sys.stderr)
                         elif data.get("type") == "error":
                             error_msg = data.get("error", "Unknown error")
                             print(f"[Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
@@ -106,7 +107,7 @@ class ChatGPTTabManager:
                             print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
 
                     except asyncio.TimeoutError:
-                        print(f"[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        print("[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
                         continue
 
                 print(f"[Tab Manager] Timeout waiting for focus response after {timeout}s", file=sys.stderr)
@@ -190,7 +191,7 @@ class ChatGPTTabManager:
 
     async def debug_tabs(self):
         """Get debug information about all tabs from the extension"""
-        print(f"[Tab Manager] DEBUG: Requesting tab information from extension", file=sys.stderr)
+        print("[Tab Manager] DEBUG: Requesting tab information from extension", file=sys.stderr)
         try:
             async with websockets.connect(self.ws_url) as websocket:
                 message_id = str(uuid.uuid4())
@@ -207,7 +208,7 @@ class ChatGPTTabManager:
                 print(f"[Tab Manager] DEBUG: Waiting for debug response (timeout: {timeout}s)...", file=sys.stderr)
                 while time.time() - start_time < timeout:
                     try:
-                        print(f"[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
+                        print("[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
                         response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
                         print(f"[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
                         data = json.loads(response)
@@ -231,7 +232,7 @@ class ChatGPTTabManager:
                             print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
 
                     except asyncio.TimeoutError:
-                        print(f"[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        print("[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
                         continue
 
                 print(f"[Tab Manager] Timeout waiting for debug response after {timeout}s", file=sys.stderr)
