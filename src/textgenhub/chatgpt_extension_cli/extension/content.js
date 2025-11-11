@@ -382,15 +382,15 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
                     console.log(`[ChatGPT CLI] Detected interim/"Thinking" state, skipping and continuing to poll...`);
                     // CRITICAL: Do NOT set lastResponseText; skip this poll and continue waiting
                     stableCount = 0;
-                } else if (text && text !== lastResponseText && text.length > 20) {
-                    // Check if text has changed and is substantial (> 20 chars to avoid short placeholders)
+                } else if (text && text !== lastResponseText) {
+                    // Check if text has changed (regardless of length, but filter out thinking states above)
                     lastResponseText = text;
                     lastResponseHtml = html;
                     stableCount = 0;
                     console.log(`[ChatGPT CLI] Response text CHANGED. New length: ${text.length} (was ${lastReportedLength})`);
                     console.log(`[ChatGPT CLI] First 100 chars: "${text.substring(0, 100)}..."`);
                     lastReportedLength = text.length;
-                } else if (text === lastResponseText && text.length > 20) {
+                } else if (text === lastResponseText && text.length > 0) {
                     stableCount++;
                     if (stableCount % 3 === 1) {
                         console.log(`[ChatGPT CLI] Response text STABLE (count: ${stableCount}/15, length: ${text.length})`);
@@ -405,9 +405,6 @@ async function waitForChatResponse(outputFormat = 'json', maxWait = 300000) {
                         console.log('[ChatGPT CLI] ===== RESPONSE POLLING END (SUCCESS) =====');
                         return { text: text, html: lastResponseHtml };
                     }
-                } else if (text.length === 0 || text.length <= 20) {
-                    console.log(`[ChatGPT CLI] Assistant article text too short or empty (${text.length}), continuing...`);
-                    stableCount = 0;
                 }
             } else if (userPromptArticleFound) {
                 console.log('[ChatGPT CLI] Waiting for assistant article to appear after user prompt...');
