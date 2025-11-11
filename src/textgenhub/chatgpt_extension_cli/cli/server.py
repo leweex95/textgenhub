@@ -36,7 +36,7 @@ async def handler(websocket, path=None):
 
     client_id = str(uuid.uuid4())[:8]
     is_extension = False
-    
+
     # Limit concurrent non-extension connections
     if len(client_ws_list) > 50:
         print(f"[Server] WARNING: Too many client connections ({len(client_ws_list)}), rejecting new connection")
@@ -107,7 +107,7 @@ async def handler(websocket, path=None):
                     }
 
                     await send_message(websocket, "ack", message_id, status="request_received")
-                    
+
                     # Forward to extension
                     if request_type == "inject":
                         payload = {"type": "inject", "messageId": message_id, "message": data.get("message"), "output_format": data.get("output_format", "json")}
@@ -152,12 +152,14 @@ async def handler(websocket, path=None):
             except Exception as e:
                 print(f"[Server] Error processing message: {e}")
                 import traceback
+
                 traceback.print_exc()
                 # Continue loop, don't break on error
 
     except Exception as e:
         print(f"[Server] Handler error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         if is_extension:

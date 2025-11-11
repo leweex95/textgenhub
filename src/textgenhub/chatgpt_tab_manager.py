@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     import websockets
+
     WEBSOCKETS_AVAILABLE = True
 except ImportError:
     WEBSOCKETS_AVAILABLE = False

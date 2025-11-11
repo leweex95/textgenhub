@@ -569,7 +569,7 @@ async function waitForChatResponseDom(outputFormat = 'json', maxWait = 300000) {
 
     while (Date.now() - startTime < maxWait) {
         pollCount++;
-        
+
         // Send keep-alive ping every 10 seconds to keep server connection alive
         const now = Date.now();
         if (now - lastKeepalive > 10000) {
@@ -741,7 +741,7 @@ if (document.readyState === 'loading') {
                 console.log('[ChatGPT CLI] Background script ping response:', response);
             }
         });
-        
+
         // Add heartbeat to monitor WebSocket state
         setInterval(() => {
             if (ws) {
@@ -765,7 +765,7 @@ if (document.readyState === 'loading') {
             console.log('[ChatGPT CLI] Background script ping response:', response);
         }
     });
-    
+
     // Add heartbeat to monitor WebSocket state
     setInterval(() => {
         if (ws) {
