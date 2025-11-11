@@ -38,7 +38,7 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
                 ack_data = json.loads(ack_response)
                 if ack_data.get("type") != "ack":
                     raise Exception("Expected ACK from server")
-                print("[CLI] Request acknowledged by server", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [CLI] Request acknowledged by server", file=sys.stderr)
 
                 # Now wait for actual response (with heartbeat handling)
                 start_time = time.time()
@@ -60,7 +60,7 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
                             error_type = data.get("error_type", "unknown")
                             raise Exception(f"[{error_type}] {error_msg}")
                         elif data.get("type") == "heartbeat":
-                            print("[CLI] Heartbeat received, still processing...", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [CLI] Heartbeat received, still processing...", file=sys.stderr)
                             continue
                         else:
                             raise Exception(f"Unexpected response: {data}")
@@ -69,7 +69,7 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
                         if elapsed >= timeout:
                             raise Exception(f"Timeout waiting for response after {timeout}s")
                         # Just a read timeout, continue waiting
-                        print(f"[CLI] Waiting... ({elapsed:.0f}s elapsed)", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [CLI] Waiting... ({elapsed:.0f}s elapsed)", file=sys.stderr)
                         continue
 
         except asyncio.TimeoutError:
@@ -188,7 +188,7 @@ def main():
             # Use provided prompt or rotating question from JSON
             if args.prompt is not None:
                 actual_prompt = args.prompt
-                print(f"[ChatGPT] Using provided prompt: {actual_prompt[:60]}...", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [ChatGPT] Using provided prompt: {actual_prompt[:60]}...", file=sys.stderr)
             else:
                 # Load questions from JSON file and cycle through them
                 questions_file = Path(__file__).parent / "questions.json"
@@ -201,12 +201,12 @@ def main():
 
                         question_index = int(time.time()) % len(questions)
                         actual_prompt = questions[question_index]
-                        print(f"[ChatGPT] Using rotating question {question_index + 1}/{len(questions)}: {actual_prompt[:60]}...", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [ChatGPT] Using rotating question {question_index + 1}/{len(questions)}: {actual_prompt[:60]}...", file=sys.stderr)
                     except Exception as e:
-                        print(f"[ChatGPT] Failed to load questions.json ({e}), using fallback prompt", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [ChatGPT] Failed to load questions.json ({e}), using fallback prompt", file=sys.stderr)
                         actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
                 else:
-                    print("[ChatGPT] questions.json not found, using fallback prompt", file=sys.stderr)
+                    print(f"[{datetime.now().isoformat()}] [ChatGPT] questions.json not found, using fallback prompt", file=sys.stderr)
                     actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
 
             if args.old:
@@ -214,7 +214,7 @@ def main():
                 response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
                 method = "headless"
             else:
-                print("[ChatGPT] Connecting to extension server...", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [ChatGPT] Connecting to extension server...", file=sys.stderr)
                 response_text, html_content = run_chatgpt_extension(actual_prompt, args.timeout, args.output_format)
                 method = "extension"
 
@@ -226,7 +226,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == "deepseek":
-            print("[DeepSeek] Using headless browser method...", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [DeepSeek] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old("deepseek", args.prompt, args.headless, args.output_format)
 
             if args.output_format == "html":
@@ -236,7 +236,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == "perplexity":
-            print("[Perplexity] Using headless browser method...", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Perplexity] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old("perplexity", args.prompt, args.headless, args.output_format)
 
             if args.output_format == "html":
@@ -246,7 +246,7 @@ def main():
                 print(json.dumps(result, indent=2))
 
         elif args.provider == "grok":
-            print("[Grok] Using headless browser method...", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Grok] Using headless browser method...", file=sys.stderr)
             response_text, html_content = run_provider_old("grok", args.prompt, args.headless, args.output_format)
 
             if args.output_format == "html":

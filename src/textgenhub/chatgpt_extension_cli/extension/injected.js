@@ -1,6 +1,6 @@
 // Injected script to bridge between extension and CLI via WebSocket
 (function() {
-    console.log('[ChatGPT Automation] Injected script loaded');
+    console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Injected script loaded`);
 
     let ws = null;
     let connectionAttempts = 0;
@@ -8,45 +8,45 @@
 
     function connectToServer() {
         if (connectionAttempts >= MAX_ATTEMPTS) {
-            console.error('[ChatGPT Automation] Max connection attempts reached');
+            console.error(`[${new Date().toISOString()}] [ChatGPT Automation] Max connection attempts reached`);
             return;
         }
 
         if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('[ChatGPT Automation] Already connected');
+            console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Already connected`);
             return;
         }
 
         connectionAttempts++;
-        console.log(`[ChatGPT Automation] Attempting connection ${connectionAttempts}/${MAX_ATTEMPTS}`);
+        console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Attempting connection ${connectionAttempts}/${MAX_ATTEMPTS}`);
 
         try {
             ws = new WebSocket('ws://localhost:8765');
 
             ws.onopen = () => {
-                console.log('[ChatGPT Automation] WebSocket connected!');
+                console.log(`[${new Date().toISOString()}] [ChatGPT Automation] WebSocket connected!`);
                 connectionAttempts = 0;
                 // Register as extension
                 ws.send(JSON.stringify({ type: 'extension_register' }));
-                console.log('[ChatGPT Automation] Registered with server');
+                console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Registered with server`);
             };
 
             ws.onmessage = async (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('[ChatGPT Automation] Server message:', data.type);
+                    console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Server message:`, data.type);
 
                     if (data.type === 'inject') {
-                        console.log('[ChatGPT Automation] Injecting message:', data.message.substring(0, 50));
+                        console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Injecting message:`, data.message.substring(0, 50));
                         const response = await injectAndWaitForResponse(data.message);
                         ws.send(JSON.stringify({
                             type: 'response',
                             response: response
                         }));
-                        console.log('[ChatGPT Automation] Response sent, length:', response.length);
+                        console.log(`[${new Date().toISOString()}] [ChatGPT Automation] Response sent, length:`, response.length);
                     }
                 } catch (e) {
-                    console.error('[ChatGPT Automation] Error handling message:', e);
+                    console.error(`[${new Date().toISOString()}] [ChatGPT Automation] Error handling message:`, e);
                 }
             };
 

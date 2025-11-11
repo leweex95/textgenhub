@@ -9,6 +9,7 @@ import json
 import sys
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from browser_utils import is_chrome_running
@@ -23,7 +24,7 @@ except ImportError:
     WEBSOCKETS_AVAILABLE = False
 
 if not WEBSOCKETS_AVAILABLE:
-    print("[Tab Manager] websockets not available, WebSocket features disabled", file=sys.stderr)
+    print(f"[{datetime.now().isoformat()}] [Tab Manager] websockets not available, WebSocket features disabled", file=sys.stderr)
 
 
 class ChatGPTTabManager:
@@ -49,7 +50,7 @@ class ChatGPTTabManager:
                     await websocket.close()
                     return True
                 except Exception as e:
-                    print(f"[DEBUG] Connection test failed: {e}", file=sys.stderr)
+                    print(f"[{datetime.now().isoformat()}] [DEBUG] Connection test failed: {e}", file=sys.stderr)
                     return False
 
             result = asyncio.run(test_connection())
@@ -64,7 +65,7 @@ class ChatGPTTabManager:
 
     async def send_focus_request(self):
         """Send focus_tab request to the extension via WebSocket"""
-        print(f"[Tab Manager] DEBUG: Connecting to WebSocket at {self.ws_url}", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Connecting to WebSocket at {self.ws_url}", file=sys.stderr)
         try:
             async with websockets.connect(self.ws_url) as websocket:
                 message_id = str(uuid.uuid4())
@@ -72,49 +73,49 @@ class ChatGPTTabManager:
                 # Send focus_tab request
                 request = {"type": "cli_request", "request_type": "focus_tab", "messageId": message_id}
 
-                print(f"[Tab Manager] DEBUG: Sending focus_tab request: {json.dumps(request)}", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Sending focus_tab request: {json.dumps(request)}", file=sys.stderr)
                 await websocket.send(json.dumps(request))
 
                 # Wait for response
                 start_time = time.time()
                 timeout = 5  # 5 seconds for testing
-                print("[Tab Manager] DEBUG: Waiting for response (timeout: {timeout}s)...", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Waiting for response (timeout: {timeout}s)...", file=sys.stderr)
                 while time.time() - start_time < timeout:
                     try:
-                        print("[Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Waiting for message on WebSocket...", file=sys.stderr)
                         response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
-                        print("[Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received WebSocket message: {response}", file=sys.stderr)
                         data = json.loads(response)
 
                         if data.get("messageId") == message_id and data.get("type") == "response":
                             success = data.get("success", False)
                             error = data.get("error")
 
-                            print(f"[Tab Manager] DEBUG: Response success={success}, error={error}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Response success={success}, error={error}", file=sys.stderr)
                             if success:
-                                print("[Tab Manager] ChatGPT tab focused successfully via extension!", file=sys.stderr)
+                                print(f"[{datetime.now().isoformat()}] [Tab Manager] ChatGPT tab focused successfully via extension!", file=sys.stderr)
                                 return True
                             else:
-                                print(f"[Tab Manager] Failed to focus tab: {error}", file=sys.stderr)
+                                print(f"[{datetime.now().isoformat()}] [Tab Manager] Failed to focus tab: {error}", file=sys.stderr)
                                 return False
                         elif data.get("type") == "ack":
-                            print(f"[Tab Manager] DEBUG: Received ACK for message {data.get('messageId')}", file=sys.stderr)
-                            print("[Tab Manager] DEBUG: Extension is connected and responding!", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received ACK for message {data.get('messageId')}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Extension is connected and responding!", file=sys.stderr)
                         elif data.get("type") == "error":
                             error_msg = data.get("error", "Unknown error")
-                            print(f"[Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
                         else:
-                            print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
 
                     except asyncio.TimeoutError:
-                        print("[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
                         continue
 
-                print(f"[Tab Manager] Timeout waiting for focus response after {timeout}s", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [Tab Manager] Timeout waiting for focus response after {timeout}s", file=sys.stderr)
                 return False
 
         except Exception as e:
-            print(f"[Tab Manager] WebSocket error: {e}", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Tab Manager] WebSocket error: {e}", file=sys.stderr)
             return False
 
     def open_chatgpt_in_chrome(self):
@@ -124,11 +125,11 @@ class ChatGPTTabManager:
         try:
             # Use start command to open URL in default browser
             subprocess.run(["cmd", "/c", "start", "https://chat.openai.com/"], shell=True)
-            print("[Tab Manager] Opened ChatGPT in new tab", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Tab Manager] Opened ChatGPT in new tab", file=sys.stderr)
             time.sleep(5)  # Wait longer for tab to open and extension to load
             return True
         except Exception as e:
-            print(f"[Tab Manager] Failed to open ChatGPT: {e}", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Tab Manager] Failed to open ChatGPT: {e}", file=sys.stderr)
             return False
 
     def ensure_chatgpt_tab_focused(self):
@@ -136,15 +137,15 @@ class ChatGPTTabManager:
         # Check server first
         self.check_server_running()
 
-        print("[Tab Manager] Checking Chrome status...", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [Tab Manager] Checking Chrome status...", file=sys.stderr)
 
         # Check if Chrome is running
         if not is_chrome_running():
-            print("[Tab Manager] Chrome is not running. Please start Chrome first.", file=sys.stderr)
+            print(f"[{datetime.now().isoformat()}] [Tab Manager] Chrome is not running. Please start Chrome first.", file=sys.stderr)
             return False
 
         # First, check for existing ChatGPT tabs
-        print("[Tab Manager] Checking for existing ChatGPT tabs...", file=sys.stderr)
+        print(f"[{datetime.now().isoformat()}] [Tab Manager] Checking for existing ChatGPT tabs...", file=sys.stderr)
         tabs = asyncio.run(self.debug_tabs())
 
         # Look for ChatGPT tabs in the debug output
@@ -223,19 +224,19 @@ class ChatGPTTabManager:
 
                             return tabs
                         elif data.get("type") == "ack":
-                            print(f"[Tab Manager] DEBUG: Received ACK for debug message {data.get('messageId')}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received ACK for debug message {data.get('messageId')}", file=sys.stderr)
                         elif data.get("type") == "error":
                             error_msg = data.get("error", "Unknown error")
-                            print(f"[Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received error: {error_msg}", file=sys.stderr)
                             return []
                         else:
-                            print(f"[Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
+                            print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Received other message type: {data.get('type')}", file=sys.stderr)
 
                     except asyncio.TimeoutError:
-                        print("[Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
+                        print(f"[{datetime.now().isoformat()}] [Tab Manager] DEBUG: Timeout waiting for message, continuing...", file=sys.stderr)
                         continue
 
-                print(f"[Tab Manager] Timeout waiting for debug response after {timeout}s", file=sys.stderr)
+                print(f"[{datetime.now().isoformat()}] [Tab Manager] Timeout waiting for debug response after {timeout}s", file=sys.stderr)
                 return []
 
         except Exception as e:
