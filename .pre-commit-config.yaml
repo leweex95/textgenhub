@@ -24,7 +24,8 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: poetry run pytest
+        entry: poetry run pytest tests/ -v --tb=short
         language: system
         pass_filenames: false
-        args: [tests/, -v]
+        files: ^(tests/|src/)
+        description: "Run tests to ensure code quality"

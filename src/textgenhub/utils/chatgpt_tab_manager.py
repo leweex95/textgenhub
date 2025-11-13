@@ -11,13 +11,14 @@ import time
 import uuid
 from pathlib import Path
 
-from browser_utils import is_chrome_running
+from .browser_utils import is_chrome_running
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     import websockets
+
     WEBSOCKETS_AVAILABLE = True
 except ImportError:
     WEBSOCKETS_AVAILABLE = False
