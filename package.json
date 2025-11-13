@@ -23,6 +23,7 @@
     },
     "files": [
         "index.js",
+        "packages/chatgpt-attach/",
         "src/textgenhub/chatgpt/*.js",
         "src/textgenhub/claude/*.js",
         "src/textgenhub/core/*.js",

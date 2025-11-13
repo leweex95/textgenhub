@@ -4,7 +4,7 @@
   "description": "Node.js automation module for ChatGPT web UI with Chrome profile support",
   "main": "lib/index.js",
   "bin": {
-    "chatgpt-attach": "lib/cli.js"
+    "send-prompt-cli": "bin/send-prompt-cli.js"
   },
   "type": "module",
   "engines": {

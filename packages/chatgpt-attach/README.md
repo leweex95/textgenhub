@@ -1,394 +1,141 @@
 # chatgpt-attach
 
-Node.js automation module for driving ChatGPT's web UI using an existing Chrome user profile. Runs reliably with unfocused or minimized tabs, avoids repeated logins through session persistence, and requires no OpenAI API.
+Node.js and Python tools to send prompts to ChatGPT via browser automation. No API key needed.
 
-## Features
-
-- **Chrome Profile Reuse** — Connect to existing Chrome or launch with persistent user data directory
-- **Session Persistence** — One-time login; cookies and session data survive restarts
-- **Reliable Automation** — Works with minimized/unfocused windows
-- **Recovery** — Detects invalid sessions and prompts for re-authentication
-- **Structured Logging** — JSON event logs for debugging and monitoring
-- **Error Handling** — Specific error classes for different failure modes
-
-## Installation
-
-```bash
-npm install chatgpt-attach
-```
-
-Or locally:
+## Install
 
 ```bash
 cd packages/chatgpt-attach
 npm install
 ```
 
-## Quick Start
+## Setup (One-time)
 
-### 1. Windows PowerShell: Launch Chrome with Remote Debugging
-
+1. **Launch Chrome with persistent profile:**
 ```powershell
 & "C:\Program Files\Google\Chrome\Application\chrome.exe" `
   --remote-debugging-port=9222 `
-  --user-data-dir="C:\Users\<YourUsername>\AppData\Local\chromium-profile" `
+  --user-data-dir="C:\Users\csibi\AppData\Local\chromium-chatgpt" `
   --disable-background-timer-throttling `
   --disable-backgrounding-occluded-windows `
-  --disable-renderer-backgrounding
+  --disable-renderer-backgrounding `
+  https://chat.openai.com/
 ```
 
-Replace `<YourUsername>` with your actual Windows username.
+2. **Login to ChatGPT** in the browser window that opens.
 
-### 2. One-Time Interactive Login
+3. **Close the browser** - your session is saved!
 
+## Usage
+
+### Node.js CLI
+
+#### Basic Command
 ```bash
-node packages/chatgpt-attach/lib/cli.js --login "C:\Users\<YourUsername>\AppData\Local\chromium-profile"
+node bin/send-prompt-cli.js --prompt "Your question here"
 ```
 
-A browser window will open. Complete the ChatGPT login manually. Once logged in, press Enter in the terminal.
+#### Options
+- `--prompt "text"` - Your question (required)
+- `--json` - JSON output with events and metadata (default)
+- `--html` - HTML formatted output
+- `--raw` - Plain text output only
+- `--close` - Close browser after response (default: keep open)
+- `--timeout 120` - Wait longer for response in seconds (default: 120)
+- `--debug` - Enable debug output
 
-### 3. Connect and Send Prompts
-
+#### Examples
 ```bash
-# Verify connection
-node packages/chatgpt-attach/lib/cli.js --connect
+# JSON output with events (recommended)
+node bin/send-prompt-cli.js --prompt "What is AI?" --json
 
-# Send a prompt
-node packages/chatgpt-attach/lib/cli.js --send "Hello, ChatGPT!"
+# Multiple questions (browser stays open between them)
+node bin/send-prompt-cli.js --prompt "First question" --json
+node bin/send-prompt-cli.js --prompt "Follow-up" --json
+
+# Close browser after one-time query
+node bin/send-prompt-cli.js --prompt "One-time query" --close --json
+
+# Plain text output
+node bin/send-prompt-cli.js --prompt "Hello" --raw
+
+# HTML output
+node bin/send-prompt-cli.js --prompt "Hello" --html
+
+# Custom timeout for long responses
+node bin/send-prompt-cli.js --prompt "Write a long essay" --timeout 300 --json
 ```
 
-## CLI Usage
+### Python CLI
 
-### Connect to Existing Chrome
-
+#### Basic Command
 ```bash
-node lib/cli.js --connect [--url <url>] [--match <pattern>]
+python chatgpt_cli_wrapper.py --prompt "Your question here"
 ```
 
-- `--url` — Remote debugging URL (default: `http://127.0.0.1:9222`)
-- `--match` — URL pattern to match (default: `chat.openai.com`)
+#### Options
+- `--prompt "text"` - Your question (required)
+- `--format raw|json|html` - Output format (default: raw)
+- `--timeout 120` - Wait longer for response in seconds (default: 120)
+- `--debug` - Enable debug output
 
-### Launch Controlled Chromium
-
+#### Examples
 ```bash
-node lib/cli.js --launch [--user-data-dir <path>] [--headless]
+# JSON output with metadata
+python chatgpt_cli_wrapper.py --prompt "What is Python?" --format json
+
+# Raw text output
+python chatgpt_cli_wrapper.py --prompt "Hello world" --format raw
+
+# HTML output
+python chatgpt_cli_wrapper.py --prompt "Hello world" --format html
+
+# Custom timeout
+python chatgpt_cli_wrapper.py --prompt "Write a long story" --timeout 300 --format json
 ```
 
-- `--user-data-dir` — Path to Chrome user data directory
-- `--headless` — Run in headless mode
+### JSON Events
 
-### Run One-Shot Login
+When using default/JSON output, the CLI emits structured events:
+- `connecting` - Connecting to browser
+- `launching_chrome` - Starting new Chrome instance
+- `connected` - Successfully connected
+- `prompt_sent` - Prompt submitted
+- `response_waiting` - Waiting for response (with current length)
+- `response_received` - Final response received
+- `session_kept_open` - Browser remains open for reuse
 
-```bash
-node lib/cli.js --login <userDataDir>
+## Python Library Usage
+
+```python
+from chatgpt_cli_wrapper import ask_chatgpt, ChatGPTCLI
+
+# Simple usage
+response = ask_chatgpt("What is Python?", format="raw")
+
+# Advanced usage with class
+cli = ChatGPTCLI()
+result = cli.ask("Explain quantum computing", format="json", timeout=180)
+
+# Different formats
+raw_text = cli.ask("Hello", format="raw")
+json_data = cli.ask("Hello", format="json")
+html_content = cli.ask("Hello", format="html")
 ```
-
-### Send a Prompt
-
-```bash
-node lib/cli.js --send "<prompt>" [--url <url>]
-```
-
-## API
-
-### `connectToExistingChrome({ browserURL, findUrlMatch })`
-
-Connect to a running Chrome instance with remote debugging enabled.
-
-**Parameters:**
-- `browserURL` (string, optional) — Remote debugging URL (default: `http://127.0.0.1:9222`)
-- `findUrlMatch` (string, optional) — URL pattern to match (default: `chat.openai.com`)
-
-**Returns:** `{ browser, page }` — Puppeteer browser and page objects
-
-**Throws:** `NoPageError` if ChatGPT page not found
-
-```javascript
-import { connectToExistingChrome } from 'chatgpt-attach';
-
-const { browser, page } = await connectToExistingChrome();
-console.log(page.url());
-await browser.disconnect();
-```
-
-### `launchControlledChromium({ userDataDir, disableThrottlingFlags, headless })`
-
-Launch a new Chromium instance with persistent user profile.
-
-**Parameters:**
-- `userDataDir` (string, optional) — Path to user data directory
-- `disableThrottlingFlags` (boolean, optional) — Apply throttling-disable flags (default: `true`)
-- `headless` (boolean, optional) — Run in headless mode (default: `false`)
-
-**Returns:** `{ browser, page }` — Browser and page objects
-
-```javascript
-import { launchControlledChromium } from 'chatgpt-attach';
-
-const { browser, page } = await launchControlledChromium({
-  userDataDir: 'C:\\path\\to\\profile',
-  headless: false
-});
-```
-
-### `ensureLoggedIn(page)`
-
-Verify that ChatGPT is logged in by checking DOM and auth session.
-
-**Parameters:**
-- `page` — Puppeteer page object
-
-**Returns:** `true` if logged in
-
-**Throws:**
-- `LoginRequiredError` if redirected to login page
-- `SessionInvalidError` if session data is invalid
-
-```javascript
-import { ensureLoggedIn } from 'chatgpt-attach';
-
-try {
-  await ensureLoggedIn(page);
-  console.log('Logged in!');
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-### `oneShotLoginFlow(userDataDir)`
-
-Launch browser and prompt user to log in manually. Saves session to disk.
-
-**Parameters:**
-- `userDataDir` (string) — Path to user data directory where session persists
-
-**Returns:** `true` on success
-
-**Throws:** Any automation error during login
-
-```javascript
-import { oneShotLoginFlow } from 'chatgpt-attach';
-
-try {
-  await oneShotLoginFlow('C:\\path\\to\\profile');
-  console.log('Login complete. Session persisted.');
-} catch (error) {
-  console.error('Login failed:', error.message);
-}
-```
-
-### `sendPrompt(page, prompt)`
-
-Submit a prompt and wait for ChatGPT's response.
-
-**Parameters:**
-- `page` — Puppeteer page object
-- `prompt` (string) — The prompt text
-
-**Returns:** `string` — Full ChatGPT response text
-
-**Throws:**
-- `LoginRequiredError` if not logged in
-- `SessionInvalidError` if session is invalid
-- `ScrapeError` if response extraction fails
-
-```javascript
-import { sendPrompt } from 'chatgpt-attach';
-
-try {
-  const response = await sendPrompt(page, 'What is Node.js?');
-  console.log(response);
-} catch (error) {
-  console.error(error.message);
-}
-```
-
-### `scrapeResponse(page)`
-
-Extract the final visible ChatGPT response from the page.
-
-**Parameters:**
-- `page` — Puppeteer page object
-
-**Returns:** `string` — Response text
-
-**Throws:** `ScrapeError` if extraction fails
-
-```javascript
-import { scrapeResponse } from 'chatgpt-attach';
-
-const text = await scrapeResponse(page);
-console.log(text);
-```
-
-## Error Classes
-
-### `NoPageError`
-
-Thrown when ChatGPT tab cannot be found in the browser.
-
-```javascript
-import { NoPageError } from 'chatgpt-attach';
-
-try {
-  const { page } = await connectToExistingChrome();
-} catch (error) {
-  if (error instanceof NoPageError) {
-    console.log('Open ChatGPT in your browser first!');
-  }
-}
-```
-
-### `LoginRequiredError`
-
-Thrown when the page redirects to login (session invalid or expired).
-
-```javascript
-import { LoginRequiredError } from 'chatgpt-attach';
-
-try {
-  await ensureLoggedIn(page);
-} catch (error) {
-  if (error instanceof LoginRequiredError) {
-    await oneShotLoginFlow(userDataDir);
-  }
-}
-```
-
-### `SessionInvalidError`
-
-Thrown when the auth API reports invalid session data.
-
-### `ScrapeError`
-
-Thrown when response text cannot be extracted from the page.
-
-## Event Logging
-
-All operations emit structured JSON logs. Subscribe using the global logger:
-
-```javascript
-import { globalLogger } from 'chatgpt-attach';
-
-globalLogger.on('connected', (data) => {
-  console.log('Connected:', data);
-});
-
-globalLogger.on('login_required', () => {
-  console.log('Login needed!');
-});
-
-globalLogger.on('prompt_sent', (data) => {
-  console.log('Prompt sent:', data.prompt);
-});
-
-globalLogger.on('response_received', (data) => {
-  console.log('Response length:', data.responseLength);
-});
-
-globalLogger.on('session_invalid', () => {
-  console.log('Session expired');
-});
-```
-
-## Session Persistence & Reauth
-
-### How It Works
-
-1. **First Run:** Launch Chrome, complete login manually, cookies are saved to `userDataDir`
-2. **Subsequent Runs:** Open Chrome with same `--user-data-dir`; session is automatically restored
-3. **Reauth Detection:** If `/api/auth/session` returns invalid data or page redirects to `/auth/login`, `LoginRequiredError` or `SessionInvalidError` is thrown
-4. **Recovery:** Call `oneShotLoginFlow(userDataDir)` again to re-login and update cookies
-
-### Windows PowerShell Example
-
-```powershell
-$profile = "C:\Users\csibi\AppData\Local\chromium-profile"
-
-# First time: interactive login
-node lib/cli.js --login $profile
-
-# Later: reuse session
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-  --remote-debugging-port=9222 `
-  --user-data-dir=$profile `
-  --disable-background-timer-throttling `
-  --disable-backgrounding-occluded-windows `
-  --disable-renderer-backgrounding
-
-# In another terminal
-node lib/cli.js --send "Hi ChatGPT!"
-```
-
-## Chrome Flags Explained
-
-| Flag | Purpose |
-|------|---------|
-| `--remote-debugging-port=9222` | Enable remote protocol for Puppeteer connection |
-| `--user-data-dir=<path>` | Persist cookies, session, extensions to this path |
-| `--disable-background-timer-throttling` | Prevent DOM throttling when tab is backgrounded |
-| `--disable-backgrounding-occluded-windows` | Keep rendering active when window is minimized |
-| `--disable-renderer-backgrounding` | Prevent renderer process throttling |
-| `--disable-ipc-flooding-protection` | Avoid IPC message drops during heavy automation |
 
 ## Troubleshooting
 
-### "ChatGPT page not found"
+### "Login required"
+- Close browser, relaunch Chrome with the same command, and re-login
 
-**Cause:** No open ChatGPT tab or wrong debugging URL
+### Cloudflare "Verify you are human"
+- Complete the verification in browser - it will be remembered
 
-**Fix:**
-1. Open `https://chat.openai.com` in Chrome
-2. Verify Chrome is running with `--remote-debugging-port=9222`
-3. Check localhost:9222 in browser to see connected pages
+### Timeout Errors
+- **Default timeout is now 120 seconds** (increased from 60)
+- For very long responses, use `--timeout 300` or higher
+- Timeout errors now show helpful suggestions for increasing the limit
 
-### "Session is invalid or expired"
-
-**Cause:** Session cookies expired or were cleared
-
-**Fix:**
-```bash
-node lib/cli.js --login "C:\path\to\profile"
-```
-
-### "Browser closed unexpectedly"
-
-**Cause:** Process crash or system resource exhaustion
-
-**Fix:**
-- Restart Chrome
-- Check available memory
-- Try headless mode: `--headless`
-
-### Timeout during prompt
-
-**Cause:** Network latency or ChatGPT server slow
-
-**Fix:** Increase timeout in `sendPrompt` or check internet connection
-
-## Testing
-
-```bash
-cd packages/chatgpt-attach
-npm install
-npm test
-```
-
-## Requirements
-
-- Node.js >= 18.0.0
-- Chrome or Chromium browser
-- Windows PowerShell (for examples) or equivalent shell
-- Active internet connection for ChatGPT
-
-## Non-Goals / Constraints
-
-- No OpenAI API usage
-- No stealth mode beyond natural browser behavior
-- No official authentication bypass
-- Free and local only
-- Windows Chrome profile reuse required
-
-## License
-
-ISC
+### Browser Connection Issues
+- Ensure Chrome is running with `--remote-debugging-port=9222`
+- Check that the user data directory path is correct for your system
