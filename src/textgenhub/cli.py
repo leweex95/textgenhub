@@ -10,7 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 from datetime import datetime
-from textgenhub.browser_utils import ensure_chrome_running
+from textgenhub.utils.browser_utils import ensure_chrome_running
 from textgenhub.chatgpt_extension_cli.cli.error_handler import categorize_error, get_error_message
 from textgenhub.chatgpt_extension_cli.cli.logger import log_info, log_error
 
@@ -80,15 +80,17 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
     return asyncio.run(main())
 
 
-def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json"):
+def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120):
     """Run using the old headless browser method for any provider"""
-    provider_map = {"chatgpt": "chatgpt", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
+    provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
     if provider not in provider_map:
         raise ValueError(f"Unknown provider: {provider}")
 
     root = Path(__file__).parent
-    script_name = f"{provider_map[provider]}_cli.js"
+    # Use .cjs extension for old CommonJS scripts, .js for new ES modules
+    script_ext = ".cjs" if provider == "chatgpt_old" else ".js"
+    script_name = f"{provider_map[provider]}_cli{script_ext}"
     script = root / provider_map[provider] / script_name
 
     if not script.exists():
@@ -100,15 +102,25 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
         "--prompt",
         prompt,
     ]
-    if headless:
-        cmd.append("--headless")
 
-    # Add output format flag for providers that support it
-    if output_format == "html":
-        cmd.extend(["--output-format", "html"])
+    # Only add provider-specific flags (not for the new chatgpt attach module)
+    if provider != "chatgpt":
+        if headless:
+            cmd.append("--headless")
 
-    # Force disable debug output for clean CLI output
-    cmd.extend(["--debug", "false"])
+        # Add output format flag for providers that support it
+        if output_format == "html":
+            cmd.extend(["--output-format", "html"])
+
+        # Force disable debug output for clean CLI output
+        cmd.extend(["--debug", "false"])
+    else:
+        # For the new chatgpt (attach module), only use supported flags
+        cmd.extend(["--timeout", str(timeout)])
+        if output_format == "html":
+            cmd.append("--html")
+        elif output_format == "raw":
+            cmd.append("--raw")
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
     if result.returncode != 0:
@@ -117,32 +129,53 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
     # Try to extract JSON from stdout, ignoring debug output
     stdout_content = (result.stdout or "").strip()
 
-    # Find the last JSON object in the output
-    json_start = stdout_content.rfind("{")
-    json_end = stdout_content.rfind("}") + 1
+    # Special handling for raw format in chatgpt with --raw flag
+    if provider == "chatgpt" and output_format == "raw":
+        # In raw mode, filter out JSON log lines and keep only plain text response
+        lines = stdout_content.split("\n")
+        response_lines = []
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith("{"):
+                # This is not a JSON line, it's part of the response
+                response_lines.append(line)
+        response_text = "\n".join(response_lines)
+        return response_text, ""
 
-    if json_start >= 0 and json_end > json_start:
-        json_str = stdout_content[json_start:json_end]
-        try:
-            output_data = json.loads(json_str)
-            # Handle nested JSON from Node.js scripts
-            if isinstance(output_data, dict) and "response" in output_data:
-                response_text = output_data.get("response", "")
-                html_content = output_data.get("html", "")
-            else:
-                response_text = str(output_data)
-                html_content = ""
-            return response_text, html_content
-        except json.JSONDecodeError:
-            pass
+    # Use extract_response_json from utils for consistent handling
+    try:
+        from textgenhub.utils.scrape_response import extract_response_json
 
-    # Fallback: return the entire stdout if no JSON found
-    return stdout_content, ""
+        response_text = extract_response_json(stdout_content)
+        return response_text, ""
+    except ValueError:
+        # Fallback to old logic
+        # Find the last JSON object in the output
+        json_start = stdout_content.rfind("{")
+        json_end = stdout_content.rfind("}") + 1
+
+        if json_start >= 0 and json_end > json_start:
+            json_str = stdout_content[json_start:json_end]
+            try:
+                output_data = json.loads(json_str)
+                # Handle nested JSON from Node.js scripts
+                if isinstance(output_data, dict) and "response" in output_data:
+                    response_text = output_data.get("response", "")
+                    html_content = output_data.get("html", "")
+                else:
+                    response_text = str(output_data)
+                    html_content = ""
+                return response_text, html_content
+            except json.JSONDecodeError:
+                pass
+
+        # Fallback: return the entire stdout if no JSON found
+        return stdout_content, ""
 
 
 def run_chatgpt_old(prompt: str, headless: bool = True, output_format: str = "json"):
     """Run ChatGPT using the old headless browser method"""
-    return run_provider_old("chatgpt", prompt, headless, output_format)
+    return run_provider_old("chatgpt_old", prompt, headless, output_format)
 
 
 def main():
@@ -155,7 +188,7 @@ def main():
     chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
-    chatgpt_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
+    chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
 
     # DeepSeek subcommand
     deepseek_parser = subparsers.add_parser("deepseek", help="DeepSeek Chat")
@@ -212,14 +245,20 @@ def main():
             if args.old:
                 log_info("Using old headless method...")
                 response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
-                method = "headless"
+                method = "headless-old"
             else:
-                print("[ChatGPT] Connecting to extension server...", file=sys.stderr)
-                response_text, html_content = run_chatgpt_extension(actual_prompt, args.timeout, args.output_format)
-                method = "extension"
+                # Default to new attach-based provider
+                print("[ChatGPT] Using new attach-based provider...", file=sys.stderr)
+                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout)
+                method = "headless"
 
             if args.output_format == "html":
-                print(html_content)
+                # For HTML format, use response_text if it contains HTML, otherwise use html_content
+                output_html = response_text if response_text.startswith("<") else html_content
+                print(output_html)
+            elif args.output_format == "raw":
+                # For raw format, just print the response text without any formatting
+                print(response_text)
             else:
                 # JSON output with metadata
                 result = {"provider": "chatgpt", "method": method, "timestamp": timestamp, "prompt": actual_prompt, "response": response_text, "html": html_content}
@@ -267,7 +306,9 @@ def main():
         print(f"Recovery: {error_info['recovery']}\n", file=sys.stderr)
 
         sys.exit(1)
-        sys.exit(1)
+
+    # Success
+    sys.exit(0)
 
 
 if __name__ == "__main__":

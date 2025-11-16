@@ -146,7 +146,7 @@ TextGenHub now provides a unified CLI interface for all providers:
 poetry install
 poetry run textgenhub --help
 
-# ChatGPT (extension method by default, --old for puppeteer-based fallback)
+# ChatGPT (attach-based method by default, --old for legacy puppeteer-based fallback)
 poetry run textgenhub chatgpt --prompt "What day is it today?"
 poetry run textgenhub chatgpt --prompt "What day is it today?" --old
 
@@ -162,23 +162,29 @@ poetry run textgenhub grok --prompt "What day is it today?"
 
 #### CLI Options
 
-- `--prompt, -p`: The text prompt to send to the LLM (required)
-- `--old`: Use old headless browser method instead of extension (ChatGPT only)
-- `--headless`: Run browser in headless mode (default: true)
-- `--output-format`: Output format - `json` (default) or `html`
+- `--prompt, -p`: The text prompt to send to the LLM (required for most providers)
+- `--old`: Use old legacy headless browser method instead of attach-based (ChatGPT only)
+- `--headless`: Run browser in headless mode (default: true, legacy method only)
+- `--output-format`: Output format - `json` (default), `html`, or `raw` (ChatGPT: json/html/raw; others: json/html)
 - `--timeout`: Timeout in seconds for extension mode (ChatGPT only, default: 120)
 
 #### CLI Examples
 
 ```bash
-# ChatGPT with extension (recommended) - JSON output (default)
+# ChatGPT with attach-based provider (recommended) - JSON output (default)
 poetry run textgenhub chatgpt --prompt "Explain quantum computing"
 
-# ChatGPT with extension - HTML output
+# ChatGPT with attach-based provider - HTML output
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format html
 
-# ChatGPT with headless fallback
+# ChatGPT with attach-based provider - Raw text output
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format raw
+
+# ChatGPT with legacy puppeteer-based fallback
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old
+
+# ChatGPT with legacy fallback - HTML output
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old --output-format html
 
 # DeepSeek - JSON output
 poetry run textgenhub deepseek --prompt "What is machine learning?"
@@ -200,11 +206,11 @@ When using `--output-format json` (default), the CLI returns structured JSON:
 ```json
 {
   "provider": "chatgpt",
-  "method": "extension",
-  "timestamp": "2025-11-08T09:00:00.000000",
+  "method": "headless",
+  "timestamp": "2025-11-13T20:14:44.465890",
   "prompt": "What is 2 + 2?",
   "response": "2 + 2 equals 4.",
-  "html": "<div>HTML content here</div>"
+  "html": ""
 }
 ```
 
@@ -217,50 +223,35 @@ When using `--output-format html`, the CLI returns raw HTML content directly, pe
 HTML_CONTENT=$(poetry run textgenhub chatgpt --prompt "Generate a report" --output-format html)
 ```
 
-> 💡 **ChatGPT Extension Setup**: The ChatGPT provider uses a Chrome extension for optimal performance. Install the extension from `src/textgenhub/chatgpt_extension/` and ensure the Windows service `ChatGPTServer` is running for persistent operation.
+#### Raw Output Format
 
-### ChatGPT Extension Architecture
-
-The ChatGPT provider offers two methods for automation:
-
-#### **Extension Method (Recommended)**
-- **How it works**: Uses a Chrome browser extension that injects JavaScript into ChatGPT web pages to automate interactions
-- **Communication**: Extension communicates with a local WebSocket server (running on `ws://127.0.0.1:8765`) to receive prompts and send responses
-- **Windows Service**: A persistent Windows service (`ChatGPTServer`) runs the WebSocket server continuously in the background
-- **Performance**: Faster and more reliable than headless browser automation
-
-#### **Preconditions for Extension Method**
-- **Chrome browser must be running** (the extension does NOT launch Chrome automatically)
-- **ChatGPT tab must be open and active** in Chrome (navigate to https://chat.openai.com/ and make it the active/latest used tab)
-- **Chrome extension must be installed** from `src/textgenhub/chatgpt_extension/`
-- **Windows service must be running** (`ChatGPTServer` service for the WebSocket server)
-
-#### **ChatGPT Tab Manager**
-A standalone utility script that uses a Chrome extension and WebSocket communication to manage ChatGPT tabs:
+When using `--output-format raw` (ChatGPT attach-based provider only), the CLI returns plain text content without any formatting or metadata:
 
 ```bash
-# Ensure ChatGPT tab is open and focused
-python src/textgenhub/chatgpt_tab_manager.py
+# Get plain text response only
+poetry run textgenhub chatgpt --prompt "Summarize the Ukraine crisis" --output-format raw
 ```
 
-**Features:**
-- Automatically detects existing ChatGPT tabs (by URL or title)
-- Focuses existing tabs without opening duplicates
-- Opens new ChatGPT tab only when none exist
-- Cleans up duplicate tabs after focusing
-- Uses Chrome extension API for reliable tab management
-- WebSocket-based communication between CLI and extension
-- No new browser instances - works with existing Chrome sessions
+> 💡 **ChatGPT Provider**: The ChatGPT provider now uses the attach-based method by default for improved reliability. For legacy support, use the `--old` flag to revert to the puppeteer-based implementation. The extension-based method is currently not working.
 
-**Setup Requirements:**
-- Chrome browser must be running
-- Chrome extension must be loaded from `src/textgenhub/chatgpt_extension_cli/extension/`
-- WebSocket server must be running (`python src/textgenhub/chatgpt_extension_cli/cli/server.py`)
-- Extension must be reloaded after code changes
 
-**Note:** The extension approach provides more reliable tab detection and management compared to Windows API methods.
+### ChatGPT Provider Architecture
 
-#### **Headless Browser Method (Fallback)**
+The ChatGPT provider offers multiple methods for automation:
+
+#### **Attach-Based Method (Recommended)**
+- **How it works**: Uses the `chatgpt-attach` module integrated into `src/textgenhub/chatgpt/` to directly interface with ChatGPT's web interface
+- **Location**: `src/textgenhub/chatgpt/` (includes `lib/` folder with core functionality)
+- **Performance**: Reliable and automated, no manual browser setup required
+- **Usage**: Default method when running `poetry run textgenhub chatgpt`
+
+#### **Legacy Puppeteer Method (Fallback)**
 - **How it works**: Uses Puppeteer to launch a headless Chrome browser and automate ChatGPT interactions
+- **Location**: `src/textgenhub/chatgpt_old/` (renamed from legacy ChatGPT implementation)
 - **No preconditions**: Automatically launches browser and navigates to ChatGPT
-- **Usage**: Add `--old` flag to use this method
+- **Usage**: Add `--old` flag to use this method: `poetry run textgenhub chatgpt --old`
+
+#### **Extension Method (Not Currently Working)**
+- **Status**: The Chrome extension-based approach (`src/textgenhub/chatgpt_extension_cli/`) is currently non-functional
+- **Previous approach**: Used a Chrome browser extension with WebSocket communication for tab management
+- **Note**: This method is not recommended until fixed

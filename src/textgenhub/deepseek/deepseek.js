@@ -20,7 +20,7 @@ class DeepSeekProvider extends BaseLLMProvider {
         const html = await this.browserManager.page.content();
         const fs = require('fs');
         const path = require('path');
-        const artifactDir = path.join(process.cwd(), 'artifacts');
+        const artifactDir = path.join(process.cwd(), 'logs');
         if (!fs.existsSync(artifactDir)) fs.mkdirSync(artifactDir, { recursive: true });
         const htmlPath = path.join(artifactDir, `deepseek_manual_${reason}_${Date.now()}.html`);
         fs.writeFileSync(htmlPath, html, 'utf8');

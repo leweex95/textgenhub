@@ -11,6 +11,7 @@ def _ensure_node_deps():
     root = Path(__file__).parent
     node_modules = root / "node_modules"
 
+    # Install Node deps for core src/textgenhub
     if not node_modules.exists():
         try:
             # On Windows, npm sometimes needs shell=True
