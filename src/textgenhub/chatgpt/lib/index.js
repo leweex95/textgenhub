@@ -497,7 +497,15 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
 
 async function typeWithDelay(page, text, selector) {
   for (const char of text) {
-    await page.type(selector, char);
+    if (char === '\n') {
+      // Use Shift+Enter for newlines to create line breaks without submitting
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Enter');
+      await page.keyboard.up('Shift');
+    } else {
+      // Type regular characters
+      await page.type(selector, char);
+    }
     const delay = Math.random() * 30 + 5;
     await new Promise(resolve => setTimeout(resolve, delay));
   }
