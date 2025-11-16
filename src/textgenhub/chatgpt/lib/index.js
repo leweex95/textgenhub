@@ -400,17 +400,24 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
           const currentLength = currentResponse.length;
           if (debug) console.log(`[DEBUG] Response length: ${currentLength} (previous: ${lastResponseLength})`);
 
-          // Check if response contains only placeholders
-          const placeholders = [
-            'Searching the web', 'Thinking', 'ChatGPT said:\nSearching the web',
-            'ChatGPT said:\nThinking', 'ChatGPT said:\nThinking\nAnswer now', 'Generating response', 'Please wait',
-            'Loading', 'ChatGPT said:\n', 'ChatGPT said:', 'Thinking...', 'Searching...'
+          // Check if response is still loading (contains thinking/searching indicators at the start)
+          const loadingIndicators = [
+            'Searching the web',
+            'Thinking',
+            'Answer now',
+            'Generating response',
+            'Please wait',
+            'Loading'
           ];
 
-          const isOnlyPlaceholder = placeholders.some(placeholder => currentResponse.trim() === placeholder);
+          // Response is considered loading if it starts with or contains these indicators
+          const isStillLoading = loadingIndicators.some(indicator =>
+            currentResponse.trim().startsWith(indicator) ||
+            currentResponse.trim().includes('\n' + indicator)
+          );
 
-          if (isOnlyPlaceholder) {
-            if (debug) console.log(`[DEBUG] Response is only placeholder, continuing to poll`);
+          if (isStillLoading) {
+            if (debug) console.log(`[DEBUG] Response still loading (contains thinking/searching indicators), continuing to poll`);
             lastResponseLength = currentLength;
             stableCount = 0;
             growingCount = 0;
@@ -419,9 +426,17 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
             growingCount = 0; // Reset growing count when stable
             if (debug) console.log(`[DEBUG] Response length stable for ${stableCount}/${maxStableCount} polls`);
             if (stableCount >= maxStableCount) {
-              if (debug) console.log(`[DEBUG] Response appears complete, using it`);
-              response = cleanResponse(currentResponse);
-              break;
+              if (debug) console.log(`[DEBUG] Response appears complete, cleaning and validating`);
+              const cleanedResponse = cleanResponse(currentResponse);
+              if (cleanedResponse) {
+                // Response is complete and cleaned
+                response = cleanedResponse;
+                break;
+              } else {
+                // Response still contains loading indicators, continue polling
+                if (debug) console.log(`[DEBUG] Response still contains loading indicators, continuing to poll`);
+                stableCount = 0;
+              }
             }
           } else if (currentLength > lastResponseLength) {
             // Response is growing
@@ -444,8 +459,14 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
 
               if (submitButtonAvailable) {
                 if (debug) console.log(`[DEBUG] Submit button available, response appears complete`);
-                response = cleanResponse(currentResponse);
-                break;
+                const cleanedResponse = cleanResponse(currentResponse);
+                if (cleanedResponse) {
+                  response = cleanedResponse;
+                  break;
+                } else {
+                  if (debug) console.log(`[DEBUG] Response still contains loading indicators despite button available, continuing to poll`);
+                  // Continue polling even if button is available, since response still has loading text
+                }
               }
             }
 
@@ -626,6 +647,23 @@ function cleanResponse(response) {
   if (!response) return response;
 
   let cleaned = response.trim();
+
+  // Check for loading indicators that should signal incomplete response
+  const loadingIndicators = [
+    'Searching the web',
+    'Thinking',
+    'Answer now',
+    'Generating response',
+    'Please wait',
+    'Loading'
+  ];
+
+  // If response starts with or contains loading indicators, it's not ready yet
+  for (const indicator of loadingIndicators) {
+    if (cleaned.startsWith(indicator) || cleaned.includes('\n' + indicator)) {
+      return null; // Signal that response is still loading
+    }
+  }
 
   // Remove common ChatGPT prefixes
   const prefixes = [
