@@ -4,7 +4,7 @@ ChatGPT provider (new) - thin wrapper over chatgpt-attach CLI
 from ..core.provider import SimpleProvider
 
 
-def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False) -> str:
+def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120) -> str:
     """
     Send a prompt to ChatGPT and get a response using the new attach module.
 
@@ -13,9 +13,10 @@ def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bo
         headless (bool): Ignored by attach module (kept for compatibility)
         remove_cache (bool): Ignored by attach module (kept for compatibility)
         debug (bool): Whether to enable debug mode
+        timeout (int): Timeout in seconds for the operation
 
     Returns:
         str: The response from ChatGPT
     """
     provider = SimpleProvider("chatgpt", "chatgpt_cli.js")
-    return provider.ask(prompt, headless, remove_cache, debug)
+    return provider.ask(prompt, headless, remove_cache, debug, timeout)

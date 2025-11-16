@@ -80,7 +80,7 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
     return asyncio.run(main())
 
 
-def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json"):
+def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120):
     """Run using the old headless browser method for any provider"""
     provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
@@ -116,6 +116,7 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
         cmd.extend(["--debug", "false"])
     else:
         # For the new chatgpt (attach module), only use supported flags
+        cmd.extend(["--timeout", str(timeout)])
         if output_format == "html":
             cmd.append("--html")
         elif output_format == "raw":
@@ -248,7 +249,7 @@ def main():
             else:
                 # Default to new attach-based provider
                 print("[ChatGPT] Using new attach-based provider...", file=sys.stderr)
-                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format)
+                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout)
                 method = "headless"
 
             if args.output_format == "html":

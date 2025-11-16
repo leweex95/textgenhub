@@ -15,7 +15,7 @@ class SimpleProvider:
         self.cli_script = Path(__file__).parent.parent / provider_name / cli_script
         self.node_path = "node"
 
-    def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False) -> str:
+    def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120) -> str:
         """
         Send a prompt to the provider and get a response.
 
@@ -24,11 +24,12 @@ class SimpleProvider:
             headless (bool): Whether to run browser in headless mode
             remove_cache (bool): Whether to remove browser cache
             debug (bool): Whether to enable debug mode
+            timeout (int): Timeout in seconds for the operation
 
         Returns:
             str: The response from the provider
         """
-        cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--headless", str(headless).lower(), "--remove-cache", str(remove_cache).lower()]
+        cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--headless", str(headless).lower(), "--remove-cache", str(remove_cache).lower(), "--timeout", str(timeout)]
 
         if debug:
             cmd.append("--debug")
