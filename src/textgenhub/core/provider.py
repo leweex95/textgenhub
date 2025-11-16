@@ -29,11 +29,32 @@ class SimpleProvider:
         Returns:
             str: The response from the provider
         """
-        cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--headless", str(headless).lower(), "--remove-cache", str(remove_cache).lower(), "--timeout", str(timeout)]
-
-        if debug:
-            cmd.append("--debug")
-            cmd.append("true")
+        # Build command differently for the new attach-based ChatGPT CLI which
+        # no longer accepts --headless or --remove-cache. For that provider,
+        # only pass supported flags: --prompt, --timeout and optionally --debug.
+        if self.provider_name == "chatgpt":
+            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout)]
+            if debug:
+                # The Node.js CLI treats presence of --debug as true
+                cmd.append("--debug")
+        else:
+            # Legacy providers still accept headless/remove-cache flags
+            cmd = [
+                self.node_path,
+                str(self.cli_script),
+                "--prompt",
+                prompt,
+                "--headless",
+                str(headless).lower(),
+                "--remove-cache",
+                str(remove_cache).lower(),
+                "--timeout",
+                str(timeout),
+            ]
+            if debug:
+                # Some legacy CLIs expected a debug value; include the flag and a value
+                cmd.append("--debug")
+                cmd.append("true")
 
         stdout_json_line = None
 

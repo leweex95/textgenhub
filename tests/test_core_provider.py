@@ -101,10 +101,11 @@ class TestSimpleProviderAsk:
         result = provider.ask("test", headless=True)
         assert result == "headless true"
 
-        # Verify headless was passed as 'true' string
+        # For the attach-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
         call_args = mock_popen.call_args[0][0]
-        assert "--headless" in call_args
-        assert "true" in call_args
+        assert "--timeout" in call_args
+        assert "--headless" not in call_args
+        assert "--remove-cache" not in call_args
 
     @patch("subprocess.Popen")
     def test_ask_with_headless_false(self, mock_popen):
@@ -118,9 +119,11 @@ class TestSimpleProviderAsk:
         result = provider.ask("test", headless=False)
         assert result == "headless false"
 
+        # For the attach-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
         call_args = mock_popen.call_args[0][0]
-        assert "--headless" in call_args
-        assert "false" in call_args
+        assert "--timeout" in call_args
+        assert "--headless" not in call_args
+        assert "--remove-cache" not in call_args
 
     @patch("subprocess.Popen")
     def test_ask_all_boolean_flags(self, mock_popen):
@@ -137,6 +140,16 @@ class TestSimpleProviderAsk:
                 for debug in [True, False]:
                     result = provider.ask("test", headless, remove_cache, debug)
                     assert result == "flag response"
+
+                    # Verify command line arguments for chatgpt attach-based CLI
+                    call_args = mock_popen.call_args[0][0]
+                    assert "--timeout" in call_args
+                    assert "--headless" not in call_args
+                    assert "--remove-cache" not in call_args
+                    if debug:
+                        assert "--debug" in call_args
+                    else:
+                        assert "--debug" not in call_args
 
 
 class TestSimpleProviderErrors:
@@ -226,8 +239,10 @@ class TestSimpleProviderCommandBuilding:
         assert call_args[0] == "node"
         assert "--prompt" in call_args
         assert "my prompt" in call_args
-        assert "--headless" in call_args
-        assert "--remove-cache" in call_args
+        # New attach-based CLI does not accept --headless/--remove-cache
+        assert "--headless" not in call_args
+        assert "--remove-cache" not in call_args
+        assert "--timeout" in call_args
 
     @patch("subprocess.Popen")
     def test_debug_flag_included_when_true(self, mock_popen):
@@ -241,8 +256,9 @@ class TestSimpleProviderCommandBuilding:
         provider.ask("test", debug=True)
 
         call_args = mock_popen.call_args[0][0]
+        # For attach-based chatgpt CLI debug is a flag (no value)
         assert "--debug" in call_args
-        assert "true" in call_args
+        assert "true" not in call_args
 
     @patch("subprocess.Popen")
     def test_debug_flag_not_included_when_false(self, mock_popen):
