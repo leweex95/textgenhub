@@ -368,11 +368,47 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     await page.waitForSelector(textareaSelector, { timeout: 10000 });
     if (debug) console.log(`[DEBUG] Found textarea`);
 
-    await page.focus(textareaSelector);
-    if (debug) console.log(`[DEBUG] Focused textarea`);
 
-    await typeWithDelay(page, prompt, textareaSelector);
-    if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
+
+  // Check for pre-existing content in both textarea and contenteditable div
+  const preExisting = await page.evaluate(() => {
+    const textarea = document.querySelector('textarea');
+    const editableDiv = document.querySelector('[contenteditable="true"]');
+    let textareaContent = textarea ? textarea.value : '';
+    let divContent = editableDiv ? editableDiv.innerText : '';
+    return { textareaContent, divContent };
+  });
+  if ((preExisting.textareaContent && preExisting.textareaContent.trim().length > 0) ||
+    (preExisting.divContent && preExisting.divContent.trim().length > 0)) {
+    console.warn('[WARNING] There was an unsubmitted query in the textbox. Clearing it before typing new prompt.');
+    if (debug) console.log(`[DEBUG] Pre-existing textarea content: "${preExisting.textareaContent}"`);
+    if (debug) console.log(`[DEBUG] Pre-existing contenteditable div content: "${preExisting.divContent}"`);
+    // Clear textarea
+    await page.evaluate(() => {
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.value = '';
+        const event = new Event('input', { bubbles: true });
+        textarea.dispatchEvent(event);
+      }
+    });
+    // Clear contenteditable div
+    await page.evaluate(() => {
+      const editableDiv = document.querySelector('[contenteditable="true"]');
+      if (editableDiv) {
+        editableDiv.innerText = '';
+        editableDiv.textContent = '';
+        const event = new Event('input', { bubbles: true });
+        editableDiv.dispatchEvent(event);
+      }
+    });
+  }
+
+  await page.focus(textareaSelector);
+  if (debug) console.log(`[DEBUG] Focused textarea`);
+
+  await typeWithDelay(page, prompt, textareaSelector);
+  if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
 
     await page.keyboard.press('Enter');
     if (debug) console.log(`[DEBUG] Pressed Enter`);
