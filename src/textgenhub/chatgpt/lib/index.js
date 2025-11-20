@@ -279,7 +279,7 @@ function waitForUserInput() {
   });
 }
 
-export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null) {
+export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = 0.05) {
   try {
     globalLogger.promptSent(prompt);
 
@@ -407,7 +407,7 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
   await page.focus(textareaSelector);
   if (debug) console.log(`[DEBUG] Focused textarea`);
 
-  await typeWithDelay(page, prompt, textareaSelector);
+  await typeWithDelay(page, prompt, textareaSelector, typingSpeed);
   if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
 
     await page.keyboard.press('Enter');
@@ -552,7 +552,7 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
   }
 }
 
-async function typeWithDelay(page, text, selector) {
+async function typeWithDelay(page, text, selector, typingSpeed = 0.05) {
   for (const char of text) {
     if (char === '\n') {
       // Use Shift+Enter for newlines to create line breaks without submitting
@@ -563,7 +563,10 @@ async function typeWithDelay(page, text, selector) {
       // Type regular characters
       await page.type(selector, char);
     }
-    const delay = Math.random() * 30 + 5;
+    // Convert typing speed (seconds per character) to milliseconds
+    const baseDelay = typingSpeed * 1000;
+    // Apply ±20% randomization around the base delay
+    const delay = Math.random() * (baseDelay * 0.2) + (baseDelay * 0.8);
     await new Promise(resolve => setTimeout(resolve, delay));
   }
 }

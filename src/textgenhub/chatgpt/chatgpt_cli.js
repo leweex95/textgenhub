@@ -3,18 +3,19 @@ import { argv } from 'process';
 import { connectToExistingChrome, launchControlledChromium, ensureLoggedIn, sendPrompt } from './lib/index.js';
 
 function usage() {
-  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt|-p "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--close|-c]');
+  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt|-p "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--typing-speed speed] [--close|-c]');
   console.log('');
   console.log('Options:');
-  console.log('  --help, -h          Show this help message');
-  console.log('  --prompt, -p TEXT   The prompt to send to ChatGPT (required)');
-  console.log('  --json              Output in JSON format with events (default)');
-  console.log('  --html              Output in HTML format with events');
-  console.log('  --format, -f FMT    Output format: json or html');
-  console.log('  --raw, -r           Output raw text without any formatting or events');
-  console.log('  --debug, -d         Enable debug output');
-  console.log('  --timeout, -t SEC   Timeout in seconds (default: 120)');
-  console.log('  --close, -c         Close browser session after completion (default: keep open)');
+  console.log('  --help, -h              Show this help message');
+  console.log('  --prompt, -p TEXT       The prompt to send to ChatGPT (required)');
+  console.log('  --json                  Output in JSON format with events (default)');
+  console.log('  --html                  Output in HTML format with events');
+  console.log('  --format, -f FMT        Output format: json or html');
+  console.log('  --raw, -r               Output raw text without any formatting or events');
+  console.log('  --debug, -d             Enable debug output');
+  console.log('  --timeout, -t SEC       Timeout in seconds (default: 120)');
+  console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: 0.05)');
+  console.log('  --close, -c             Close browser session after completion (default: keep open)');
   console.log('');
   console.log('Output Formats:');
   console.log('  Default (no flags): JSON format with connection/response events');
@@ -27,12 +28,13 @@ function usage() {
   console.log('  node bin/send-prompt-cli.js --prompt "Hello world" --html');
   console.log('  node bin/send-prompt-cli.js --raw --prompt "Complex question"');
   console.log('  node bin/send-prompt-cli.js --prompt "One-time query" --close');
+  console.log('  node bin/send-prompt-cli.js --prompt "Quick test" --typing-speed 0.01');
   process.exit(2);
 }
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false };
+  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: 0.05 };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--help' || a === '-h') {
@@ -65,6 +67,11 @@ function parseArgs() {
       i++;
       continue;
     }
+    if (a === '--typing-speed') {
+      out.typingSpeed = parseFloat(args[i + 1]);
+      i++;
+      continue;
+    }
     if (a === '--raw' || a === '-r') {
       out.raw = true;
       continue;
@@ -82,7 +89,7 @@ function parseArgs() {
 }
 
 (async function main() {
-  const { prompt, format, debug, timeout, raw, closeBrowser } = parseArgs();
+  const { prompt, format, debug, timeout, raw, closeBrowser, typingSpeed } = parseArgs();
   if (!prompt) return usage();
 
   // Validate format
@@ -165,7 +172,7 @@ function parseArgs() {
       } else if (!raw) {
         console.log(`Waiting for response to complete... (${responseLength} chars)`);
       }
-    });
+    }, typingSpeed);
 
     if (raw) {
       // Raw output - just the response text

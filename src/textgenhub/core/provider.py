@@ -15,7 +15,7 @@ class SimpleProvider:
         self.cli_script = Path(__file__).parent.parent / provider_name / cli_script
         self.node_path = "node"
 
-    def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120) -> str:
+    def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120, typing_speed: float = 0.05) -> str:
         """
         Send a prompt to the provider and get a response.
 
@@ -25,6 +25,7 @@ class SimpleProvider:
             remove_cache (bool): Whether to remove browser cache
             debug (bool): Whether to enable debug mode
             timeout (int): Timeout in seconds for the operation
+            typing_speed (float): Typing speed in seconds per character (default: 0.05)
 
         Returns:
             str: The response from the provider
@@ -33,7 +34,7 @@ class SimpleProvider:
         # no longer accepts --headless or --remove-cache. For that provider,
         # only pass supported flags: --prompt, --timeout and optionally --debug.
         if self.provider_name == "chatgpt":
-            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout)]
+            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout), "--typing-speed", str(typing_speed)]
             if debug:
                 # The Node.js CLI treats presence of --debug as true
                 cmd.append("--debug")
