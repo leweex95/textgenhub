@@ -279,7 +279,7 @@ function waitForUserInput() {
   });
 }
 
-export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = 0.05) {
+export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = null) {
   try {
     globalLogger.promptSent(prompt);
 
@@ -552,22 +552,43 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
   }
 }
 
-async function typeWithDelay(page, text, selector, typingSpeed = 0.05) {
-  for (const char of text) {
-    if (char === '\n') {
-      // Use Shift+Enter for newlines to create line breaks without submitting
-      await page.keyboard.down('Shift');
-      await page.keyboard.press('Enter');
-      await page.keyboard.up('Shift');
-    } else {
-      // Type regular characters
-      await page.type(selector, char);
+async function typeWithDelay(page, text, selector, typingSpeed = null) {
+  // If typingSpeed is null or 0 (default), use clipboard paste for performance
+  if (typingSpeed === null || typingSpeed === 0) {
+    await page.evaluate((text, selector) => {
+      const element = document.querySelector(selector) || document.querySelector('[contenteditable="true"]');
+      if (!element) throw new Error(`Element not found: ${selector}`);
+
+      // For contenteditable divs
+      if (element.getAttribute('contenteditable') === 'true') {
+        element.textContent = text;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      } else if (element.tagName === 'TEXTAREA') {
+        // For textareas
+        element.value = text;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        throw new Error('Unsupported input element type');
+      }
+    }, text, selector);
+  } else {
+    // Use character-by-character typing when typingSpeed > 0
+    for (const char of text) {
+      if (char === '\n') {
+        // Use Shift+Enter for newlines to create line breaks without submitting
+        await page.keyboard.down('Shift');
+        await page.keyboard.press('Enter');
+        await page.keyboard.up('Shift');
+      } else {
+        // Type regular characters
+        await page.type(selector, char);
+      }
+      // Convert typing speed (seconds per character) to milliseconds
+      const baseDelay = typingSpeed * 1000;
+      // Apply ±20% randomization around the base delay
+      const delay = Math.random() * (baseDelay * 0.2) + (baseDelay * 0.8);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    // Convert typing speed (seconds per character) to milliseconds
-    const baseDelay = typingSpeed * 1000;
-    // Apply ±20% randomization around the base delay
-    const delay = Math.random() * (baseDelay * 0.2) + (baseDelay * 0.8);
-    await new Promise(resolve => setTimeout(resolve, delay));
   }
 }
 

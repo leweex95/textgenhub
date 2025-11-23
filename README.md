@@ -54,20 +54,13 @@ All providers now support a unified `ask()` interface for consistency:
 from textgenhub import chatgpt, deepseek, perplexity
 
 # Unified interface - all providers support ask()
+# By default, prompts are pasted instantly (typing_speed=None)
 response = chatgpt.ask("What is Python?", headless=True)
 response = deepseek.ask("What is Python?", headless=True)
 response = perplexity.ask("What is Python?", headless=True)
-```
 
-All providers now support a unified `ask()` interface for consistency:
-
-```python
-from textgenhub import chatgpt, deepseek, perplexity
-
-# Unified interface - all providers support ask()
-response = chatgpt.ask("What is Python?", headless=True)
-response = deepseek.ask("What is Python?", headless=True)
-response = perplexity.ask("What is Python?", headless=True)
+# For character-by-character typing, set typing_speed (in seconds per character)
+response = chatgpt.ask("What is Python?", typing_speed=0.05)
 ```
 
 #### ChatGPT
@@ -167,6 +160,7 @@ poetry run textgenhub grok --prompt "What day is it today?"
 - `--headless`: Run browser in headless mode (default: true, legacy method only)
 - `--output-format`: Output format - `json` (default), `html`, or `raw` (ChatGPT: json/html/raw; others: json/html)
 - `--timeout`: Timeout in seconds for extension mode (ChatGPT only, default: 120)
+- `--typing-speed`: Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
 
 #### CLI Examples
 
@@ -179,6 +173,9 @@ poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-form
 
 # ChatGPT with attach-based provider - Raw text output
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format raw
+
+# ChatGPT with character-by-character typing (0.05 seconds per character)
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --typing-speed 0.05
 
 # ChatGPT with legacy puppeteer-based fallback
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old
