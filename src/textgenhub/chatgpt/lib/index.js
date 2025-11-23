@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import { NoPageError, LoginRequiredError, SessionInvalidError, ScrapeError } from './errors.js';
 import { globalLogger } from './logger.js';
 
-const CHATGPT_URL = 'https://chat.openai.com';
+const CHATGPT_URL = 'https://chatgpt.com';
 const AUTH_API = '/api/auth/session';
 const LOGIN_REQUIRED_INDICATORS = ['/auth/login', '/auth/authorize'];
 
@@ -37,10 +37,10 @@ async function positionWindowAtBottom(page) {
   }
 }
 
-async function findChatGPTPage(pages, urlMatch = 'chat.openai.com') {
+async function findChatGPTPage(pages, urlMatch = 'chatgpt') {
   for (const page of pages) {
     const url = page.url();
-    if (url.includes(urlMatch) || url.includes('chatgpt')) {
+    if (url.includes(urlMatch) || url.includes('chat.openai.com') || url.includes('chatgpt.com')) {
       return page;
     }
   }
@@ -49,7 +49,7 @@ async function findChatGPTPage(pages, urlMatch = 'chat.openai.com') {
 
 export async function connectToExistingChrome({
   browserURL = 'http://127.0.0.1:9222',
-  findUrlMatch = 'chat.openai.com',
+  findUrlMatch = 'chatgpt',
   userDataDir
 } = {}) {
   try {
@@ -352,8 +352,13 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
       await ensureLoggedIn(page);
     }
 
-    const textareaSelector = 'textarea';
-    if (debug) console.log(`[DEBUG] Looking for textarea: ${textareaSelector}`);
+    const composerSelectors = [
+      '[contenteditable="true"]#prompt-textarea',
+      '[contenteditable="true"][data-testid="composerInput"]',
+      '[contenteditable="true"][role="textbox"]',
+      'textarea'
+    ];
+    if (debug) console.log(`[DEBUG] Waiting for composer selectors: ${composerSelectors.join(', ')}`);
 
     // Ensure page is interactive before proceeding
     try {
@@ -365,8 +370,30 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
       await page.bringToFront();
     }
 
-    await page.waitForSelector(textareaSelector, { timeout: 10000 });
-    if (debug) console.log(`[DEBUG] Found textarea`);
+    await page.waitForFunction((selectors) => {
+      return selectors.some((sel) => document.querySelector(sel));
+    }, { timeout: 10000 }, composerSelectors);
+
+    const activeComposerSelector = await page.evaluate((selectors) => {
+      for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el && !(el.offsetParent === null && el.getAttribute('aria-hidden') === 'true')) {
+          try {
+            el.focus();
+          } catch (focusError) {
+            // Ignore focus errors and continue trying
+          }
+          return selector;
+        }
+      }
+      return null;
+    }, composerSelectors);
+
+    if (!activeComposerSelector) {
+      throw new Error('ChatGPT composer input not found');
+    }
+
+    if (debug) console.log(`[DEBUG] Focused composer: ${activeComposerSelector}`);
 
 
 
@@ -378,11 +405,20 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     let divContent = editableDiv ? editableDiv.innerText : '';
     return { textareaContent, divContent };
   });
-  if ((preExisting.textareaContent && preExisting.textareaContent.trim().length > 0) ||
-    (preExisting.divContent && preExisting.divContent.trim().length > 0)) {
-    console.warn('[WARNING] There was an unsubmitted query in the textbox. Clearing it before typing new prompt.');
-    if (debug) console.log(`[DEBUG] Pre-existing textarea content: "${preExisting.textareaContent}"`);
-    if (debug) console.log(`[DEBUG] Pre-existing contenteditable div content: "${preExisting.divContent}"`);
+
+  const hasTextareaContent = preExisting.textareaContent && preExisting.textareaContent.trim().length > 0;
+  const hasDivContent = preExisting.divContent && preExisting.divContent.trim().length > 0;
+
+  if (hasTextareaContent || hasDivContent) {
+    if (hasDivContent) {
+      console.warn('[WARNING] There was an unsubmitted query in the textbox. Clearing it before typing new prompt.');
+    } else if (debug) {
+      console.log('[DEBUG] Clearing stale hidden textarea content before typing new prompt.');
+    }
+
+    if (debug && hasTextareaContent) console.log(`[DEBUG] Pre-existing textarea content: "${preExisting.textareaContent}"`);
+    if (debug && hasDivContent) console.log(`[DEBUG] Pre-existing contenteditable div content: "${preExisting.divContent}"`);
+
     // Clear textarea
     await page.evaluate(() => {
       const textarea = document.querySelector('textarea');
@@ -404,10 +440,13 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     });
   }
 
-  await page.focus(textareaSelector);
-  if (debug) console.log(`[DEBUG] Focused textarea`);
+  try {
+    await page.focus(activeComposerSelector);
+  } catch (focusError) {
+    if (debug) console.log(`[DEBUG] Puppeteer focus failed: ${focusError.message}`);
+  }
 
-  await typeWithDelay(page, prompt, textareaSelector, typingSpeed);
+  await typeWithDelay(page, prompt, activeComposerSelector, typingSpeed);
   if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
 
     await page.keyboard.press('Enter');
@@ -553,10 +592,126 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
 }
 
 async function typeWithDelay(page, text, selector, typingSpeed = null) {
-  // If typingSpeed is null or 0 (default), use fast keyboard typing (1ms delay per char)
+  // If typingSpeed is null or 0 (default), set the value in a single step and fire React-friendly events
   if (typingSpeed === null || typingSpeed === 0) {
-    // Use page.type with delay option set to 0 for fastest typing
-    await page.type(selector, text, { delay: 0 });
+    await page.evaluate((textValue, preferredSelector) => {
+      const candidateSelectors = [
+        preferredSelector,
+        '[contenteditable="true"]#prompt-textarea',
+        '[contenteditable="true"][data-testid="composerInput"]',
+        '[contenteditable="true"][role="textbox"]',
+        '[contenteditable="true"]',
+        'textarea'
+      ].filter(Boolean);
+
+      const findFirst = (selectors) => {
+        for (const sel of selectors) {
+          if (!sel) continue;
+          const el = document.querySelector(sel);
+          if (el) {
+            return el;
+          }
+        }
+        return null;
+      };
+
+      const composerTarget = findFirst(candidateSelectors);
+      if (!composerTarget) {
+        throw new Error('Unable to locate ChatGPT composer input');
+      }
+
+      const textarea = document.querySelector('textarea');
+
+      const setTextareaValue = (el) => {
+        if (!el) return;
+        const descriptor = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+        if (descriptor && descriptor.set) {
+          descriptor.set.call(el, textValue);
+        } else {
+          el.value = textValue;
+        }
+        el.setAttribute('data-textgenhub-last-paste-length', String(textValue.length));
+      };
+
+      const populateContentEditable = (el) => {
+        if (!el || el.getAttribute('contenteditable') !== 'true') {
+          return false;
+        }
+
+        try {
+          el.focus();
+        } catch (focusError) {
+          // Ignore focus errors
+        }
+
+        // Clear existing content and rebuild paragraphs to keep ProseMirror happy
+        while (el.firstChild) {
+          el.removeChild(el.firstChild);
+        }
+
+        const doc = el.ownerDocument;
+        const paragraphs = textValue.split('\n');
+        paragraphs.forEach((line, index) => {
+          const p = doc.createElement('p');
+          if (line.length > 0) {
+            p.appendChild(doc.createTextNode(line));
+          } else {
+            p.appendChild(doc.createElement('br'));
+          }
+
+          const trailingBreak = doc.createElement('br');
+          trailingBreak.classList.add('ProseMirror-trailingBreak');
+          p.appendChild(trailingBreak);
+          p.classList.remove('placeholder');
+          el.appendChild(p);
+        });
+
+        el.setAttribute('data-textgenhub-last-paste-length', String(textValue.length));
+        return true;
+      };
+
+      const dispatchEvents = (el) => {
+        if (!el) return;
+        const reactFriendlyEvent = (eventName, options) => {
+          const ctor = eventName === 'input' && typeof InputEvent === 'function' ? InputEvent : Event;
+          const event = new ctor(eventName, options);
+          el.dispatchEvent(event);
+        };
+
+        reactFriendlyEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertFromPaste',
+          data: textValue
+        });
+
+        reactFriendlyEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertFromPaste',
+          data: textValue
+        });
+
+        reactFriendlyEvent('change', { bubbles: true });
+      };
+
+      const wroteEditable = populateContentEditable(composerTarget);
+      if (!wroteEditable && composerTarget.tagName === 'TEXTAREA') {
+        setTextareaValue(composerTarget);
+      }
+
+      if (textarea && textarea !== composerTarget) {
+        setTextareaValue(textarea);
+      }
+
+      dispatchEvents(composerTarget);
+      if (textarea && textarea !== composerTarget) {
+        dispatchEvents(textarea);
+      }
+    }, text, selector);
+
+    // Give React time to reconcile virtual DOM after programmatic input
+    await new Promise(resolve => setTimeout(resolve, 350));
   } else {
     // Use character-by-character typing when typingSpeed > 0
     for (const char of text) {
@@ -592,9 +747,9 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         });
 
         // Try the specific container
-        let container = document.querySelector('div.flex.flex-col.text-sm.thread-xl\\:pt-header-height.pb-25');
+        let container = document.querySelector('div.flex.flex-col.text-sm[class*="thread-xl:pt-header-height"][class*="pb-25"]');
         if (!container) {
-          container = document.querySelector('div.flex.flex-col.text-sm.thread-xl:pt-header-height.pb-25');
+          container = document.querySelector('div.flex.flex-col.text-sm[class*="thread-xl:pt-header-height"][class*="pb-25"]');
         }
         if (!container) {
           const divs = document.querySelectorAll('div.flex.flex-col');
