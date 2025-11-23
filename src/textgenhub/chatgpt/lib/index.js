@@ -553,24 +553,10 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
 }
 
 async function typeWithDelay(page, text, selector, typingSpeed = null) {
-  // If typingSpeed is null or 0 (default), use clipboard paste for performance
+  // If typingSpeed is null or 0 (default), use fast keyboard typing (1ms delay per char)
   if (typingSpeed === null || typingSpeed === 0) {
-    await page.evaluate((text, selector) => {
-      const element = document.querySelector(selector) || document.querySelector('[contenteditable="true"]');
-      if (!element) throw new Error(`Element not found: ${selector}`);
-
-      // For contenteditable divs
-      if (element.getAttribute('contenteditable') === 'true') {
-        element.textContent = text;
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-      } else if (element.tagName === 'TEXTAREA') {
-        // For textareas
-        element.value = text;
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-      } else {
-        throw new Error('Unsupported input element type');
-      }
-    }, text, selector);
+    // Use page.type with delay option set to 0 for fastest typing
+    await page.type(selector, text, { delay: 0 });
   } else {
     // Use character-by-character typing when typingSpeed > 0
     for (const char of text) {
