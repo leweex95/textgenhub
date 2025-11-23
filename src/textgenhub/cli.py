@@ -80,7 +80,7 @@ def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str =
     return asyncio.run(main())
 
 
-def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120):
+def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120, typing_speed: float | None = None):
     """Run using the old headless browser method for any provider"""
     provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
@@ -112,6 +112,10 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
         if output_format == "html":
             cmd.extend(["--output-format", "html"])
 
+        # Add typing speed if specified
+        if typing_speed is not None:
+            cmd.extend(["--typing-speed", str(typing_speed)])
+
         # Force disable debug output for clean CLI output
         cmd.extend(["--debug", "false"])
     else:
@@ -121,6 +125,9 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
             cmd.append("--html")
         elif output_format == "raw":
             cmd.append("--raw")
+        # Add typing speed if specified
+        if typing_speed is not None:
+            cmd.extend(["--typing-speed", str(typing_speed)])
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
     if result.returncode != 0:
@@ -189,24 +196,28 @@ def main():
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
     chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
+    chatgpt_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     # DeepSeek subcommand
     deepseek_parser = subparsers.add_parser("deepseek", help="DeepSeek Chat")
     deepseek_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
     deepseek_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     deepseek_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
+    deepseek_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     # Perplexity subcommand
     perplexity_parser = subparsers.add_parser("perplexity", help="Perplexity AI")
     perplexity_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
     perplexity_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     perplexity_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
+    perplexity_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     # Grok subcommand
     grok_parser = subparsers.add_parser("grok", help="Grok (X.com)")
     grok_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
     grok_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     grok_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
+    grok_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     args = parser.parse_args()
 
@@ -249,7 +260,7 @@ def main():
             else:
                 # Default to new attach-based provider
                 print("[ChatGPT] Using new attach-based provider...", file=sys.stderr)
-                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout)
+                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout, args.typing_speed)
                 method = "headless"
 
             if args.output_format == "html":
@@ -266,7 +277,7 @@ def main():
 
         elif args.provider == "deepseek":
             print("[DeepSeek] Using headless browser method...", file=sys.stderr)
-            response_text, html_content = run_provider_old("deepseek", args.prompt, args.headless, args.output_format)
+            response_text, html_content = run_provider_old("deepseek", args.prompt, args.headless, args.output_format, timeout=120, typing_speed=args.typing_speed)
 
             if args.output_format == "html":
                 print(html_content)
@@ -276,7 +287,7 @@ def main():
 
         elif args.provider == "perplexity":
             print("[Perplexity] Using headless browser method...", file=sys.stderr)
-            response_text, html_content = run_provider_old("perplexity", args.prompt, args.headless, args.output_format)
+            response_text, html_content = run_provider_old("perplexity", args.prompt, args.headless, args.output_format, timeout=120, typing_speed=args.typing_speed)
 
             if args.output_format == "html":
                 print(html_content)
@@ -286,7 +297,7 @@ def main():
 
         elif args.provider == "grok":
             print("[Grok] Using headless browser method...", file=sys.stderr)
-            response_text, html_content = run_provider_old("grok", args.prompt, args.headless, args.output_format)
+            response_text, html_content = run_provider_old("grok", args.prompt, args.headless, args.output_format, timeout=120, typing_speed=args.typing_speed)
 
             if args.output_format == "html":
                 print(html_content)

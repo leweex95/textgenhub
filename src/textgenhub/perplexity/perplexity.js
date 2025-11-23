@@ -131,7 +131,7 @@ class PerplexityProvider extends BaseLLMProvider {
     throw new Error('Timeout waiting for Perplexity interface to load');
   }
 
-  async generateContent(prompt) {
+  async generateContent(prompt, options = {}) {
     if (!this.browserManager || !this.browserManager.page) {
       throw await this.handleError(new Error('Browser not initialized'), 'content generation');
     }
@@ -229,22 +229,31 @@ class PerplexityProvider extends BaseLLMProvider {
           throw new Error('Could not find appropriate input field');
         }
 
-        // Paste the prompt using direct value assignment for performance
-        await this.browserManager.page.evaluate((prompt) => {
-          const textarea = document.querySelector('textarea');
-          if (textarea) {
-            textarea.value = prompt;
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
-            return;
-          }
-          const contenteditable = document.querySelector('[contenteditable="true"]');
-          if (contenteditable) {
-            contenteditable.textContent = prompt;
-            contenteditable.dispatchEvent(new Event('input', { bubbles: true }));
-            return;
-          }
-        }, prompt);
-        if (this.config.debug) this.logger.debug('Prompt pasted successfully');
+        // Input the prompt using direct assignment or typing based on typingSpeed
+        const typingSpeed = options.typingSpeed;
+        if (this.config.debug) this.logger.debug(`${typingSpeed === null || typingSpeed === 0 ? 'Pasting' : 'Typing'} prompt`);
+        
+        if (typingSpeed === null || typingSpeed === 0) {
+          // Paste the prompt using direct value assignment for performance
+          await this.browserManager.page.evaluate((prompt) => {
+            const textarea = document.querySelector('textarea');
+            if (textarea) {
+              textarea.value = prompt;
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
+            const contenteditable = document.querySelector('[contenteditable="true"]');
+            if (contenteditable) {
+              contenteditable.textContent = prompt;
+              contenteditable.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
+          }, prompt);
+        } else {
+          // Use keyboard typing
+          await this.browserManager.page.keyboard.type(prompt);
+        }
+        if (this.config.debug) this.logger.debug(`Prompt ${typingSpeed === null || typingSpeed === 0 ? 'pasted' : 'typed'} successfully`);
 
         // Submit the prompt - try multiple methods
         let submitted = false;

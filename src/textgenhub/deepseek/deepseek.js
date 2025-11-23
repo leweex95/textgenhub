@@ -179,21 +179,28 @@ class DeepSeekProvider extends BaseLLMProvider {
         options,
       });
 
-      // Clear any existing text and paste the prompt
-  if (this.config.debug) this.logger.debug('Pasting prompt into text area');
+      // Clear any existing text and input the prompt
+      const typingSpeed = options.typingSpeed;
+      if (this.config.debug) this.logger.debug(`${typingSpeed === null || typingSpeed === 0 ? 'Pasting' : 'Typing'} prompt into text area`);
       try {
         const textArea = await this.browserManager.waitForElement(this.selectors.textArea);
         await textArea.click({ clickCount: 3 }); // Select all existing text
         await textArea.press('Backspace'); // Clear existing text
-        // Use paste by default for performance
-        await this.browserManager.page.evaluate((text) => {
-          const textArea = document.querySelector('textarea');
-          if (textArea) {
-            textArea.value = text;
-            textArea.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }, prompt);
-  if (this.config.debug) this.logger.debug('Prompt pasted successfully');
+        
+        if (typingSpeed === null || typingSpeed === 0) {
+          // Use paste by default for performance
+          await this.browserManager.page.evaluate((text) => {
+            const textArea = document.querySelector('textarea');
+            if (textArea) {
+              textArea.value = text;
+              textArea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }, prompt);
+        } else {
+          // Use character-by-character typing
+          await textArea.type(prompt, { delay: typingSpeed * 1000 });
+        }
+  if (this.config.debug) this.logger.debug(`Prompt ${typingSpeed === null || typingSpeed === 0 ? 'pasted' : 'typed'} successfully`);
       } catch (error) {
   this.logger.error('Failed to paste prompt text', {
           error: error.message,

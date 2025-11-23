@@ -14,6 +14,7 @@ const { hideBin } = require('yargs/helpers');
     .option('continuous', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: true }) // Force debug true
     .option('output-format', { type: 'string', choices: ['json', 'html'], default: 'json' })
+    .option('typing-speed', { type: 'number', default: null })
     .argv;
 
   // Always enable debug mode for investigation
@@ -39,7 +40,7 @@ const { hideBin } = require('yargs/helpers');
         const prompt = line.trim();
         if (prompt) {
           try {
-            const response = await provider.generateContent(prompt);
+            const response = await provider.generateContent(prompt, { typingSpeed: argv['typing-speed'] });
             console.log(JSON.stringify({ response, prompt }));
           } catch (err) {
             let artifactPath = null;
@@ -61,7 +62,7 @@ const { hideBin } = require('yargs/helpers');
       let artifactPath = null;
       let errorObj = null;
       try {
-        response = await provider.generateContent(argv.prompt);
+        response = await provider.generateContent(argv.prompt, { typingSpeed: argv['typing-speed'] });
         // Validate response if expected is provided
         if (argv.expected && response.trim() !== argv.expected.trim()) {
           if (typeof provider.saveHtmlArtifact === 'function') {

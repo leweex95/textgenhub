@@ -14,7 +14,7 @@ function usage() {
   console.log('  --raw, -r               Output raw text without any formatting or events');
   console.log('  --debug, -d             Enable debug output');
   console.log('  --timeout, -t SEC       Timeout in seconds (default: 120)');
-  console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: 0.05)');
+  console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: null for instant paste, > 0 for character-by-character typing)');
   console.log('  --close, -c             Close browser session after completion (default: keep open)');
   console.log('');
   console.log('Output Formats:');
@@ -34,7 +34,7 @@ function usage() {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: 0.05 };
+  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--help' || a === '-h') {
@@ -68,7 +68,12 @@ function parseArgs() {
       continue;
     }
     if (a === '--typing-speed') {
-      out.typingSpeed = parseFloat(args[i + 1]);
+      const speedValue = args[i + 1];
+      if (speedValue === 'null' || speedValue === 'None' || speedValue === '') {
+        out.typingSpeed = null;
+      } else {
+        out.typingSpeed = parseFloat(speedValue);
+      }
       i++;
       continue;
     }

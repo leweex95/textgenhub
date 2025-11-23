@@ -12,6 +12,7 @@ const { hideBin } = require('yargs/helpers');
     .option('remove-cache', { type: 'boolean', default: false })
     .option('debug', { type: 'boolean', default: false })
     .option('output-format', { type: 'string', choices: ['json', 'html'], default: 'json' })
+    .option('typing-speed', { type: 'number', default: null })
     .argv;
 
   const provider = new DeepSeekProvider({
@@ -22,7 +23,7 @@ const { hideBin } = require('yargs/helpers');
 
   try {
     await provider.initialize();
-    const response = await provider.generateContent(argv.prompt);
+    const response = await provider.generateContent(argv.prompt, { typingSpeed: argv['typing-speed'] });
 
     if (argv['output-format'] === 'html') {
       // For HTML output, try to get HTML content if available
