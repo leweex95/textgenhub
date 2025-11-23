@@ -225,7 +225,7 @@ class GrokProvider extends BaseLLMProvider {
         // Input the prompt using direct assignment or typing based on typingSpeed
         const typingSpeed = options.typingSpeed;
         if (this.config.debug) this.logger.debug(`${typingSpeed === null || typingSpeed === 0 ? 'Pasting' : 'Typing'} prompt`);
-        
+
         if (typingSpeed === null || typingSpeed === 0) {
           // Paste the prompt using direct value assignment for performance
           await this.browserManager.page.evaluate((prompt) => {

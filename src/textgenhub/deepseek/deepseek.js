@@ -186,7 +186,7 @@ class DeepSeekProvider extends BaseLLMProvider {
         const textArea = await this.browserManager.waitForElement(this.selectors.textArea);
         await textArea.click({ clickCount: 3 }); // Select all existing text
         await textArea.press('Backspace'); // Clear existing text
-        
+
         if (typingSpeed === null || typingSpeed === 0) {
           // Use paste by default for performance
           await this.browserManager.page.evaluate((text) => {
