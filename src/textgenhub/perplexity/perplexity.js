@@ -229,9 +229,22 @@ class PerplexityProvider extends BaseLLMProvider {
           throw new Error('Could not find appropriate input field');
         }
 
-        // Type the prompt
-        await this.browserManager.page.keyboard.type(prompt);
-        if (this.config.debug) this.logger.debug('Prompt typed successfully');
+        // Paste the prompt using direct value assignment for performance
+        await this.browserManager.page.evaluate((prompt) => {
+          const textarea = document.querySelector('textarea');
+          if (textarea) {
+            textarea.value = prompt;
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+          const contenteditable = document.querySelector('[contenteditable="true"]');
+          if (contenteditable) {
+            contenteditable.textContent = prompt;
+            contenteditable.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+        }, prompt);
+        if (this.config.debug) this.logger.debug('Prompt pasted successfully');
 
         // Submit the prompt - try multiple methods
         let submitted = false;

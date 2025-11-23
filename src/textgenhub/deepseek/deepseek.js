@@ -179,19 +179,26 @@ class DeepSeekProvider extends BaseLLMProvider {
         options,
       });
 
-      // Clear any existing text and type the prompt
-  if (this.config.debug) this.logger.debug('Typing prompt into text area');
+      // Clear any existing text and paste the prompt
+  if (this.config.debug) this.logger.debug('Pasting prompt into text area');
       try {
         const textArea = await this.browserManager.waitForElement(this.selectors.textArea);
         await textArea.click({ clickCount: 3 }); // Select all existing text
         await textArea.press('Backspace'); // Clear existing text
-        await textArea.type(prompt, { delay: 50 });
-  if (this.config.debug) this.logger.debug('Prompt input completed successfully');
+        // Use paste by default for performance
+        await this.browserManager.page.evaluate((text) => {
+          const textArea = document.querySelector('textarea');
+          if (textArea) {
+            textArea.value = text;
+            textArea.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }, prompt);
+  if (this.config.debug) this.logger.debug('Prompt pasted successfully');
       } catch (error) {
-  this.logger.error('Failed to input prompt text', {
+  this.logger.error('Failed to paste prompt text', {
           error: error.message,
         });
-        throw new Error(`Cannot input prompt: ${error.message}`);
+        throw new Error(`Cannot paste prompt: ${error.message}`);
       }
 
       // Send the message

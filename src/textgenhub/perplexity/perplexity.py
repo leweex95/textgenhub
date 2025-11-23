@@ -4,7 +4,7 @@ Perplexity provider - Simple and clean implementation
 from ..core.provider import SimpleProvider
 
 
-def ask(prompt: str, headless: bool = True, remove_cache: bool = True) -> str:
+def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120, typing_speed: float | None = None) -> str:
     """
     Send a prompt to Perplexity and get a response.
 
@@ -12,12 +12,15 @@ def ask(prompt: str, headless: bool = True, remove_cache: bool = True) -> str:
         prompt (str): The prompt to send to Perplexity
         headless (bool): Whether to run browser in headless mode
         remove_cache (bool): Whether to remove browser cache
+        debug (bool): Whether to enable debug mode
+        timeout (int): Timeout in seconds for the operation
+        typing_speed (float | None): Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
 
     Returns:
         str: The response from Perplexity
     """
     provider = SimpleProvider("perplexity", "perplexity_cli.js")
-    return provider.ask(prompt, headless, remove_cache)
+    return provider.ask(prompt, headless, remove_cache, debug, timeout, typing_speed)
 
 
 if __name__ == "__main__":
