@@ -153,16 +153,38 @@ export async function launchControlledChromium({
     // Disconnect from parent process
     chromeProcess.unref();
 
-    // Wait a bit for Chrome to start
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for Chrome to be ready with retry loop and exponential backoff
+    const maxRetries = 10;
+    const baseDelay = 500;
+    let browser;
 
-    globalLogger.launched(actualUserDataDir);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
 
-    // Now connect to the running Chrome instance
-    const browser = await puppeteer.connect({
-      browserURL: 'http://127.0.0.1:9222',
-      defaultViewport: null
-    });
+      try {
+        // Verify debugging port is accessible
+        const response = await fetch('http://127.0.0.1:9222/json/version');
+        if (!response.ok) throw new Error('Debug port not ready');
+
+        // Try connecting
+        browser = await puppeteer.connect({
+          browserURL: 'http://127.0.0.1:9222',
+          defaultViewport: null
+        });
+
+        globalLogger.launched(actualUserDataDir);
+        break; // Success!
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          globalLogger.error('Failed to launch controlled Chromium after retries', {
+            error: error.message,
+            attempts: maxRetries
+          });
+          throw error;
+        }
+        // Continue retrying
+      }
+    }
 
     const page = await browser.newPage();
     await page.goto(CHATGPT_URL, { waitUntil: 'networkidle2' });
