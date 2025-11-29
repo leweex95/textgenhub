@@ -55,12 +55,12 @@ class ChatGPTTabManager:
 
             result = asyncio.run(test_connection())
             if not result:
-                raise RuntimeError(f"WebSocket server not running at {self.ws_url}\n" "Please start the server first:\n" "  cd src/textgenhub/chatgpt_extension_cli/cli\n" "  python server.py")
+                    raise RuntimeError(f"WebSocket server not running at {self.ws_url}\nPlease start the server first.")
         except Exception as e:
             if "WebSocket server not running" in str(e):
                 raise e
             raise RuntimeError(
-                f"Cannot connect to WebSocket server at {self.ws_url}: {e}\n" "Please ensure the server is running:\n" "  cd src/textgenhub/chatgpt_extension_cli/cli\n" "  python server.py"
+                    f"Cannot connect to WebSocket server at {self.ws_url}: {e}\nPlease ensure the server is running."
             )
 
     async def send_focus_request(self):

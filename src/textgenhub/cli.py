@@ -11,8 +11,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 from textgenhub.utils.browser_utils import ensure_chrome_running
-from textgenhub.chatgpt_extension_cli.cli.error_handler import categorize_error, get_error_message
-from textgenhub.chatgpt_extension_cli.cli.logger import log_info, log_error
+## Removed obsolete chatgpt_extension_cli imports
 
 
 def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str = "json"):

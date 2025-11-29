@@ -247,8 +247,3 @@ The ChatGPT provider offers multiple methods for automation:
 - **Location**: `src/textgenhub/chatgpt_old/` (renamed from legacy ChatGPT implementation)
 - **No preconditions**: Automatically launches browser and navigates to ChatGPT
 - **Usage**: Add `--old` flag to use this method: `poetry run textgenhub chatgpt --old`
-
-#### **Extension Method (Not Currently Working)**
-- **Status**: The Chrome extension-based approach (`src/textgenhub/chatgpt_extension_cli/`) is currently non-functional
-- **Previous approach**: Used a Chrome browser extension with WebSocket communication for tab management
-- **Note**: This method is not recommended until fixed
