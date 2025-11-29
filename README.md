@@ -24,7 +24,7 @@ It consists of:
 >
 > When modifying Node.js dependencies or version numbers, please ensure to update both files to keep them synchronized.
 
-## Installation
+[![codecov](https://codecov.io/gh/leweex95/textgenhub/branch/master/graph/badge.svg)](https://codecov.io/gh/leweex95/textgenhub)
 
 ### Python Package
 ```bash
