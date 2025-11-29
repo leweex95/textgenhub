@@ -49,10 +49,7 @@ class TestPackageImports:
     def test_import_utils(self):
         """Test utilities import"""
         from textgenhub.utils import browser_utils
-        from textgenhub.utils.chatgpt_tab_manager import ChatGPTTabManager
-
         assert browser_utils is not None
-        assert ChatGPTTabManager is not None
 
 
 class TestFileSystemStructure:
