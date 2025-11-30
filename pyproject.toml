@@ -29,10 +29,11 @@ exclude = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.13"
 websockets = "^15.0.1"
 websocket-client = "^1.6.4"
 requests = "^2.31.0"
+pywin32 = {version = "^306", markers = "sys_platform == 'win32' and python_version < '3.13'"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -54,7 +55,7 @@ addopts = "-v --tb=short"
 
 [tool.black]
 line-length = 200
-target-version = ['py311']
+target-version = ['py313']
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
