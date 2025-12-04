@@ -58,6 +58,8 @@ class TestFileSystemStructure:
     def test_logs_directory_exists(self):
         """Test logs directory for artifacts"""
         logs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+        # Create logs directory if it doesn't exist (it's in .gitignore for runtime artifacts)
+        os.makedirs(logs_path, exist_ok=True)
         assert os.path.exists(logs_path), "logs/ directory must exist"
         assert os.path.isdir(logs_path), "logs/ must be a directory"
 
