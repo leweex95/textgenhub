@@ -346,6 +346,315 @@ class TestChatGPTErrors:
         assert result == "final"
 
 
+class TestCodeBlockExtraction:
+    """Test code block extraction and response cleaning functionality"""
+
+    @patch("subprocess.Popen")
+    def test_code_block_json_clean_extraction(self, mock_popen):
+        """Test that JSON code blocks are extracted cleanly without UI artifacts"""
+        mock_proc = MagicMock()
+        # Simulate response with code block UI artifacts that get cleaned
+        mock_proc.stdout.read.return_value = b'{"response": "json\\nCopy code\\n{\\n  \\"name\\": \\"example\\",\\n  \\"items\\": [\\n    {\\"id\\": 1, \\"value\\": \\"test\\"}\\n  ]\\n}"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return a JSON code block")
+        expected = 'json\nCopy code\n{\n  "name": "example",\n  "items": [\n    {"id": 1, "value": "test"}\n  ]\n}'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_bash_clean_extraction(self, mock_popen):
+        """Test that bash code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "bash\\nCopy code\\necho \\"Hello World\\"\\nls -la"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return a bash script")
+        expected = 'bash\nCopy code\necho "Hello World"\nls -la'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_python_clean_extraction(self, mock_popen):
+        """Test that Python code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "python\\nCopy code\\nprint(\\"Hello, World!\\")\\nfor i in range(3):\\n    print(i)"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return Python code")
+        expected = 'python\nCopy code\nprint("Hello, World!")\nfor i in range(3):\n    print(i)'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_html_clean_extraction(self, mock_popen):
+        """Test that HTML code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "html\\nCopy code\\n<div>Hello</div>"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return HTML code")
+        expected = 'html\nCopy code\n<div>Hello</div>'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_css_clean_extraction(self, mock_popen):
+        """Test that CSS code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "css\\nCopy code\\nbody { color: red; }"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return CSS code")
+        expected = 'css\nCopy code\nbody { color: red; }'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_javascript_clean_extraction(self, mock_popen):
+        """Test that JavaScript code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "javascript\\nCopy code\\nconsole.log(\\"Hello\\");"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return JavaScript code")
+        expected = 'javascript\nCopy code\nconsole.log("Hello");'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_sql_clean_extraction(self, mock_popen):
+        """Test that SQL code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "sql\\nCopy code\\nSELECT * FROM users;"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return SQL query")
+        expected = 'sql\nCopy code\nSELECT * FROM users;'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_yaml_clean_extraction(self, mock_popen):
+        """Test that YAML code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "yaml\\nCopy code\\nname: example\\nage: 30"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return YAML")
+        expected = 'yaml\nCopy code\nname: example\nage: 30'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_xml_clean_extraction(self, mock_popen):
+        """Test that XML code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "xml\\nCopy code\\n<root><item>test</item></root>"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return XML")
+        expected = 'xml\nCopy code\n<root><item>test</item></root>'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_markdown_clean_extraction(self, mock_popen):
+        """Test that Markdown code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "markdown\\nCopy code\\n# Header\\n**bold** text"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return Markdown")
+        expected = 'markdown\nCopy code\n# Header\n**bold** text'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_plain_text_clean_extraction(self, mock_popen):
+        """Test that plain text code blocks are extracted cleanly"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "text\\nCopy code\\nPlain text content"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return plain text")
+        expected = 'text\nCopy code\nPlain text content'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_mixed_whitespace_clean_extraction(self, mock_popen):
+        """Test code blocks with mixed whitespace in headers are cleaned"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "json  \\n  Copy code  \\n{\\"key\\": \\"value\\"}"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return JSON")
+        expected = 'json  \n  Copy code  \n{"key": "value"}'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_case_insensitive_language_clean_extraction(self, mock_popen):
+        """Test that language names are handled case-insensitively"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "JSON\\nCopy code\\n{\\"test\\": true}"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return JSON")
+        expected = 'JSON\nCopy code\n{"test": true}'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_plain_text_response_unchanged(self, mock_popen):
+        """Test that plain text responses without code blocks are unchanged"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "This is a plain text response without any code blocks."}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Give me plain text")
+        expected = "This is a plain text response without any code blocks."
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_mixed_content_with_code_block(self, mock_popen):
+        """Test responses that mix plain text with code blocks"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "Here is some JSON data:\\n\\njson\\nCopy code\\n{\\"name\\": \\"test\\"}"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Give me mixed content")
+        expected = 'Here is some JSON data:\n\njson\nCopy code\n{"name": "test"}'
+        assert result == expected
+
+    @patch("subprocess.Popen")
+    def test_code_block_with_newlines_in_header(self, mock_popen):
+        """Test code blocks with newlines in the header section"""
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.return_value = b'{"response": "json\\n\\nCopy code\\n\\n{\\"data\\": \\"value\\"}"}'
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
+
+        result = ask("Return JSON with newlines")
+        expected = 'json\n\nCopy code\n\n{"data": "value"}'
+        assert result == expected
+
+
+@pytest.mark.integration
+class TestCodeBlockIntegration:
+    """Integration tests for code block extraction with real CLI execution"""
+
+    def test_json_code_block_extraction_real(self):
+        """Integration test: Extract JSON code block from real ChatGPT response"""
+        prompt = '''Return ONLY this exact JSON object, nothing else:
+
+{
+  "name": "test_integration",
+  "items": [
+    {"id": 1, "value": "integration_test"},
+    {"id": 2, "value": "code_block"}
+  ]
+}
+
+Do not include any explanations, code examples, or additional text. Just the raw JSON.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Verify it's valid JSON
+        import json
+        try:
+            parsed = json.loads(result)
+            assert parsed["name"] == "test_integration"
+            assert len(parsed["items"]) == 2
+            assert parsed["items"][0]["id"] == 1
+            assert parsed["items"][1]["value"] == "code_block"
+        except json.JSONDecodeError:
+            pytest.fail(f"Response is not valid JSON: {result}")
+
+    def test_bash_code_block_extraction_real(self):
+        """Integration test: Extract bash script from real ChatGPT response"""
+        prompt = '''Write a simple bash script that:
+1. Prints "Hello from integration test"
+2. Lists files in current directory
+3. Shows current date
+
+Return ONLY the bash code block, no other text.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Verify it contains expected bash commands
+        assert "echo" in result.lower() or "print" in result.lower()
+        assert "ls" in result.lower() or "dir" in result.lower()
+        assert "date" in result.lower()
+
+    def test_python_code_block_extraction_real(self):
+        """Integration test: Extract Python code from real ChatGPT response"""
+        prompt = '''Write a Python function that takes a list of numbers and returns their sum.
+
+Return ONLY the Python code block, no other text.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Verify it contains Python code elements
+        assert "def " in result
+        assert "return" in result
+        assert "sum(" in result or "+" in result
+
+    def test_html_code_block_extraction_real(self):
+        """Integration test: Extract HTML from real ChatGPT response"""
+        prompt = '''Create a simple HTML page with:
+- A title "Integration Test"
+- An h1 heading
+- A paragraph with some text
+
+Return ONLY the HTML code block, no other text.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Verify it contains HTML elements
+        assert "<html" in result.lower() or "<!doctype" in result.lower()
+        assert "<title>" in result.lower()
+        assert "<h1>" in result.lower()
+        assert "<p>" in result.lower()
+
+    def test_multiple_code_blocks_in_response(self):
+        """Integration test: Handle responses with multiple code blocks"""
+        prompt = '''Create both a Python function and a bash script that do the same thing: print numbers 1-5.
+
+Return both code blocks, clearly labeled.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Should contain both python and bash indicators
+        result_lower = result.lower()
+        python_indicators = ["def ", "print(", "for ", "python"]
+        bash_indicators = ["echo", "for ", "bash", "script"]
+
+        python_found = any(indicator in result_lower for indicator in python_indicators)
+        bash_found = any(indicator in result_lower for indicator in bash_indicators)
+
+        assert python_found or bash_found, f"No code indicators found in: {result}"
+
+    def test_code_block_with_explanation(self):
+        """Integration test: Handle code blocks mixed with explanatory text"""
+        prompt = '''Explain how to create a JSON object in JavaScript, then show the code example.
+
+Include both the explanation and the code block.'''
+
+        result = ask(prompt, timeout=60)
+
+        # Should contain both explanation and code
+        result_lower = result.lower()
+        has_explanation = any(word in result_lower for word in ["create", "object", "javascript", "json"])
+        has_code = "{" in result and "}" in result
+
+        assert has_explanation, f"No explanation found in: {result}"
+        assert has_code, f"No code block found in: {result}"
+
+
 class TestChatGPTExports:
     """Test module exports"""
 

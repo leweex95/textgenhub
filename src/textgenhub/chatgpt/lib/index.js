@@ -810,7 +810,9 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
 
         // Get the last new article (the most recent response)
         const lastArticle = newArticles[newArticles.length - 1];
-        const text = (lastArticle.innerText || lastArticle.textContent || '').trim();
+        // Use textContent instead of innerText for better code block handling
+        // textContent preserves whitespace better for syntax-highlighted content
+        const text = (lastArticle.textContent || lastArticle.innerText || '').trim();
         debug.text = text;
 
         // Don't check for placeholders here - let polling logic handle it
@@ -899,6 +901,32 @@ function cleanResponse(response) {
 
   for (const prefix of prefixes) {
     cleaned = cleaned.replace(prefix, '');
+  }
+
+  // Remove code block headers (language label + "Copy code")
+  // Matches patterns like "json\nCopy code\n" or "javascript\nCopy code\n" etc.
+  const codeBlockHeaders = [
+    /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*Copy code\s*\n*/i,
+    /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*/i,
+    /^Copy code\s*\n*/i,
+  ];
+
+  for (const header of codeBlockHeaders) {
+    cleaned = cleaned.replace(header, '');
+  }
+
+  // Remove ChatGPT conversational footers
+  const footers = [
+    /\n+Is this conversation helpful so far\?.*$/i,
+    /\n+Is there anything else I can help you with\?.*$/i,
+    /\n+Let me know if you need anything else\.?.*$/i,
+    /\n+Do you have any other questions\?.*$/i,
+    /\n+How can I assist you further\?.*$/i,
+    /\n+Is there anything else you'd like to know\?.*$/i,
+  ];
+
+  for (const footer of footers) {
+    cleaned = cleaned.replace(footer, '');
   }
 
   // Remove leading/trailing whitespace again
