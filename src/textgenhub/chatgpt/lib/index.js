@@ -810,7 +810,9 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
 
         // Get the last new article (the most recent response)
         const lastArticle = newArticles[newArticles.length - 1];
-        const text = (lastArticle.innerText || lastArticle.textContent || '').trim();
+        // Use textContent instead of innerText for better code block handling
+        // textContent preserves whitespace better for syntax-highlighted content
+        const text = (lastArticle.textContent || lastArticle.innerText || '').trim();
         debug.text = text;
 
         // Don't check for placeholders here - let polling logic handle it
