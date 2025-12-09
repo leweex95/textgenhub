@@ -810,9 +810,26 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
 
         // Get the last new article (the most recent response)
         const lastArticle = newArticles[newArticles.length - 1];
+
+        // Clone the article to avoid modifying the original DOM
+        const clonedArticle = lastArticle.cloneNode(true);
+
+        // Remove unwanted elements from the cloned article
+        // Remove "Thought for X" elements
+        const truncateElements = clonedArticle.querySelectorAll('.truncate');
+        truncateElements.forEach(el => el.remove());
+
+        // Remove "Sources" button and other footnote buttons
+        const footnoteButtons = clonedArticle.querySelectorAll('button.group\\/footnote, button[aria-label="Sources"]');
+        footnoteButtons.forEach(el => el.remove());
+
+        // Remove "Answer now" button and other loading indicator buttons
+        const answerNowButtons = clonedArticle.querySelectorAll('button.text-token-text-tertiary.hover\\:text-token-text-primary.whitespace-nowrap');
+        answerNowButtons.forEach(el => el.remove());
+
         // Use textContent instead of innerText for better code block handling
         // textContent preserves whitespace better for syntax-highlighted content
-        const text = (lastArticle.textContent || lastArticle.innerText || '').trim();
+        const text = (clonedArticle.textContent || clonedArticle.innerText || '').trim();
         debug.text = text;
 
         // Don't check for placeholders here - let polling logic handle it

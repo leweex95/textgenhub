@@ -4,7 +4,6 @@ Unified CLI for TextGenHub - routes to different LLM providers
 """
 import sys
 import argparse
-import asyncio
 import json
 import subprocess
 import time
@@ -14,69 +13,72 @@ from textgenhub.utils.browser_utils import ensure_chrome_running
 ## Removed obsolete chatgpt_extension_cli imports
 
 
-def run_chatgpt_extension(message: str, timeout: int = 300, output_format: str = "json"):
-    """Run using the new WebSocket-based extension (default)"""
-    import websockets
-    import uuid
+def log_info(message: str):
+    """Log an info message"""
+    print(f"[INFO] {message}", file=sys.stderr)
 
-    async def main():
-        # CRITICAL: Ensure Chrome is running before attempting connection
-        if not ensure_chrome_running():
-            raise Exception("Failed to start Chrome. Please ensure Google Chrome is installed.")
 
-        message_id = str(uuid.uuid4())
+def log_error(message: str, error_message: str = None):
+    """Log an error message"""
+    print(f"[ERROR] {message}", file=sys.stderr)
+    if error_message:
+        print(f"[ERROR] Details: {error_message}", file=sys.stderr)
 
-        try:
-            async with websockets.connect("ws://127.0.0.1:8765") as websocket:
-                # Send request with message ID
-                payload = {"type": "cli_request", "messageId": message_id, "message": message, "output_format": output_format}
-                await websocket.send(json.dumps(payload))
 
-                # Wait for ACK
-                ack_response = await asyncio.wait_for(websocket.recv(), timeout=5)
-                ack_data = json.loads(ack_response)
-                if ack_data.get("type") != "ack":
-                    raise Exception("Expected ACK from server")
-                print("[CLI] Request acknowledged by server", file=sys.stderr)
+def categorize_error(error_message: str) -> str:
+    """Categorize error based on error message content"""
+    error_lower = error_message.lower()
 
-                # Now wait for actual response (with heartbeat handling)
-                start_time = time.time()
-                while True:
-                    elapsed = time.time() - start_time
-                    remaining = timeout - elapsed
+    if "timeout" in error_lower:
+        return "timeout"
+    elif "login" in error_lower or "auth" in error_lower:
+        return "authentication"
+    elif "chrome" in error_lower or "browser" in error_lower:
+        return "browser"
+    elif "network" in error_lower or "connection" in error_lower:
+        return "network"
+    elif "json" in error_lower or "parse" in error_lower:
+        return "parsing"
+    else:
+        return "unknown"
 
-                    if remaining <= 0:
-                        raise Exception(f"Timeout waiting for response after {timeout}s")
 
-                    try:
-                        response = await asyncio.wait_for(websocket.recv(), timeout=min(remaining, 15))  # Read with timeout
-                        data = json.loads(response)
+def get_error_message(error_type: str) -> dict:
+    """Get error message details for a given error type"""
+    error_messages = {
+        "timeout": {
+            "title": "Operation Timeout",
+            "description": "The operation took too long to complete.",
+            "recovery": "Try increasing the timeout with --timeout parameter or check your internet connection."
+        },
+        "authentication": {
+            "title": "Authentication Error",
+            "description": "Failed to authenticate with the service.",
+            "recovery": "Check your credentials and ensure you have access to the service."
+        },
+        "browser": {
+            "title": "Browser Error",
+            "description": "Issue with browser automation.",
+            "recovery": "Ensure Chrome is installed and try restarting the application."
+        },
+        "network": {
+            "title": "Network Error",
+            "description": "Network connectivity issue.",
+            "recovery": "Check your internet connection and try again."
+        },
+        "parsing": {
+            "title": "Data Parsing Error",
+            "description": "Failed to parse response data.",
+            "recovery": "This might be a temporary issue. Try again or contact support."
+        },
+        "unknown": {
+            "title": "Unknown Error",
+            "description": "An unexpected error occurred.",
+            "recovery": "Check the error details and try again. If the problem persists, contact support."
+        }
+    }
 
-                        if data.get("type") == "response":
-                            return data.get("response", "No response"), data.get("html", "")
-                        elif data.get("type") == "error":
-                            error_msg = data.get("error", "Unknown error")
-                            error_type = data.get("error_type", "unknown")
-                            raise Exception(f"[{error_type}] {error_msg}")
-                        elif data.get("type") == "heartbeat":
-                            print("[CLI] Heartbeat received, still processing...", file=sys.stderr)
-                            continue
-                        else:
-                            raise Exception(f"Unexpected response: {data}")
-                    except asyncio.TimeoutError:
-                        elapsed = time.time() - start_time
-                        if elapsed >= timeout:
-                            raise Exception(f"Timeout waiting for response after {timeout}s")
-                        # Just a read timeout, continue waiting
-                        print(f"[CLI] Waiting... ({elapsed:.0f}s elapsed)", file=sys.stderr)
-                        continue
-
-        except asyncio.TimeoutError:
-            raise Exception(f"Timeout waiting for connection after {timeout}s")
-        except ConnectionRefusedError:
-            raise Exception("Could not connect to server on ws://127.0.0.1:8765\nMake sure the Windows service ChatGPTServer is running")
-
-    return asyncio.run(main())
+    return error_messages.get(error_type, error_messages["unknown"])
 
 
 def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120, typing_speed: float | None = None):
@@ -239,6 +241,8 @@ def main():
                     try:
                         with open(questions_file, "r", encoding="utf-8") as f:
                             questions = json.load(f)
+                        if not questions:
+                            raise ValueError("questions.json is empty")
                         # Use a simple rotation based on current time
                         import time
 
@@ -246,19 +250,20 @@ def main():
                         actual_prompt = questions[question_index]
                         print(f"[ChatGPT] Using rotating question {question_index + 1}/{len(questions)}: {actual_prompt[:60]}...", file=sys.stderr)
                     except Exception as e:
-                        print(f"[ChatGPT] Failed to load questions.json ({e}), using fallback prompt", file=sys.stderr)
-                        actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
+                        print(f"[ChatGPT] Failed to load questions.json ({e})", file=sys.stderr)
+                        print("[ChatGPT] Please ensure questions.json exists and contains valid questions", file=sys.stderr)
+                        sys.exit(1)
                 else:
-                    print("[ChatGPT] questions.json not found, using fallback prompt", file=sys.stderr)
-                    actual_prompt = "What are the current developments in Ukraine's defense against Russian aggression?"
+                    print("[ChatGPT] questions.json not found", file=sys.stderr)
+                    print("[ChatGPT] Please create questions.json with sophisticated prompts about visiting Ukraine during the war", file=sys.stderr)
+                    sys.exit(1)
 
             if args.old:
                 log_info("Using old headless method...")
                 response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
                 method = "headless-old"
             else:
-                # Default to new attach-based provider
-                print("[ChatGPT] Using new attach-based provider...", file=sys.stderr)
+                # Default to new user-data-persisting browser provider
                 response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout, args.typing_speed)
                 method = "headless"
 
