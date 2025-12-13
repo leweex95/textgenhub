@@ -83,6 +83,7 @@ export async function connectToExistingChrome({
 
 export async function launchControlledChromium({
   userDataDir,
+  debugPort = 9222,
   disableThrottlingFlags = true,
   headless = false
 } = {}) {
@@ -96,7 +97,7 @@ export async function launchControlledChromium({
   const actualUserDataDir = userDataDir || defaultUserDataDir;
   try {
     const args = [
-      '--remote-debugging-port=9222',
+      `--remote-debugging-port=${debugPort}`,
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
@@ -163,12 +164,12 @@ export async function launchControlledChromium({
 
       try {
         // Verify debugging port is accessible
-        const response = await fetch('http://127.0.0.1:9222/json/version');
+        const response = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
         if (!response.ok) throw new Error('Debug port not ready');
 
         // Try connecting
         browser = await puppeteer.connect({
-          browserURL: 'http://127.0.0.1:9222',
+          browserURL: `http://127.0.0.1:${debugPort}`,
           defaultViewport: null
         });
 

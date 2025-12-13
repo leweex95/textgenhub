@@ -51,3 +51,6 @@ ENV/
 # Logs
 logs/
 .log
+
+# ChatGPT session artifacts
+sessions.json

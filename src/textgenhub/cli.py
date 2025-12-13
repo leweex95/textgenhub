@@ -5,12 +5,64 @@ Unified CLI for TextGenHub - routes to different LLM providers
 import sys
 import argparse
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
 from datetime import datetime
 from textgenhub.utils.browser_utils import ensure_chrome_running
 ## Removed obsolete chatgpt_extension_cli imports
+
+
+def _get_default_chatgpt_user_data_dir() -> str:
+    env_profile = os.environ.get("CHATGPT_PROFILE")
+    if env_profile:
+        return env_profile
+
+    if os.name == "nt":
+        user_profile = os.environ.get("USERPROFILE")
+        if user_profile:
+            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt")
+
+    home = os.environ.get("HOME") or str(Path.home())
+    return str(Path(home) / ".config" / "chromium-chatgpt")
+
+
+def _get_central_sessions_dir() -> str:
+    if os.name == "nt":
+        user_profile = os.environ.get("USERPROFILE")
+        if user_profile:
+            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt-sessions")
+
+    home = os.environ.get("HOME") or str(Path.home())
+    return str(Path(home) / ".config" / "chromium-chatgpt-sessions")
+
+
+def _bootstrap_sessions_json(sessions_path: Path) -> dict:
+    now = datetime.now().isoformat()
+    data = {
+        "sessions": [
+            {
+                "index": 0,
+                "id": "chatgpt-session-bootstrap",
+                "debugPort": 9222,
+                "userDataDir": _get_central_sessions_dir(),
+                "createdAt": now,
+                "lastUsed": now,
+                "loginStatus": "unknown",
+                "provider": "chatgpt",
+            }
+        ],
+        "default_session": 0,
+        "metadata": {
+            "created": now,
+            "last_updated": now,
+            "last_active_session_index": 0,
+            "session_cursor": 0,
+        },
+    }
+    sessions_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return data
 
 
 def log_info(message: str):
@@ -81,7 +133,16 @@ def get_error_message(error_type: str) -> dict:
     return error_messages.get(error_type, error_messages["unknown"])
 
 
-def run_provider_old(provider: str, prompt: str, headless: bool = True, output_format: str = "json", timeout: int = 120, typing_speed: float | None = None):
+def run_provider_old(
+    provider: str,
+    prompt: str,
+    headless: bool = True,
+    output_format: str = "json",
+    timeout: int = 120,
+    typing_speed: float | None = None,
+    session_index: int | None = None,
+    close: bool = False,
+):
     """Run using the old headless browser method for any provider"""
     provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
@@ -129,6 +190,10 @@ def run_provider_old(provider: str, prompt: str, headless: bool = True, output_f
         # Add typing speed if specified
         if typing_speed is not None:
             cmd.extend(["--typing-speed", str(typing_speed)])
+        if session_index is not None:
+            cmd.extend(["--session", str(session_index)])
+        if close:
+            cmd.append("--close")
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
     if result.returncode != 0:
@@ -190,6 +255,12 @@ def main():
     parser = argparse.ArgumentParser(description="TextGenHub CLI - Unified interface for LLM providers", prog="textgenhub")
     subparsers = parser.add_subparsers(dest="provider", help="LLM provider")
 
+    # Sessions subcommand (ChatGPT only)
+    sessions_parser = subparsers.add_parser("sessions", help="Manage ChatGPT browser sessions")
+    sessions_subparsers = sessions_parser.add_subparsers(dest="action", help="sessions action")
+    sessions_subparsers.add_parser("list", help="List available sessions")
+    sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
+
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
     chatgpt_parser.add_argument("--prompt", "-p", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
@@ -198,6 +269,8 @@ def main():
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
     chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
     chatgpt_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
+    chatgpt_parser.add_argument("--session", type=int, help="Explicit session index to use")
+    chatgpt_parser.add_argument("--close", action="store_true", help="Close browser session after completion")
 
     # DeepSeek subcommand
     deepseek_parser = subparsers.add_parser("deepseek", help="DeepSeek Chat")
@@ -228,6 +301,44 @@ def main():
 
     try:
         timestamp = datetime.now().isoformat()
+
+        if args.provider == "sessions":
+            repo_root = Path(__file__).resolve().parents[2]
+            sessions_path = repo_root / "sessions.json"
+
+            if args.action == "list":
+                if not sessions_path.exists():
+                    sessions_data = _bootstrap_sessions_json(sessions_path)
+                else:
+                    sessions_data = json.loads(sessions_path.read_text(encoding="utf-8"))
+                sessions = sessions_data.get("sessions", [])
+                if not sessions:
+                    print("No sessions found. Create one with: poetry run textgenhub sessions init", file=sys.stderr)
+                    sys.exit(1)
+
+                for session in sessions:
+                    idx = session.get("index")
+                    debug_port = session.get("debugPort")
+                    user_data_dir = session.get("userDataDir")
+                    last_used = session.get("lastUsed")
+                    login_status = session.get("loginStatus")
+                    conv_id = session.get("lastConversationId")
+                    print(f"{idx}\tport={debug_port}\tlogin={login_status}\tlastUsed={last_used}\tconv={conv_id}\tprofile={user_data_dir}")
+
+                sys.exit(0)
+
+            if args.action == "init":
+                root = Path(__file__).parent
+                script = root / "chatgpt" / "init_session.js"
+                if not script.exists():
+                    raise FileNotFoundError(f"Script not found: {script}")
+
+                cmd = ["node", str(script)]
+                result = subprocess.run(cmd, text=True, cwd=root, encoding="utf-8", errors="replace")
+                sys.exit(result.returncode)
+
+            sessions_parser.print_help()
+            sys.exit(1)
 
         if args.provider == "chatgpt":
             # Use provided prompt or rotating question from JSON
@@ -264,7 +375,16 @@ def main():
                 method = "headless-old"
             else:
                 # Default to new user-data-persisting browser provider
-                response_text, html_content = run_provider_old("chatgpt", actual_prompt, args.headless, args.output_format, args.timeout, args.typing_speed)
+                response_text, html_content = run_provider_old(
+                    "chatgpt",
+                    actual_prompt,
+                    args.headless,
+                    args.output_format,
+                    args.timeout,
+                    args.typing_speed,
+                    session_index=args.session,
+                    close=args.close,
+                )
                 method = "headless"
 
             if args.output_format == "html":
