@@ -43,13 +43,6 @@ pre-commit = "^3.5.0"
 [tool.poetry.scripts]
 textgenhub = "textgenhub.cli:main"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"
-
 [tool.black]
 line-length = 200
 target-version = ['py313']

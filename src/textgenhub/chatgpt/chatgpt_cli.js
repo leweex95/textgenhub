@@ -99,6 +99,17 @@ function resolveSessionIndex(data, explicitIndex) {
   return [...sessions].sort((a, b) => a.index - b.index)[0].index;
 }
 
+function isChatGPTDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    return hostname === 'chatgpt.com' || hostname === 'chat.openai.com';
+  } catch {
+    // Invalid URL, not a ChatGPT domain
+    return false;
+  }
+}
+
 async function enforceSingleChatPage(browser, keepPage) {
   const pages = await browser.pages();
   for (const p of pages) {
@@ -106,7 +117,7 @@ async function enforceSingleChatPage(browser, keepPage) {
       continue;
     }
     const url = p.url();
-    if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) {
+    if (isChatGPTDomain(url)) {
       try {
         // eslint-disable-next-line no-await-in-loop
         await p.close();
