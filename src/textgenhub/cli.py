@@ -263,7 +263,7 @@ def main():
 
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
-    chatgpt_parser.add_argument("--prompt", "-p", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
+    chatgpt_parser.add_argument("--prompt", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
     chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
@@ -274,21 +274,21 @@ def main():
 
     # DeepSeek subcommand
     deepseek_parser = subparsers.add_parser("deepseek", help="DeepSeek Chat")
-    deepseek_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
+    deepseek_parser.add_argument("--prompt", required=True, help="Message to send")
     deepseek_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     deepseek_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
     deepseek_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     # Perplexity subcommand
     perplexity_parser = subparsers.add_parser("perplexity", help="Perplexity AI")
-    perplexity_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
+    perplexity_parser.add_argument("--prompt", required=True, help="Message to send")
     perplexity_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     perplexity_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
     perplexity_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
     # Grok subcommand
     grok_parser = subparsers.add_parser("grok", help="Grok (X.com)")
-    grok_parser.add_argument("--prompt", "-p", required=True, help="Message to send")
+    grok_parser.add_argument("--prompt", required=True, help="Message to send")
     grok_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     grok_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
     grok_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
