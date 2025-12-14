@@ -16,12 +16,9 @@
 
 'use strict';
 
-const path = require('path');
-const fs = require('fs');
-const BaseLLMProvider = require('../core/base-provider');
-const BrowserManager = require('../core/browser-manager');
-
-class GrokProvider extends BaseLLMProvider {
+import path from 'path';
+import fs from 'fs';
+import BaseLLMProvider from '../core/base-provider.js';class GrokProvider extends BaseLLMProvider {
 
   /**
    * Save current HTML page as artifact for debugging
@@ -1542,4 +1539,4 @@ class GrokProvider extends BaseLLMProvider {
   }
 }
 
-module.exports = GrokProvider;
+export default GrokProvider;

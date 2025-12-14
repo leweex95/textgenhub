@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
-const GrokProvider = require('./grok');
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
+import GrokProvider from './grok.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 (async () => {
   const argv = yargs(hideBin(process.argv))

@@ -129,16 +129,25 @@ async function enforceSingleChatPage(browser, keepPage) {
 }
 
 function extractConversationFromUrl(url) {
-  const match = url.match(/\/c\/([a-zA-Z0-9\-]+)/);
-  return match ? match[1] : null;
+  try {
+    const urlObj = new URL(url);
+    // Only extract from ChatGPT domains
+    if (!isChatGPTDomain(url)) {
+      return null;
+    }
+    const match = urlObj.pathname.match(/^\/c\/([a-zA-Z0-9\-]+)$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 function usage() {
-  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt|-p "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--typing-speed speed] [--session INDEX] [--close|-c]');
+  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--typing-speed speed] [--session INDEX] [--close|-c]');
   console.log('');
   console.log('Options:');
   console.log('  --help, -h              Show this help message');
-  console.log('  --prompt, -p TEXT       The prompt to send to ChatGPT (required)');
+  console.log('  --prompt TEXT           The prompt to send to ChatGPT (required)');
   console.log('  --json                  Output in JSON format with events (default)');
   console.log('  --html                  Output in HTML format with events');
   console.log('  --format, -f FMT        Output format: json or html');
@@ -172,7 +181,7 @@ function parseArgs() {
     if (a === '--help' || a === '-h') {
       usage();
     }
-    if (a === '--prompt' || a === '-p') {
+    if (a === '--prompt') {
       out.prompt = args[i + 1];
       i++;
       continue;
