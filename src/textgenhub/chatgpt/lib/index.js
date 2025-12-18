@@ -824,9 +824,28 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         const footnoteButtons = clonedArticle.querySelectorAll('button.group\\/footnote, button[aria-label="Sources"]');
         footnoteButtons.forEach(el => el.remove());
 
-        // Remove "Answer now" button and other loading indicator buttons
-        const answerNowButtons = clonedArticle.querySelectorAll('button.text-token-text-tertiary.hover\\:text-token-text-primary.whitespace-nowrap');
-        answerNowButtons.forEach(el => el.remove());
+        // Remove action buttons (Copy, Good response, Bad response, etc.)
+        const actionButtons = clonedArticle.querySelectorAll('button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[data-testid="share-turn-action-button"]');
+        actionButtons.forEach(el => el.remove());
+
+        // Remove the entire action buttons container
+        const actionContainer = clonedArticle.querySelector('div.z-0.flex.min-h-\\[46px\\].justify-start div.touch\\:-me-2.touch\\:-ms-3\\.5.-ms-2\\.5.-me-1.flex.flex-wrap.items-center');
+        if (actionContainer) {
+          actionContainer.remove();
+        }
+
+        // Remove "Is this conversation helpful so far?" feedback element
+        const feedbackElements = clonedArticle.querySelectorAll('div.text-token-text-secondary.flex.items-center.justify-center.gap-4.px-4.py-2\\.5.text-sm.whitespace-nowrap');
+        feedbackElements.forEach(el => el.remove());
+
+        // Also remove by text content as fallback
+        const allDivs = clonedArticle.querySelectorAll('div');
+        allDivs.forEach(div => {
+          const text = (div.textContent || div.innerText || '').trim();
+          if (text.includes('Is this conversation helpful so far?')) {
+            div.remove();
+          }
+        });
 
         // Use textContent instead of innerText for better code block handling
         // textContent preserves whitespace better for syntax-highlighted content
