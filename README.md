@@ -166,21 +166,23 @@ poetry run textgenhub grok --prompt "What day is it today?"
 
 #### Session management (ChatGPT only)
 
-The ChatGPT provider supports intelligent session management with browser profile isolation:
-
-- **Default behavior**: Automatically reuses the most recently active session for conversation continuity. If no sessions exist, launches a new browser instance.
-- **Explicit session targeting**: Use `--session INDEX` to target a specific session by index (see `poetry run textgenhub sessions list`)
-- **Session closing**: Use `--close` to automatically close the browser session after the query completes
-
-##### Session commands
-
 ```bash
 # List all available ChatGPT sessions
 poetry run textgenhub sessions list
 
-# Create a new ChatGPT session (opens browser for login)
+# Create a new ChatGPT session with auto-assigned index (opens browser for login)
 poetry run textgenhub sessions init
+
+# Create or regenerate a specific session index (opens browser for login)
+poetry run textgenhub sessions init --index 0
+poetry run textgenhub sessions init --index 2
+
+# Get help on available session commands
+poetry run textgenhub sessions --help
+poetry run textgenhub sessions init --help
 ```
+
+The ChatGPT provider supports browser profile isolation with intelligent session management. Sessions maintain conversation continuity and can be explicitly targeted with `--session INDEX`.
 
 #### CLI examples
 
@@ -199,6 +201,9 @@ poetry run textgenhub chatgpt --prompt "Explain quantum computing" --typing-spee
 
 # ChatGPT using specific session (session index 1)
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --session 1
+
+# Regenerate session 0 if it's broken
+poetry run textgenhub sessions init --index 0
 
 # ChatGPT with automatic closing after receiving the response
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --close

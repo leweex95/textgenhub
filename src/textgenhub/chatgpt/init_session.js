@@ -130,14 +130,39 @@ async function waitForLogin(page, seconds) {
   }
 }
 
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const out = { index: null };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--index') {
+      out.index = parseInt(args[i + 1]);
+      i++;
+      continue;
+    }
+  }
+  return out;
+}
+
 (async function main() {
+  const { index: requestedIndex } = parseArgs();
   const sessionsData = loadSessions();
   sessionsData.sessions = sessionsData.sessions || [];
 
   const usedIndexes = new Set(sessionsData.sessions.map((s) => s.index));
-  let nextIndex = 0;
-  while (usedIndexes.has(nextIndex)) {
-    nextIndex++;
+  let nextIndex;
+
+  if (requestedIndex !== null) {
+    // If a specific index is requested, use it (will overwrite if exists)
+    nextIndex = requestedIndex;
+    // Remove existing session with this index if it exists
+    sessionsData.sessions = sessionsData.sessions.filter((s) => s.index !== requestedIndex);
+  } else {
+    // Auto-assign next available index
+    nextIndex = 0;
+    while (usedIndexes.has(nextIndex)) {
+      nextIndex++;
+    }
   }
 
   const debugPort = await pickAvailablePort(9222);

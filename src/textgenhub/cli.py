@@ -259,7 +259,8 @@ def main():
     sessions_parser = subparsers.add_parser("sessions", help="Manage ChatGPT browser sessions")
     sessions_subparsers = sessions_parser.add_subparsers(dest="action", help="sessions action")
     sessions_subparsers.add_parser("list", help="List available sessions")
-    sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
+    init_parser = sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
+    init_parser.add_argument("--index", type=int, help="Specific session index to create or regenerate")
 
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
@@ -334,6 +335,8 @@ def main():
                     raise FileNotFoundError(f"Script not found: {script}")
 
                 cmd = ["node", str(script)]
+                if hasattr(args, 'index') and args.index is not None:
+                    cmd.extend(["--index", str(args.index)])
                 result = subprocess.run(cmd, text=True, cwd=root, encoding="utf-8", errors="replace")
                 sys.exit(result.returncode)
 
