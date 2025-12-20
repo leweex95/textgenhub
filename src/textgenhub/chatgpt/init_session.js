@@ -10,6 +10,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function getRepoRoot() {
+  const packageRoot = path.resolve(__dirname, '..');
+  const packageSessions = path.join(packageRoot, 'sessions.json');
+  if (fs.existsSync(packageSessions)) {
+    return packageRoot;
+  }
   return path.resolve(__dirname, '..', '..', '..');
 }
 
