@@ -373,7 +373,10 @@ function parseArgs() {
 
         const url = page.url();
         const conversationId = extractConversationFromUrl(url);
-        if (conversationId) {
+        if (closeBrowser) {
+          sessionToUpdate.lastConversationUrl = null;
+          sessionToUpdate.lastConversationId = null;
+        } else if (conversationId) {
           sessionToUpdate.lastConversationUrl = url;
           sessionToUpdate.lastConversationId = conversationId;
         }
