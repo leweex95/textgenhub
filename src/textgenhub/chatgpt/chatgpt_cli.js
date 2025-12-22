@@ -1,13 +1,158 @@
 #!/usr/bin/env node
 import { argv } from 'process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { connectToExistingChrome, launchControlledChromium, ensureLoggedIn, sendPrompt } from './lib/index.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function getRepoRoot() {
+  const packageRoot = path.resolve(__dirname, '..');
+  const packageSessions = path.join(packageRoot, 'sessions.json');
+  if (fs.existsSync(packageSessions)) {
+    return packageRoot;
+  }
+  return path.resolve(__dirname, '..', '..', '..');
+}
+
+function getSessionsFilePath() {
+  return path.join(getRepoRoot(), 'sessions.json');
+}
+
+function getDefaultUserDataDir() {
+  if (process.env.CHATGPT_PROFILE) {
+    return process.env.CHATGPT_PROFILE;
+  }
+
+  if (process.platform === 'win32') {
+    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt');
+  }
+
+  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt');
+}
+
+function getCentralSessionsDir() {
+  if (process.platform === 'win32') {
+    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt-sessions');
+  }
+
+  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt-sessions');
+}
+
+function loadSessions() {
+  const sessionsPath = getSessionsFilePath();
+  if (!fs.existsSync(sessionsPath)) {
+    const now = new Date().toISOString();
+    const bootstrap = {
+      sessions: [
+        {
+          index: 0,
+          id: 'chatgpt-session-bootstrap',
+          debugPort: 9222,
+          userDataDir: getCentralSessionsDir(),
+          createdAt: now,
+          lastUsed: now,
+          loginStatus: 'unknown',
+          provider: 'chatgpt'
+        }
+      ],
+      default_session: 0,
+      metadata: {
+        created: now,
+        last_updated: now,
+        last_active_session_index: 0,
+        session_cursor: 0
+      }
+    };
+    fs.writeFileSync(sessionsPath, JSON.stringify(bootstrap, null, 2), 'utf-8');
+    return bootstrap;
+  }
+
+  return JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'));
+}
+
+function saveSessions(data) {
+  data.metadata = data.metadata || {};
+  data.metadata.last_updated = new Date().toISOString();
+  fs.writeFileSync(getSessionsFilePath(), JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function getSessionByIndex(data, index) {
+  return (data.sessions || []).find((session) => session.index === index);
+}
+
+function resolveSessionIndex(data, explicitIndex) {
+  const sessions = data.sessions || [];
+  if (!sessions.length) {
+    return null;
+  }
+
+  if (typeof explicitIndex === 'number') {
+    return explicitIndex;
+  }
+
+  if (data.metadata && typeof data.metadata.last_active_session_index === 'number') {
+    return data.metadata.last_active_session_index;
+  }
+
+  if (typeof data.default_session === 'number') {
+    return data.default_session;
+  }
+
+  return [...sessions].sort((a, b) => a.index - b.index)[0].index;
+}
+
+function isChatGPTDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    return hostname === 'chatgpt.com' || hostname === 'chat.openai.com';
+  } catch {
+    // Invalid URL, not a ChatGPT domain
+    return false;
+  }
+}
+
+async function enforceSingleChatPage(browser, keepPage) {
+  const pages = await browser.pages();
+  for (const p of pages) {
+    if (p === keepPage) {
+      continue;
+    }
+    const url = p.url();
+    if (isChatGPTDomain(url)) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await p.close();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+function extractConversationFromUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    // Only extract from ChatGPT domains
+    if (!isChatGPTDomain(url)) {
+      return null;
+    }
+    const match = urlObj.pathname.match(/^\/c\/([a-zA-Z0-9\-]+)$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function usage() {
-  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt|-p "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--typing-speed speed] [--close|-c]');
+  console.log('Usage: node bin/send-prompt-cli.js [--help|-h] --prompt "Your prompt here" [--json|--html|--format|-f json|html] [--raw|-r] [--debug|-d] [--timeout|-t seconds] [--typing-speed speed] [--session INDEX] [--close|-c]');
   console.log('');
   console.log('Options:');
   console.log('  --help, -h              Show this help message');
-  console.log('  --prompt, -p TEXT       The prompt to send to ChatGPT (required)');
+  console.log('  --prompt TEXT           The prompt to send to ChatGPT (required)');
   console.log('  --json                  Output in JSON format with events (default)');
   console.log('  --html                  Output in HTML format with events');
   console.log('  --format, -f FMT        Output format: json or html');
@@ -15,6 +160,7 @@ function usage() {
   console.log('  --debug, -d             Enable debug output');
   console.log('  --timeout, -t SEC       Timeout in seconds (default: 120)');
   console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: null for instant paste, > 0 for character-by-character typing)');
+  console.log('  --session INDEX         Explicit session index to use (see: poetry run textgenhub sessions list)');
   console.log('  --close, -c             Close browser session after completion (default: keep open)');
   console.log('');
   console.log('Output Formats:');
@@ -34,13 +180,13 @@ function usage() {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: null };
+  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: null, sessionIndex: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--help' || a === '-h') {
       usage();
     }
-    if (a === '--prompt' || a === '-p') {
+    if (a === '--prompt') {
       out.prompt = args[i + 1];
       i++;
       continue;
@@ -85,6 +231,16 @@ function parseArgs() {
       out.closeBrowser = true;
       continue;
     }
+    if (a === '--session') {
+      const parsedIndex = parseInt(args[i + 1], 10);
+      if (Number.isNaN(parsedIndex)) {
+        console.error('Invalid value for --session. Please provide a numeric index.');
+        process.exit(2);
+      }
+      out.sessionIndex = parsedIndex;
+      i++;
+      continue;
+    }
     // No positional prompts allowed - must use --prompt
     console.error(`Unknown argument: ${a}`);
     console.error('Use --prompt to specify the prompt text.');
@@ -94,7 +250,7 @@ function parseArgs() {
 }
 
 (async function main() {
-  const { prompt, format, debug, timeout, raw, closeBrowser, typingSpeed } = parseArgs();
+  const { prompt, format, debug, timeout, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
   if (!prompt) return usage();
 
   // Validate format
@@ -109,18 +265,39 @@ function parseArgs() {
       console.log(JSON.stringify({ event: 'connecting', timestamp: new Date().toISOString() }));
     }
 
+    const sessionsData = loadSessions();
+    const targetSession = resolveSessionIndex(sessionsData, sessionIndex);
+    if (targetSession === null) {
+      console.error('No sessions found. Create one with: node src/textgenhub/chatgpt/init_session.js');
+      process.exit(1);
+    }
+
+    const selectedSession = getSessionByIndex(sessionsData, targetSession);
+    if (!selectedSession) {
+      console.error(`Session index ${targetSession} not found. Run: poetry run textgenhub sessions list`);
+      process.exit(1);
+    }
+
+    const debugPort = selectedSession.debugPort || 9222;
+    const browserURL = `http://127.0.0.1:${debugPort}`;
+    const userDataDir = selectedSession.userDataDir || getDefaultUserDataDir();
+
     try {
-      // Try to connect to existing Chrome first
-      ({ browser, page } = await connectToExistingChrome());
+      ({ browser, page } = await connectToExistingChrome({ browserURL }));
     } catch (connectError) {
       if (!raw && format === 'json') {
-        console.log(JSON.stringify({ event: 'launching_chrome', timestamp: new Date().toISOString() }));
+        console.log(JSON.stringify({ event: 'launching_chrome', timestamp: new Date().toISOString(), sessionIndex: targetSession }));
       } else if (!raw) {
-        console.log('Chrome not running, launching new instance...');
+        console.log(`Chrome session ${targetSession} not running, launching...`);
       }
-      // If connection fails, launch Chrome automatically
-      ({ browser, page } = await launchControlledChromium());
+      ({ browser, page } = await launchControlledChromium({ userDataDir, debugPort, headless: false }));
       browserLaunched = true;
+    }
+
+    try {
+      await enforceSingleChatPage(browser, page);
+    } catch {
+      // ignore
     }
 
     if (!raw && format === 'json') {
@@ -158,14 +335,26 @@ function parseArgs() {
         console.error(`Login required: ${err.message}`);
       }
       // Clean up browser connection on login error
-      if (browser && closeBrowser && browserLaunched) {
+      if (browser && closeBrowser) {
         try {
           await browser.close();
-        } catch (disconnectError) {
+        } catch {
           // Ignore disconnect errors during cleanup
         }
       }
       process.exit(3);
+    }
+
+    // Restore last conversation if present.
+    if (selectedSession.lastConversationUrl && typeof selectedSession.lastConversationUrl === 'string') {
+      try {
+        const currentUrl = page.url();
+        if (!currentUrl.includes('/c/') || currentUrl !== selectedSession.lastConversationUrl) {
+          await page.goto(selectedSession.lastConversationUrl, { waitUntil: 'networkidle2' });
+        }
+      } catch {
+        // Ignore navigation failures.
+      }
     }
 
     if (!raw && format === 'json') {
@@ -178,6 +367,32 @@ function parseArgs() {
         console.log(`Waiting for response to complete... (${responseLength} chars)`);
       }
     }, typingSpeed);
+
+    // Persist conversation URL and session usage.
+    try {
+      const updated = loadSessions();
+      const sessionToUpdate = getSessionByIndex(updated, targetSession);
+      if (sessionToUpdate) {
+        sessionToUpdate.lastUsed = new Date().toISOString();
+        sessionToUpdate.loginStatus = 'logged_in';
+
+        const url = page.url();
+        const conversationId = extractConversationFromUrl(url);
+        if (closeBrowser) {
+          sessionToUpdate.lastConversationUrl = null;
+          sessionToUpdate.lastConversationId = null;
+        } else if (conversationId) {
+          sessionToUpdate.lastConversationUrl = url;
+          sessionToUpdate.lastConversationId = conversationId;
+        }
+
+        updated.metadata = updated.metadata || {};
+        updated.metadata.last_active_session_index = targetSession;
+        saveSessions(updated);
+      }
+    } catch {
+      // ignore persistence errors
+    }
 
     if (raw) {
       // Raw output - just the response text
@@ -194,10 +409,9 @@ function parseArgs() {
       console.log(JSON.stringify({ response: htmlContent }));
     }
 
-    if (closeBrowser && browserLaunched) {
+    if (closeBrowser) {
       await browser.close();
     } else {
-      // keep open - don't close launched browsers, don't disconnect from connected browsers
       if (!raw) {
         console.log(JSON.stringify({ event: 'session_kept_open', message: 'Browser session remains open for future use', timestamp: new Date().toISOString() }));
       }
@@ -213,10 +427,10 @@ function parseArgs() {
       console.error(error.message);
     }
     // Clean up browser connection on error
-    if (browser && closeBrowser && browserLaunched) {
+    if (browser && closeBrowser) {
       try {
         await browser.close();
-      } catch (disconnectError) {
+      } catch {
         // Ignore disconnect errors during cleanup
       }
     }

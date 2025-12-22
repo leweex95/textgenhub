@@ -83,6 +83,7 @@ export async function connectToExistingChrome({
 
 export async function launchControlledChromium({
   userDataDir,
+  debugPort = 9222,
   disableThrottlingFlags = true,
   headless = false
 } = {}) {
@@ -96,7 +97,7 @@ export async function launchControlledChromium({
   const actualUserDataDir = userDataDir || defaultUserDataDir;
   try {
     const args = [
-      '--remote-debugging-port=9222',
+      `--remote-debugging-port=${debugPort}`,
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
@@ -163,12 +164,12 @@ export async function launchControlledChromium({
 
       try {
         // Verify debugging port is accessible
-        const response = await fetch('http://127.0.0.1:9222/json/version');
+        const response = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
         if (!response.ok) throw new Error('Debug port not ready');
 
         // Try connecting
         browser = await puppeteer.connect({
-          browserURL: 'http://127.0.0.1:9222',
+          browserURL: `http://127.0.0.1:${debugPort}`,
           defaultViewport: null
         });
 
@@ -810,7 +811,45 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
 
         // Get the last new article (the most recent response)
         const lastArticle = newArticles[newArticles.length - 1];
-        const text = (lastArticle.innerText || lastArticle.textContent || '').trim();
+
+        // Clone the article to avoid modifying the original DOM
+        const clonedArticle = lastArticle.cloneNode(true);
+
+        // Remove unwanted elements from the cloned article
+        // Remove "Thought for X" elements
+        const truncateElements = clonedArticle.querySelectorAll('.truncate');
+        truncateElements.forEach(el => el.remove());
+
+        // Remove "Sources" button and other footnote buttons
+        const footnoteButtons = clonedArticle.querySelectorAll('button.group\\/footnote, button[aria-label="Sources"]');
+        footnoteButtons.forEach(el => el.remove());
+
+        // Remove action buttons (Copy, Good response, Bad response, etc.)
+        const actionButtons = clonedArticle.querySelectorAll('button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[data-testid="share-turn-action-button"]');
+        actionButtons.forEach(el => el.remove());
+
+        // Remove the entire action buttons container
+        const actionContainer = clonedArticle.querySelector('div.z-0.flex.min-h-\\[46px\\].justify-start div.touch\\:-me-2.touch\\:-ms-3\\.5.-ms-2\\.5.-me-1.flex.flex-wrap.items-center');
+        if (actionContainer) {
+          actionContainer.remove();
+        }
+
+        // Remove "Is this conversation helpful so far?" feedback element
+        const feedbackElements = clonedArticle.querySelectorAll('div.text-token-text-secondary.flex.items-center.justify-center.gap-4.px-4.py-2\\.5.text-sm.whitespace-nowrap');
+        feedbackElements.forEach(el => el.remove());
+
+        // Also remove by text content as fallback
+        const allDivs = clonedArticle.querySelectorAll('div');
+        allDivs.forEach(div => {
+          const text = (div.textContent || div.innerText || '').trim();
+          if (text.includes('Is this conversation helpful so far?')) {
+            div.remove();
+          }
+        });
+
+        // Use textContent instead of innerText for better code block handling
+        // textContent preserves whitespace better for syntax-highlighted content
+        const text = (clonedArticle.textContent || clonedArticle.innerText || '').trim();
         debug.text = text;
 
         // Don't check for placeholders here - let polling logic handle it
@@ -899,6 +938,32 @@ function cleanResponse(response) {
 
   for (const prefix of prefixes) {
     cleaned = cleaned.replace(prefix, '');
+  }
+
+  // Remove code block headers (language label + "Copy code")
+  // Matches patterns like "json\nCopy code\n" or "javascript\nCopy code\n" etc.
+  const codeBlockHeaders = [
+    /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*Copy code\s*\n*/i,
+    /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*/i,
+    /^Copy code\s*\n*/i,
+  ];
+
+  for (const header of codeBlockHeaders) {
+    cleaned = cleaned.replace(header, '');
+  }
+
+  // Remove ChatGPT conversational footers
+  const footers = [
+    /\n+Is this conversation helpful so far\?.*$/i,
+    /\n+Is there anything else I can help you with\?.*$/i,
+    /\n+Let me know if you need anything else\.?.*$/i,
+    /\n+Do you have any other questions\?.*$/i,
+    /\n+How can I assist you further\?.*$/i,
+    /\n+Is there anything else you'd like to know\?.*$/i,
+  ];
+
+  for (const footer of footers) {
+    cleaned = cleaned.replace(footer, '');
   }
 
   // Remove leading/trailing whitespace again

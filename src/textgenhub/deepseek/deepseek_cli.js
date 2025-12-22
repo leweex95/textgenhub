@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
-const DeepSeekProvider = require('./deepseek');
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
+import DeepSeekProvider from './deepseek.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 (async () => {
   const argv = yargs(hideBin(process.argv))

@@ -139,9 +139,9 @@ TextGenHub now provides a unified CLI interface for all providers:
 poetry install
 poetry run textgenhub --help
 
-# ChatGPT (attach-based method by default, --old for legacy puppeteer-based fallback)
+# ChatGPT (--old for legacy puppeteer-based fallback)
 poetry run textgenhub chatgpt --prompt "What day is it today?"
-poetry run textgenhub chatgpt --prompt "What day is it today?" --old
+poetry run textgenhub chatgpt --prompt "What day is it today?" --old  # deprecated, will be removed soon
 
 # DeepSeek (headless browser method)
 poetry run textgenhub deepseek --prompt "What day is it today?"
@@ -155,17 +155,39 @@ poetry run textgenhub grok --prompt "What day is it today?"
 
 #### CLI Options
 
-- `--prompt, -p`: The text prompt to send to the LLM (required for most providers)
+- `--prompt`: The text prompt to send to the LLM (required for most providers)
 - `--old`: Use old legacy headless browser method instead of attach-based (ChatGPT only)
 - `--headless`: Run browser in headless mode (default: true, legacy method only)
 - `--output-format`: Output format - `json` (default), `html`, or `raw` (ChatGPT: json/html/raw; others: json/html)
 - `--timeout`: Timeout in seconds for extension mode (ChatGPT only, default: 120)
 - `--typing-speed`: Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
+- `--session`: Explicit session index to use (ChatGPT only, see `sessions list` command)
+- `--close`: Close browser session after completion (ChatGPT only, default: keep open)
 
-#### CLI Examples
+#### Session management (ChatGPT only)
 
 ```bash
-# ChatGPT with attach-based provider (recommended) - JSON output (default)
+# List all available ChatGPT sessions
+poetry run textgenhub sessions list
+
+# Create a new ChatGPT session with auto-assigned index (opens browser for login)
+poetry run textgenhub sessions init
+
+# Create or regenerate a specific session index (opens browser for login)
+poetry run textgenhub sessions init --index 0
+poetry run textgenhub sessions init --index 2
+
+# Get help on available session commands
+poetry run textgenhub sessions --help
+poetry run textgenhub sessions init --help
+```
+
+The ChatGPT provider supports browser profile isolation with intelligent session management. Sessions maintain conversation continuity and can be explicitly targeted with `--session INDEX`.
+
+#### CLI examples
+
+```bash
+# ChatGPT - JSON output (default)
 poetry run textgenhub chatgpt --prompt "Explain quantum computing"
 
 # ChatGPT with attach-based provider - HTML output
@@ -177,17 +199,20 @@ poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-form
 # ChatGPT with character-by-character typing (0.05 seconds per character)
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --typing-speed 0.05
 
+# ChatGPT using specific session (session index 1)
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --session 1
+
+# Regenerate session 0 if it's broken
+poetry run textgenhub sessions init --index 0
+
+# ChatGPT with automatic closing after receiving the response
+poetry run textgenhub chatgpt --prompt "Explain quantum computing" --close
+
 # ChatGPT with legacy puppeteer-based fallback
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old
 
-# ChatGPT with legacy fallback - HTML output
-poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old --output-format html
-
 # DeepSeek - JSON output
 poetry run textgenhub deepseek --prompt "What is machine learning?"
-
-# DeepSeek - HTML output
-poetry run textgenhub deepseek --prompt "What is machine learning?" --output-format html
 
 # Perplexity - JSON output
 poetry run textgenhub perplexity --prompt "What is the capital of France?"
@@ -228,22 +253,3 @@ When using `--output-format raw` (ChatGPT attach-based provider only), the CLI r
 # Get plain text response only
 poetry run textgenhub chatgpt --prompt "Summarize the Ukraine crisis" --output-format raw
 ```
-
-> 💡 **ChatGPT Provider**: The ChatGPT provider now uses the attach-based method by default for improved reliability. For legacy support, use the `--old` flag to revert to the puppeteer-based implementation. The extension-based method is currently not working.
-
-
-### ChatGPT Provider Architecture
-
-The ChatGPT provider offers multiple methods for automation:
-
-#### **Attach-Based Method (Recommended)**
-- **How it works**: Uses the `chatgpt-attach` module integrated into `src/textgenhub/chatgpt/` to directly interface with ChatGPT's web interface
-- **Location**: `src/textgenhub/chatgpt/` (includes `lib/` folder with core functionality)
-- **Performance**: Reliable and automated, no manual browser setup required
-- **Usage**: Default method when running `poetry run textgenhub chatgpt`
-
-#### **Legacy Puppeteer Method (Fallback)**
-- **How it works**: Uses Puppeteer to launch a headless Chrome browser and automate ChatGPT interactions
-- **Location**: `src/textgenhub/chatgpt_old/` (renamed from legacy ChatGPT implementation)
-- **No preconditions**: Automatically launches browser and navigates to ChatGPT
-- **Usage**: Add `--old` flag to use this method: `poetry run textgenhub chatgpt --old`

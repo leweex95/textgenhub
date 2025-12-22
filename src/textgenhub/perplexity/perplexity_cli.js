@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
-const PerplexityProvider = require('./perplexity');
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
+import PerplexityProvider from './perplexity.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 (async () => {
   const argv = yargs(hideBin(process.argv))

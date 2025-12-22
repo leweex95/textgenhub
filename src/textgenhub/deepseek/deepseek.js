@@ -5,11 +5,8 @@
 
 'use strict';
 
-const path = require('path');
-const BaseLLMProvider = require('../core/base-provider');
-const BrowserManager = require('../core/browser-manager');
-
-class DeepSeekProvider extends BaseLLMProvider {
+import path from 'path';
+import BaseLLMProvider from '../core/base-provider.js';class DeepSeekProvider extends BaseLLMProvider {
   /**
    * Save current HTML page as artifact for debugging
    * @param {string} reason - Reason for saving artifact
@@ -632,4 +629,4 @@ class DeepSeekProvider extends BaseLLMProvider {
   }
 }
 
-module.exports = DeepSeekProvider;
+export default DeepSeekProvider;

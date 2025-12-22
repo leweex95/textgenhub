@@ -15,7 +15,17 @@ class SimpleProvider:
         self.cli_script = Path(__file__).parent.parent / provider_name / cli_script
         self.node_path = "node"
 
-    def ask(self, prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120, typing_speed: float | None = None) -> str:
+    def ask(
+        self,
+        prompt: str,
+        headless: bool = True,
+        remove_cache: bool = True,
+        debug: bool = False,
+        timeout: int = 120,
+        typing_speed: float | None = None,
+        session: int | None = None,
+        close: bool = False,
+    ) -> str:
         """
         Send a prompt to the provider and get a response.
 
@@ -26,6 +36,8 @@ class SimpleProvider:
             debug (bool): Whether to enable debug mode
             timeout (int): Timeout in seconds for the operation
             typing_speed (float | None): Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
+            session (int | None): Specific ChatGPT session index to reuse (attach-based provider only)
+            close (bool): Close the browser session after the request (attach-based provider only)
 
         Returns:
             str: The response from the provider
@@ -40,6 +52,10 @@ class SimpleProvider:
             if debug:
                 # The Node.js CLI treats presence of --debug as true
                 cmd.append("--debug")
+            if session is not None:
+                cmd.extend(["--session", str(session)])
+            if close:
+                cmd.append("--close")
         else:
             # Legacy providers still accept headless/remove-cache flags
             cmd = [
