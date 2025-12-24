@@ -230,7 +230,7 @@ def run_provider_old(
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
     if result.returncode != 0:
-        raise Exception(f"{provider.capitalize()} old method failed:\n{result.stderr}")
+        raise Exception(f"{provider.capitalize()} method failed:\n{result.stderr}")
 
     # Try to extract JSON from stdout, ignoring debug output
     stdout_content = (result.stdout or "").strip()

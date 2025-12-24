@@ -369,8 +369,9 @@ function parseArgs() {
       process.exit(3);
     }
 
-    // Restore last conversation if present.
-    if (selectedSession.lastConversationUrl && typeof selectedSession.lastConversationUrl === 'string') {
+    // Restore last conversation if present AND we didn't just launch the browser.
+    // If we just launched the browser, we want a fresh start (new chat).
+    if (!browserLaunched && selectedSession.lastConversationUrl && typeof selectedSession.lastConversationUrl === 'string') {
       try {
         const currentUrl = page.url();
         if (!currentUrl.includes('/c/') || currentUrl !== selectedSession.lastConversationUrl) {
@@ -378,6 +379,19 @@ function parseArgs() {
         }
       } catch {
         // Ignore navigation failures.
+      }
+    } else if (browserLaunched) {
+      // If we just launched, ensure we clear any stale conversation state from the session data
+      try {
+        const updated = loadSessions();
+        const sessionToUpdate = getSessionByIndex(updated, targetSession);
+        if (sessionToUpdate) {
+          sessionToUpdate.lastConversationUrl = null;
+          sessionToUpdate.lastConversationId = null;
+          saveSessions(updated);
+        }
+      } catch {
+        // ignore
       }
     }
 
