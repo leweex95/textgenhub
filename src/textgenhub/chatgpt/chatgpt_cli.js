@@ -8,17 +8,13 @@ import { connectToExistingChrome, launchControlledChromium, ensureLoggedIn, send
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function getRepoRoot() {
-  const packageRoot = path.resolve(__dirname, '..');
-  const packageSessions = path.join(packageRoot, 'sessions.json');
-  if (fs.existsSync(packageSessions)) {
-    return packageRoot;
-  }
-  return path.resolve(__dirname, '..', '..', '..');
-}
-
 function getSessionsFilePath() {
-  return path.join(getRepoRoot(), 'sessions.json');
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local');
+    return path.join(localAppData, 'textgenhub', 'sessions.json');
+  }
+  const home = process.env.HOME || '/tmp';
+  return path.join(home, '.local', 'share', 'textgenhub', 'sessions.json');
 }
 
 function getDefaultUserDataDir() {
@@ -27,10 +23,10 @@ function getDefaultUserDataDir() {
   }
 
   if (process.platform === 'win32') {
-    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt');
+    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt-sessions');
   }
 
-  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt');
+  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt-sessions');
 }
 
 function getCentralSessionsDir() {
@@ -44,6 +40,34 @@ function getCentralSessionsDir() {
 function loadSessions() {
   const sessionsPath = getSessionsFilePath();
   if (!fs.existsSync(sessionsPath)) {
+    // Migration logic: check for local sessions.json in current dir or package root
+    const localPaths = [
+      path.join(process.cwd(), 'sessions.json'),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'sessions.json')
+    ];
+
+    for (const localPath of localPaths) {
+      if (fs.existsSync(localPath)) {
+        try {
+          const sessionsDir = path.dirname(sessionsPath);
+          if (!fs.existsSync(sessionsDir)) {
+            fs.mkdirSync(sessionsDir, { recursive: true });
+          }
+          fs.copyFileSync(localPath, sessionsPath);
+          // Rename local to avoid confusion
+          fs.renameSync(localPath, localPath + '.migrated');
+          console.error(`[INFO] Migrated local sessions.json from ${localPath} to ${sessionsPath}`);
+          return JSON.parse(fs.readFileSync(sessionsPath, 'utf8'));
+        } catch (e) {
+          console.error(`[WARNING] Failed to migrate local sessions.json: ${e.message}`);
+        }
+      }
+    }
+
+    const sessionsDir = path.dirname(sessionsPath);
+    if (!fs.existsSync(sessionsDir)) {
+      fs.mkdirSync(sessionsDir, { recursive: true });
+    }
     const now = new Date().toISOString();
     const bootstrap = {
       sessions: [

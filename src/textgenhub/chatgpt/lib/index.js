@@ -90,8 +90,8 @@ export async function launchControlledChromium({
   // Use persistent profile directory for session persistence
   const defaultUserDataDir = process.env.CHATGPT_PROFILE ||
     (process.platform === 'win32'
-      ? 'C:\\Users\\' + process.env.USERNAME + '\\AppData\\Local\\chromium-chatgpt'
-      : process.env.HOME + '/.config/chromium-chatgpt'
+      ? 'C:\\Users\\' + (process.env.USERNAME || 'Default') + '\\AppData\\Local\\chromium-chatgpt-sessions'
+      : (process.env.HOME || '/tmp') + '/.config/chromium-chatgpt-sessions'
     );
 
   const actualUserDataDir = userDataDir || defaultUserDataDir;

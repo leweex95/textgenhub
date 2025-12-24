@@ -22,10 +22,10 @@ def _get_default_chatgpt_user_data_dir() -> str:
     if os.name == "nt":
         user_profile = os.environ.get("USERPROFILE")
         if user_profile:
-            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt")
+            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt-sessions")
 
     home = os.environ.get("HOME") or str(Path.home())
-    return str(Path(home) / ".config" / "chromium-chatgpt")
+    return str(Path(home) / ".config" / "chromium-chatgpt-sessions")
 
 
 def _get_central_sessions_dir() -> str:
@@ -38,7 +38,40 @@ def _get_central_sessions_dir() -> str:
     return str(Path(home) / ".config" / "chromium-chatgpt-sessions")
 
 
+def _get_sessions_file_path() -> Path:
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            central_path = Path(local_app_data) / "textgenhub" / "sessions.json"
+        else:
+            user_profile = os.environ.get("USERPROFILE")
+            if user_profile:
+                central_path = Path(user_profile) / "AppData" / "Local" / "textgenhub" / "sessions.json"
+            else:
+                home = os.environ.get("HOME") or str(Path.home())
+                central_path = Path(home) / ".local" / "share" / "textgenhub" / "sessions.json"
+    else:
+        home = os.environ.get("HOME") or str(Path.home())
+        central_path = Path(home) / ".local" / "share" / "textgenhub" / "sessions.json"
+
+    # Migration logic: if local sessions.json exists but central doesn't, migrate it
+    local_path = Path("sessions.json")
+    if local_path.exists() and not central_path.exists():
+        try:
+            central_path.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(local_path, central_path)
+            # Rename local to avoid confusion
+            local_path.rename("sessions.json.migrated")
+            print(f"[INFO] Migrated local sessions.json to {central_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARNING] Failed to migrate local sessions.json: {e}", file=sys.stderr)
+
+    return central_path
+
+
 def _bootstrap_sessions_json(sessions_path: Path) -> dict:
+    sessions_path.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now().isoformat()
     data = {
         "sessions": [
@@ -259,6 +292,7 @@ def main():
     sessions_parser = subparsers.add_parser("sessions", help="Manage ChatGPT browser sessions")
     sessions_subparsers = sessions_parser.add_subparsers(dest="action", help="sessions action")
     sessions_subparsers.add_parser("list", help="List available sessions")
+    sessions_subparsers.add_parser("path", help="Show the path to the central sessions.json file")
     init_parser = sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
     init_parser.add_argument("--index", type=int, help="Specific session index to create or regenerate")
 
@@ -304,10 +338,16 @@ def main():
         timestamp = datetime.now().isoformat()
 
         if args.provider == "sessions":
-            repo_root = Path(__file__).resolve().parents[2]
-            sessions_path = repo_root / "sessions.json"
+            sessions_path = _get_sessions_file_path()
+
+            if args.action == "path":
+                print(str(sessions_path))
+                sys.exit(0)
 
             if args.action == "list":
+                print("=" * 60, file=sys.stderr)
+                print(f"CENTRAL SESSIONS FILE: {sessions_path}", file=sys.stderr)
+                print("=" * 60 + "\n", file=sys.stderr)
                 if not sessions_path.exists():
                     sessions_data = _bootstrap_sessions_json(sessions_path)
                 else:
