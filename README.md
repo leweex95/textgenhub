@@ -170,6 +170,9 @@ poetry run textgenhub grok --prompt "What day is it today?"
 # List all available ChatGPT sessions
 poetry run textgenhub sessions list
 
+# Show the path to the central sessions.json file
+poetry run textgenhub sessions path
+
 # Create a new ChatGPT session with auto-assigned index (opens browser for login)
 poetry run textgenhub sessions init
 
@@ -183,6 +186,10 @@ poetry run textgenhub sessions init --help
 ```
 
 The ChatGPT provider supports browser profile isolation with intelligent session management. Sessions maintain conversation continuity and can be explicitly targeted with `--session INDEX`.
+
+**Session Storage Policy**: `sessions.json` is stored centrally on your system to ensure consistency across all projects using `textgenhub`: `%LOCALAPPDATA%\textgenhub\sessions.json`.
+
+This central location prevents the need to copy `sessions.json` between projects or virtual environments. If a local `sessions.json` exists in your project directory, it will be automatically migrated to the central location on first use.
 
 #### CLI examples
 

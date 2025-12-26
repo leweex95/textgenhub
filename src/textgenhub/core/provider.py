@@ -25,6 +25,7 @@ class SimpleProvider:
         typing_speed: float | None = None,
         session: int | None = None,
         close: bool = False,
+        max_trials: int = 10,
     ) -> str:
         """
         Send a prompt to the provider and get a response.
@@ -38,6 +39,7 @@ class SimpleProvider:
             typing_speed (float | None): Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
             session (int | None): Specific ChatGPT session index to reuse (attach-based provider only)
             close (bool): Close the browser session after the request (attach-based provider only)
+            max_trials (int): Maximum number of retries on rate limit (default: 10)
 
         Returns:
             str: The response from the provider
@@ -46,7 +48,7 @@ class SimpleProvider:
         # no longer accepts --headless or --remove-cache. For that provider,
         # only pass supported flags: --prompt, --timeout and optionally --debug.
         if self.provider_name == "chatgpt":
-            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout)]
+            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout), "--max-trials", str(max_trials)]
             if typing_speed is not None:
                 cmd.extend(["--typing-speed", str(typing_speed)])
             if debug:
