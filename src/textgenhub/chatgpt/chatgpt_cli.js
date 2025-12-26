@@ -280,7 +280,7 @@ function parseArgs() {
 }
 
 (async function main() {
-  const { prompt, format, debug, timeout, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
+  const { prompt, format, debug, timeout, maxTrials, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
   if (!prompt) return usage();
 
   // Validate format
