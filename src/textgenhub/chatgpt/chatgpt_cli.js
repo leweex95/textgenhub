@@ -183,6 +183,7 @@ function usage() {
   console.log('  --raw, -r               Output raw text without any formatting or events');
   console.log('  --debug, -d             Enable debug output');
   console.log('  --timeout, -t SEC       Timeout in seconds (default: 120)');
+  console.log('  --max-trials TRIALS     Maximum number of retries on rate limit (default: 10)');
   console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: null for instant paste, > 0 for character-by-character typing)');
   console.log('  --session INDEX         Explicit session index to use (see: poetry run textgenhub sessions list)');
   console.log('  --close, -c             Close browser session after completion (default: keep open)');
@@ -204,7 +205,7 @@ function usage() {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: null, sessionIndex: null };
+  const out = { prompt: null, format: 'json', debug: false, timeout: 120, maxTrials: 10, raw: false, closeBrowser: false, typingSpeed: null, sessionIndex: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--help' || a === '-h') {
@@ -234,6 +235,11 @@ function parseArgs() {
     }
     if (a === '--timeout' || a === '-t') {
       out.timeout = parseInt(args[i + 1]);
+      i++;
+      continue;
+    }
+    if (a === '--max-trials') {
+      out.maxTrials = parseInt(args[i + 1]);
       i++;
       continue;
     }
@@ -404,7 +410,7 @@ function parseArgs() {
       } else if (!raw) {
         console.log(`Waiting for response to complete... (${responseLength} chars)`);
       }
-    }, typingSpeed);
+    }, typingSpeed, maxTrials);
 
     // Persist conversation URL and session usage.
     try {

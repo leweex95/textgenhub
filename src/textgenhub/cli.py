@@ -175,6 +175,7 @@ def run_provider_old(
     typing_speed: float | None = None,
     session_index: int | None = None,
     close: bool = False,
+    max_trials: int = 10,
 ):
     """Run using the old headless browser method for any provider"""
     provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
@@ -216,6 +217,7 @@ def run_provider_old(
     else:
         # For the new chatgpt (attach module), only use supported flags
         cmd.extend(["--timeout", str(timeout)])
+        cmd.extend(["--max-trials", str(max_trials)])
         if output_format == "html":
             cmd.append("--html")
         elif output_format == "raw":
@@ -301,6 +303,7 @@ def main():
     chatgpt_parser.add_argument("--prompt", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
     chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
+    chatgpt_parser.add_argument("--max-trials", type=int, default=10, help="Maximum number of retries on rate limit (default: 10)")
     chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
     chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
     chatgpt_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
@@ -427,6 +430,7 @@ def main():
                     args.typing_speed,
                     session_index=args.session,
                     close=args.close,
+                    max_trials=args.max_trials,
                 )
                 method = "headless"
 
