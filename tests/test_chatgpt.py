@@ -1,5 +1,5 @@
 """
-Comprehensive tests for ChatGPT module (new attach-based implementation)
+Comprehensive tests for ChatGPT module (new session-based implementation)
 """
 import pytest
 from unittest.mock import patch, MagicMock, call
@@ -110,7 +110,7 @@ class TestChatGPTAskFunction:
 
     @patch("subprocess.Popen")
     def test_ask_headless_parameter_ignored(self, mock_popen):
-        """Test that headless parameter is ignored for attach-based CLI"""
+        """Test that headless parameter is ignored for session-based CLI"""
         mock_proc = MagicMock()
         mock_proc.stdout.read.return_value = b'{"response": "response"}'
         mock_proc.wait.return_value = None
@@ -124,7 +124,7 @@ class TestChatGPTAskFunction:
 
     @patch("subprocess.Popen")
     def test_ask_remove_cache_parameter_ignored(self, mock_popen):
-        """Test that remove_cache parameter is ignored for attach-based CLI"""
+        """Test that remove_cache parameter is ignored for session-based CLI"""
         mock_proc = MagicMock()
         mock_proc.stdout.read.return_value = b'{"response": "response"}'
         mock_proc.wait.return_value = None

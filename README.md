@@ -139,9 +139,8 @@ TextGenHub now provides a unified CLI interface for all providers:
 poetry install
 poetry run textgenhub --help
 
-# ChatGPT (--old for legacy puppeteer-based fallback)
+# ChatGPT
 poetry run textgenhub chatgpt --prompt "What day is it today?"
-poetry run textgenhub chatgpt --prompt "What day is it today?" --old  # deprecated, will be removed soon
 
 # DeepSeek (headless browser method)
 poetry run textgenhub deepseek --prompt "What day is it today?"
@@ -156,8 +155,7 @@ poetry run textgenhub grok --prompt "What day is it today?"
 #### CLI Options
 
 - `--prompt`: The text prompt to send to the LLM (required for most providers)
-- `--old`: Use old legacy headless browser method instead of attach-based (ChatGPT only)
-- `--headless`: Run browser in headless mode (default: true, legacy method only)
+- `--headless`: Run browser in headless mode (default: true)
 - `--output-format`: Output format - `json` (default), `html`, or `raw` (ChatGPT: json/html/raw; others: json/html)
 - `--timeout`: Timeout in seconds for extension mode (ChatGPT only, default: 120)
 - `--typing-speed`: Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
@@ -187,6 +185,36 @@ poetry run textgenhub sessions init --help
 
 The ChatGPT provider supports browser profile isolation with intelligent session management. Sessions maintain conversation continuity and can be explicitly targeted with `--session INDEX`.
 
+### Recovering or Moving Sessions
+
+If you lose your sessions, move to a new device, or need to recreate your environment, follow these steps to rebuild your session library:
+
+1. **(Optional) Clear existing corrupted sessions**:
+   If your sessions are in a bad state, you can start fresh by removing the central sessions file:
+   ```bash
+   # On Windows (PowerShell)
+   powershell -Command "Remove-Item (poetry run textgenhub sessions path)"
+   
+   # On Linux/macOS
+   rm $(poetry run textgenhub sessions path)
+   ```
+
+2. **Re-initialize specific sessions**:
+   Run the `init` command for each session index you wish to restore. This will open a browser window for you to log in:
+   ```bash
+   # Initialize session 0 (the default session)
+   poetry run textgenhub sessions init --index 0
+
+   # Initialize additional sessions if needed
+   poetry run textgenhub sessions init --index 1
+   poetry run textgenhub sessions init --index 2
+   ```
+
+3. **Verify the rebuild**:
+   ```bash
+   poetry run textgenhub sessions list
+   ```
+
 **Session Storage Policy**: `sessions.json` is stored centrally on your system to ensure consistency across all projects using `textgenhub`: `%LOCALAPPDATA%\textgenhub\sessions.json`.
 
 This central location prevents the need to copy `sessions.json` between projects or virtual environments. If a local `sessions.json` exists in your project directory, it will be automatically migrated to the central location on first use.
@@ -197,10 +225,10 @@ This central location prevents the need to copy `sessions.json` between projects
 # ChatGPT - JSON output (default)
 poetry run textgenhub chatgpt --prompt "Explain quantum computing"
 
-# ChatGPT with attach-based provider - HTML output
+# ChatGPT with session-based provider - HTML output
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format html
 
-# ChatGPT with attach-based provider - Raw text output
+# ChatGPT with session-based provider - Raw text output
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --output-format raw
 
 # ChatGPT with character-by-character typing (0.05 seconds per character)
@@ -215,8 +243,8 @@ poetry run textgenhub sessions init --index 0
 # ChatGPT with automatic closing after receiving the response
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --close
 
-# ChatGPT with legacy puppeteer-based fallback
-poetry run textgenhub chatgpt --prompt "Explain quantum computing" --old
+# Closing doesn't necessarily need a prompt, we can close a specific session as well
+poetry run textgenhub chatgpt --close --session 0
 
 # DeepSeek - JSON output
 poetry run textgenhub deepseek --prompt "What is machine learning?"
@@ -254,7 +282,7 @@ HTML_CONTENT=$(poetry run textgenhub chatgpt --prompt "Generate a report" --outp
 
 #### Raw Output Format
 
-When using `--output-format raw` (ChatGPT attach-based provider only), the CLI returns plain text content without any formatting or metadata:
+When using `--output-format raw` (ChatGPT session-based provider only), the CLI returns plain text content without any formatting or metadata:
 
 ```bash
 # Get plain text response only

@@ -1,8 +1,5 @@
-// Export ChatGPT functionality (new attach-based method - recommended)
+// Export ChatGPT functionality (new session-based method - recommended)
 const ChatGPT = require('./src/textgenhub/chatgpt/chatgpt.js');
-
-// Export legacy ChatGPT functionality (old puppeteer-based method)
-const ChatGPTLegacy = require('./src/textgenhub/chatgpt_old/chatgpt.cjs');
 
 // Export DeepSeek functionality
 const DeepSeek = require('./src/textgenhub/deepseek/deepseek.js');
@@ -18,8 +15,7 @@ const BaseProvider = require('./src/textgenhub/core/base-provider.js');
 const BrowserManager = require('./src/textgenhub/core/browser-manager.js');
 
 module.exports = {
-    ChatGPT,        // New attach-based method (recommended)
-    ChatGPTLegacy,  // Old puppeteer-based method (fallback)
+    ChatGPT,        // New session-based method (recommended)
     DeepSeek,
     Perplexity,
     Grok,

@@ -168,7 +168,7 @@ def get_error_message(error_type: str) -> dict:
 
 def run_provider_old(
     provider: str,
-    prompt: str,
+    prompt: str | None,
     headless: bool = True,
     output_format: str = "json",
     timeout: int = 120,
@@ -177,16 +177,15 @@ def run_provider_old(
     close: bool = False,
     max_trials: int = 10,
 ):
-    """Run using the old headless browser method for any provider"""
-    provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
+    """Run using the headless browser method for any provider"""
+    provider_map = {"chatgpt": "chatgpt", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
     if provider not in provider_map:
         raise ValueError(f"Unknown provider: {provider}")
 
     root = Path(__file__).parent
-    # Use .cjs extension for old CommonJS scripts, .js for new ES modules
-    script_ext = ".cjs" if provider == "chatgpt_old" else ".js"
-    script_name = f"{provider_map[provider]}_cli{script_ext}"
+    # Use .js for ES modules
+    script_name = f"{provider_map[provider]}_cli.js"
     script = root / provider_map[provider] / script_name
 
     if not script.exists():
@@ -195,12 +194,16 @@ def run_provider_old(
     cmd = [
         "node",
         str(script),
-        "--prompt",
-        prompt,
     ]
 
-    # Only add provider-specific flags (not for the new chatgpt attach module)
+    if prompt is not None:
+        cmd.extend(["--prompt", prompt])
+
+    # Only add provider-specific flags (not for the new chatgpt session-based module)
     if provider != "chatgpt":
+        if prompt is None:
+            raise ValueError(f"Prompt is required for provider: {provider}")
+
         if headless:
             cmd.append("--headless")
 
@@ -215,7 +218,7 @@ def run_provider_old(
         # Force disable debug output for clean CLI output
         cmd.extend(["--debug", "false"])
     else:
-        # For the new chatgpt (attach module), only use supported flags
+        # For the new chatgpt (session-based module), only use supported flags
         cmd.extend(["--timeout", str(timeout)])
         cmd.extend(["--max-trials", str(max_trials)])
         if output_format == "html":
@@ -281,11 +284,6 @@ def run_provider_old(
         return stdout_content, ""
 
 
-def run_chatgpt_old(prompt: str, headless: bool = True, output_format: str = "json"):
-    """Run ChatGPT using the old headless browser method"""
-    return run_provider_old("chatgpt_old", prompt, headless, output_format)
-
-
 def main():
     parser = argparse.ArgumentParser(description="TextGenHub CLI - Unified interface for LLM providers", prog="textgenhub")
     subparsers = parser.add_subparsers(dest="provider", help="LLM provider")
@@ -301,10 +299,9 @@ def main():
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
     chatgpt_parser.add_argument("--prompt", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
-    chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
     chatgpt_parser.add_argument("--max-trials", type=int, default=10, help="Maximum number of retries on rate limit (default: 10)")
-    chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
+    chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
     chatgpt_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
     chatgpt_parser.add_argument("--session", type=int, help="Explicit session index to use")
@@ -391,6 +388,9 @@ def main():
             if args.prompt is not None:
                 actual_prompt = args.prompt
                 print(f"[ChatGPT] Using provided prompt: {actual_prompt[:60]}...", file=sys.stderr)
+            elif args.close:
+                actual_prompt = None
+                print("[ChatGPT] Closing session...", file=sys.stderr)
             else:
                 # Load questions from JSON file and cycle through them
                 questions_file = Path(__file__).parent / "questions.json"
@@ -415,24 +415,19 @@ def main():
                     print("[ChatGPT] Please create questions.json with sophisticated prompts about visiting Ukraine during the war", file=sys.stderr)
                     sys.exit(1)
 
-            if args.old:
-                log_info("Using old headless method...")
-                response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
-                method = "headless-old"
-            else:
-                # Default to new user-data-persisting browser provider
-                response_text, html_content = run_provider_old(
-                    "chatgpt",
-                    actual_prompt,
-                    args.headless,
-                    args.output_format,
-                    args.timeout,
-                    args.typing_speed,
-                    session_index=args.session,
-                    close=args.close,
-                    max_trials=args.max_trials,
-                )
-                method = "headless"
+            # Default to new user-data-persisting browser provider
+            response_text, html_content = run_provider_old(
+                "chatgpt",
+                actual_prompt,
+                args.headless,
+                args.output_format,
+                args.timeout,
+                args.typing_speed,
+                session_index=args.session,
+                close=args.close,
+                max_trials=args.max_trials,
+            )
+            method = "headless"
 
             if args.output_format == "html":
                 # For HTML format, use response_text if it contains HTML, otherwise use html_content

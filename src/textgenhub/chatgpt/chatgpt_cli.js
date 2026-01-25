@@ -176,7 +176,7 @@ function usage() {
   console.log('');
   console.log('Options:');
   console.log('  --help, -h              Show this help message');
-  console.log('  --prompt TEXT           The prompt to send to ChatGPT (required)');
+  console.log('  --prompt TEXT           The prompt to send to ChatGPT');
   console.log('  --json                  Output in JSON format with events (default)');
   console.log('  --html                  Output in HTML format with events');
   console.log('  --format, -f FMT        Output format: json or html');
@@ -281,7 +281,7 @@ function parseArgs() {
 
 (async function main() {
   const { prompt, format, debug, timeout, maxTrials, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
-  if (!prompt) return usage();
+  if (!prompt && !closeBrowser) return usage();
 
   // Validate format
   if (!['json', 'html'].includes(format)) {
@@ -315,6 +315,12 @@ function parseArgs() {
     try {
       ({ browser, page } = await connectToExistingChrome({ browserURL }));
     } catch (connectError) {
+      if (closeBrowser && !prompt) {
+        if (!raw && format === 'json') {
+          console.log(JSON.stringify({ event: 'session_already_closed', message: 'No running session found to close', sessionIndex: targetSession }));
+        }
+        process.exit(0);
+      }
       if (!raw && format === 'json') {
         console.log(JSON.stringify({ event: 'launching_chrome', timestamp: new Date().toISOString(), sessionIndex: targetSession }));
       } else if (!raw) {
@@ -322,6 +328,16 @@ function parseArgs() {
       }
       ({ browser, page } = await launchControlledChromium({ userDataDir, debugPort, headless: false }));
       browserLaunched = true;
+    }
+
+    if (closeBrowser && !prompt) {
+      await browser.close();
+      if (!raw && format === 'json') {
+        console.log(JSON.stringify({ event: 'session_closed', message: 'Browser session closed successfully', sessionIndex: targetSession }));
+      } else if (!raw) {
+        console.log(`Browser session ${targetSession} closed.`);
+      }
+      process.exit(0);
     }
 
     try {

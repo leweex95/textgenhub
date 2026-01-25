@@ -68,7 +68,6 @@ class TestFileSystemStructure:
         src_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "textgenhub")
         assert os.path.isdir(src_path)
         assert os.path.isdir(os.path.join(src_path, "chatgpt"))
-        assert os.path.isdir(os.path.join(src_path, "chatgpt_old"))
         assert os.path.isdir(os.path.join(src_path, "core"))
         assert os.path.isdir(os.path.join(src_path, "utils"))
 
@@ -125,7 +124,6 @@ class TestIndexJsExports:
 
         # Check exports
         assert "ChatGPT" in content
-        assert "ChatGPTLegacy" in content or "chatgpt_old" in content.lower()
         assert "DeepSeek" in content
         assert "Perplexity" in content
         assert "Grok" in content
@@ -147,8 +145,7 @@ class TestREADMEDocumentation:
             content = f.read()
 
         assert "ChatGPT" in content
-        assert "--old" in content or "legacy" in content.lower()
-        assert "attach" in content.lower()
+        assert "session" in content.lower()
 
     def test_readme_contains_cli_examples(self):
         """Test README has CLI examples"""

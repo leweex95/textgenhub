@@ -17,14 +17,6 @@ class TestRunProviderOldProviders:
         assert html == ""
 
     @patch("subprocess.run")
-    def test_chatgpt_old_provider(self, mock_run):
-        """Test routing to chatgpt_old provider"""
-        mock_run.return_value = MagicMock(stdout='{"response": "old response"}', returncode=0)
-
-        result, html = run_provider_old("chatgpt_old", "test prompt")
-        assert result == "old response"
-
-    @patch("subprocess.run")
     def test_deepseek_provider(self, mock_run):
         """Test routing to deepseek provider"""
         mock_run.return_value = MagicMock(stdout='{"response": "deepseek response"}', returncode=0)
