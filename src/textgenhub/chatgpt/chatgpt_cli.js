@@ -8,17 +8,13 @@ import { connectToExistingChrome, launchControlledChromium, ensureLoggedIn, send
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function getRepoRoot() {
-  const packageRoot = path.resolve(__dirname, '..');
-  const packageSessions = path.join(packageRoot, 'sessions.json');
-  if (fs.existsSync(packageSessions)) {
-    return packageRoot;
-  }
-  return path.resolve(__dirname, '..', '..', '..');
-}
-
 function getSessionsFilePath() {
-  return path.join(getRepoRoot(), 'sessions.json');
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local');
+    return path.join(localAppData, 'textgenhub', 'sessions.json');
+  }
+  const home = process.env.HOME || '/tmp';
+  return path.join(home, '.local', 'share', 'textgenhub', 'sessions.json');
 }
 
 function getDefaultUserDataDir() {
@@ -27,10 +23,10 @@ function getDefaultUserDataDir() {
   }
 
   if (process.platform === 'win32') {
-    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt');
+    return path.join('C:\\Users', process.env.USERNAME || 'Default', 'AppData', 'Local', 'chromium-chatgpt-sessions');
   }
 
-  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt');
+  return path.join(process.env.HOME || '/tmp', '.config', 'chromium-chatgpt-sessions');
 }
 
 function getCentralSessionsDir() {
@@ -44,6 +40,34 @@ function getCentralSessionsDir() {
 function loadSessions() {
   const sessionsPath = getSessionsFilePath();
   if (!fs.existsSync(sessionsPath)) {
+    // Migration logic: check for local sessions.json in current dir or package root
+    const localPaths = [
+      path.join(process.cwd(), 'sessions.json'),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'sessions.json')
+    ];
+
+    for (const localPath of localPaths) {
+      if (fs.existsSync(localPath)) {
+        try {
+          const sessionsDir = path.dirname(sessionsPath);
+          if (!fs.existsSync(sessionsDir)) {
+            fs.mkdirSync(sessionsDir, { recursive: true });
+          }
+          fs.copyFileSync(localPath, sessionsPath);
+          // Rename local to avoid confusion
+          fs.renameSync(localPath, localPath + '.migrated');
+          console.error(`[INFO] Migrated local sessions.json from ${localPath} to ${sessionsPath}`);
+          return JSON.parse(fs.readFileSync(sessionsPath, 'utf8'));
+        } catch (e) {
+          console.error(`[WARNING] Failed to migrate local sessions.json: ${e.message}`);
+        }
+      }
+    }
+
+    const sessionsDir = path.dirname(sessionsPath);
+    if (!fs.existsSync(sessionsDir)) {
+      fs.mkdirSync(sessionsDir, { recursive: true });
+    }
     const now = new Date().toISOString();
     const bootstrap = {
       sessions: [
@@ -152,13 +176,14 @@ function usage() {
   console.log('');
   console.log('Options:');
   console.log('  --help, -h              Show this help message');
-  console.log('  --prompt TEXT           The prompt to send to ChatGPT (required)');
+  console.log('  --prompt TEXT           The prompt to send to ChatGPT');
   console.log('  --json                  Output in JSON format with events (default)');
   console.log('  --html                  Output in HTML format with events');
   console.log('  --format, -f FMT        Output format: json or html');
   console.log('  --raw, -r               Output raw text without any formatting or events');
   console.log('  --debug, -d             Enable debug output');
   console.log('  --timeout, -t SEC       Timeout in seconds (default: 120)');
+  console.log('  --max-trials TRIALS     Maximum number of retries on rate limit (default: 10)');
   console.log('  --typing-speed SPEED    Typing speed in seconds per character (default: null for instant paste, > 0 for character-by-character typing)');
   console.log('  --session INDEX         Explicit session index to use (see: poetry run textgenhub sessions list)');
   console.log('  --close, -c             Close browser session after completion (default: keep open)');
@@ -180,7 +205,7 @@ function usage() {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const out = { prompt: null, format: 'json', debug: false, timeout: 120, raw: false, closeBrowser: false, typingSpeed: null, sessionIndex: null };
+  const out = { prompt: null, format: 'json', debug: false, timeout: 120, maxTrials: 10, raw: false, closeBrowser: false, typingSpeed: null, sessionIndex: null };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--help' || a === '-h') {
@@ -210,6 +235,11 @@ function parseArgs() {
     }
     if (a === '--timeout' || a === '-t') {
       out.timeout = parseInt(args[i + 1]);
+      i++;
+      continue;
+    }
+    if (a === '--max-trials') {
+      out.maxTrials = parseInt(args[i + 1]);
       i++;
       continue;
     }
@@ -250,8 +280,8 @@ function parseArgs() {
 }
 
 (async function main() {
-  const { prompt, format, debug, timeout, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
-  if (!prompt) return usage();
+  const { prompt, format, debug, timeout, maxTrials, raw, closeBrowser, typingSpeed, sessionIndex } = parseArgs();
+  if (!prompt && !closeBrowser) return usage();
 
   // Validate format
   if (!['json', 'html'].includes(format)) {
@@ -285,6 +315,12 @@ function parseArgs() {
     try {
       ({ browser, page } = await connectToExistingChrome({ browserURL }));
     } catch (connectError) {
+      if (closeBrowser && !prompt) {
+        if (!raw && format === 'json') {
+          console.log(JSON.stringify({ event: 'session_already_closed', message: 'No running session found to close', sessionIndex: targetSession }));
+        }
+        process.exit(0);
+      }
       if (!raw && format === 'json') {
         console.log(JSON.stringify({ event: 'launching_chrome', timestamp: new Date().toISOString(), sessionIndex: targetSession }));
       } else if (!raw) {
@@ -292,6 +328,16 @@ function parseArgs() {
       }
       ({ browser, page } = await launchControlledChromium({ userDataDir, debugPort, headless: false }));
       browserLaunched = true;
+    }
+
+    if (closeBrowser && !prompt) {
+      await browser.close();
+      if (!raw && format === 'json') {
+        console.log(JSON.stringify({ event: 'session_closed', message: 'Browser session closed successfully', sessionIndex: targetSession }));
+      } else if (!raw) {
+        console.log(`Browser session ${targetSession} closed.`);
+      }
+      process.exit(0);
     }
 
     try {
@@ -345,8 +391,9 @@ function parseArgs() {
       process.exit(3);
     }
 
-    // Restore last conversation if present.
-    if (selectedSession.lastConversationUrl && typeof selectedSession.lastConversationUrl === 'string') {
+    // Restore last conversation if present AND we didn't just launch the browser.
+    // If we just launched the browser, we want a fresh start (new chat).
+    if (!browserLaunched && selectedSession.lastConversationUrl && typeof selectedSession.lastConversationUrl === 'string') {
       try {
         const currentUrl = page.url();
         if (!currentUrl.includes('/c/') || currentUrl !== selectedSession.lastConversationUrl) {
@@ -354,6 +401,19 @@ function parseArgs() {
         }
       } catch {
         // Ignore navigation failures.
+      }
+    } else if (browserLaunched) {
+      // If we just launched, ensure we clear any stale conversation state from the session data
+      try {
+        const updated = loadSessions();
+        const sessionToUpdate = getSessionByIndex(updated, targetSession);
+        if (sessionToUpdate) {
+          sessionToUpdate.lastConversationUrl = null;
+          sessionToUpdate.lastConversationId = null;
+          saveSessions(updated);
+        }
+      } catch {
+        // ignore
       }
     }
 
@@ -366,7 +426,7 @@ function parseArgs() {
       } else if (!raw) {
         console.log(`Waiting for response to complete... (${responseLength} chars)`);
       }
-    }, typingSpeed);
+    }, typingSpeed, maxTrials);
 
     // Persist conversation URL and session usage.
     try {

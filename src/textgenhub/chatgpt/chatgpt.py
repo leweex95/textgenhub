@@ -1,5 +1,5 @@
 ﻿"""
-ChatGPT provider (new) - thin wrapper over chatgpt-attach CLI
+ChatGPT provider (new) - thin wrapper over chatgpt-session CLI
 """
 from ..core.provider import SimpleProvider
 
@@ -13,22 +13,45 @@ def ask(
     typing_speed: float | None = None,
     session: int | None = None,
     close: bool = False,
+    max_trials: int = 10,
 ) -> str:
     """
-    Send a prompt to ChatGPT and get a response using the new attach module.
+    Send a prompt to ChatGPT and get a response using the new session-based module.
 
     Args:
         prompt (str): The prompt to send to ChatGPT
-        headless (bool): Ignored by attach module (kept for compatibility)
-        remove_cache (bool): Ignored by attach module (kept for compatibility)
+        headless (bool): Ignored by session-based module (kept for compatibility)
+        remove_cache (bool): Ignored by session-based module (kept for compatibility)
         debug (bool): Whether to enable debug mode
         timeout (int): Timeout in seconds for the operation
         typing_speed (float | None): Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
-        session (int | None): Specific session index to reuse (when using the attach-based CLI)
+        session (int | None): Specific session index to reuse (when using the session-based CLI)
         close (bool): Close the browser session after the request completes
+        max_trials (int): Maximum number of retries on rate limit (default: 10)
 
     Returns:
         str: The response from ChatGPT
     """
     provider = SimpleProvider("chatgpt", "chatgpt_cli.js")
-    return provider.ask(prompt, headless, remove_cache, debug, timeout, typing_speed, session, close)
+    return provider.ask(
+        prompt,
+        headless=headless,
+        remove_cache=remove_cache,
+        debug=debug,
+        timeout=timeout,
+        typing_speed=typing_speed,
+        session=session,
+        close=close,
+        max_trials=max_trials,
+    )
+
+
+def close(session: int | None = None) -> None:
+    """
+    Close the browser session for ChatGPT.
+
+    Args:
+        session (int | None): Specific session index to close (default: last used)
+    """
+    provider = SimpleProvider("chatgpt", "chatgpt_cli.js")
+    provider.ask(None, session=session, close=True)

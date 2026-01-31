@@ -17,7 +17,7 @@ class SimpleProvider:
 
     def ask(
         self,
-        prompt: str,
+        prompt: str | None,
         headless: bool = True,
         remove_cache: bool = True,
         debug: bool = False,
@@ -25,28 +25,32 @@ class SimpleProvider:
         typing_speed: float | None = None,
         session: int | None = None,
         close: bool = False,
+        max_trials: int = 10,
     ) -> str:
         """
         Send a prompt to the provider and get a response.
 
         Args:
-            prompt (str): The prompt to send
+            prompt (str | None): The prompt to send (None allowed if close=True for ChatGPT)
             headless (bool): Whether to run browser in headless mode
             remove_cache (bool): Whether to remove browser cache
             debug (bool): Whether to enable debug mode
             timeout (int): Timeout in seconds for the operation
             typing_speed (float | None): Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)
-            session (int | None): Specific ChatGPT session index to reuse (attach-based provider only)
-            close (bool): Close the browser session after the request (attach-based provider only)
+            session (int | None): Specific ChatGPT session index to reuse (session-based provider only)
+            close (bool): Close the browser session after the request (session-based provider only)
+            max_trials (int): Maximum number of retries on rate limit (default: 10)
 
         Returns:
             str: The response from the provider
         """
-        # Build command differently for the new attach-based ChatGPT CLI which
+        # Build command differently for the new session-based ChatGPT CLI which
         # no longer accepts --headless or --remove-cache. For that provider,
         # only pass supported flags: --prompt, --timeout and optionally --debug.
         if self.provider_name == "chatgpt":
-            cmd = [self.node_path, str(self.cli_script), "--prompt", prompt, "--timeout", str(timeout)]
+            cmd = [self.node_path, str(self.cli_script), "--timeout", str(timeout), "--max-trials", str(max_trials)]
+            if prompt is not None:
+                cmd.extend(["--prompt", prompt])
             if typing_speed is not None:
                 cmd.extend(["--typing-speed", str(typing_speed)])
             if debug:
@@ -58,6 +62,9 @@ class SimpleProvider:
                 cmd.append("--close")
         else:
             # Legacy providers still accept headless/remove-cache flags
+            if prompt is None:
+                raise ValueError(f"Prompt is required for provider: {self.provider_name}")
+
             cmd = [
                 self.node_path,
                 str(self.cli_script),
@@ -96,6 +103,9 @@ class SimpleProvider:
                 raise RuntimeError("Subprocess stdout is None. Failed to capture output.")
 
             proc.wait()
+
+        if prompt is None and close:
+            return ""
 
         if not stdout_json_line:
             raise RuntimeError(f"{self.provider_name} script did not produce JSON response")

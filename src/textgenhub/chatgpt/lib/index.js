@@ -90,8 +90,8 @@ export async function launchControlledChromium({
   // Use persistent profile directory for session persistence
   const defaultUserDataDir = process.env.CHATGPT_PROFILE ||
     (process.platform === 'win32'
-      ? 'C:\\Users\\' + process.env.USERNAME + '\\AppData\\Local\\chromium-chatgpt'
-      : process.env.HOME + '/.config/chromium-chatgpt'
+      ? 'C:\\Users\\' + (process.env.USERNAME || 'Default') + '\\AppData\\Local\\chromium-chatgpt-sessions'
+      : (process.env.HOME || '/tmp') + '/.config/chromium-chatgpt-sessions'
     );
 
   const actualUserDataDir = userDataDir || defaultUserDataDir;
@@ -302,7 +302,7 @@ function waitForUserInput() {
   });
 }
 
-export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = null) {
+export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = null, maxTrials = 10) {
   try {
     globalLogger.promptSent(prompt);
 
@@ -480,6 +480,7 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
 
     let response = null;
     let attempts = 0;
+    let trialCount = 0;
     const maxAttempts = timeoutSeconds; // Configurable timeout in seconds
     let lastResponseLength = 0;
     let stableCount = 0;
@@ -490,6 +491,53 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     while (!response && attempts < maxAttempts) {
       if (debug) console.log(`[DEBUG] Polling attempt ${attempts + 1}/${maxAttempts}`);
       try {
+        // Check for rate limit
+        const rateLimitInfo = await page.evaluate(() => {
+          const errorDiv = document.querySelector('.text-token-text-error');
+          const isRateLimited = errorDiv && errorDiv.innerText.includes("You've reached our limit of messages per hour");
+          const hasRetryButton = !!document.querySelector('button[data-testid="regenerate-thread-error-button"]');
+          return { isRateLimited, hasRetryButton };
+        });
+
+        if (rateLimitInfo.isRateLimited) {
+          trialCount++;
+          globalLogger.rateLimit(trialCount, maxTrials);
+
+          console.error("\n" + "!".repeat(80));
+          console.error("!!! RATE LIMIT DETECTED !!!");
+          console.error("You've reached ChatGPT's limit of messages per hour.");
+          if (trialCount < maxTrials) {
+            console.error(`Waiting 5 minutes before retrying... (Trial ${trialCount}/${maxTrials})`);
+            console.error("!".repeat(80) + "\n");
+
+            // Wait 5 minutes
+            await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000));
+
+            // Click retry button if it exists
+            if (rateLimitInfo.hasRetryButton) {
+              if (debug) console.log(`[DEBUG] Clicking retry button...`);
+              await page.evaluate(() => {
+                const retryButton = document.querySelector('button[data-testid="regenerate-thread-error-button"]');
+                if (retryButton) retryButton.click();
+              });
+            } else {
+              if (debug) console.log(`[DEBUG] Rate limit detected but no retry button found. Refreshing page...`);
+              await page.reload({ waitUntil: 'networkidle2' });
+            }
+
+            // Reset polling counters for the new attempt
+            attempts = 0;
+            lastResponseLength = 0;
+            stableCount = 0;
+            growingCount = 0;
+            continue;
+          } else {
+            console.error(`Max trials (${maxTrials}) reached. Failing...`);
+            console.error("!".repeat(80) + "\n");
+            throw new Error(`ChatGPT rate limit reached and max trials (${maxTrials}) exceeded.`);
+          }
+        }
+
         if (debug) console.log(`[DEBUG] Calling scrapeResponse...`);
         const currentResponse = await scrapeResponse(page, initialArticleCount, debug);
         if (debug) console.log(`[DEBUG] scrapeResponse returned: ${currentResponse ? 'text' : 'null'}`);
@@ -838,6 +886,30 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         const feedbackElements = clonedArticle.querySelectorAll('div.text-token-text-secondary.flex.items-center.justify-center.gap-4.px-4.py-2\\.5.text-sm.whitespace-nowrap');
         feedbackElements.forEach(el => el.remove());
 
+        // Remove code block header labels (e.g., "Code") and copy controls
+        const codeLabelCandidates = clonedArticle.querySelectorAll('div');
+        codeLabelCandidates.forEach(div => {
+          const text = (div.textContent || div.innerText || '').trim();
+          if (text === 'Code' && typeof div.className === 'string' && div.className.includes('text-token-text-tertiary')) {
+            const header = div.closest('div.grid');
+            if (header) {
+              header.remove();
+            } else {
+              div.remove();
+            }
+          }
+        });
+
+        const codeCopyButtons = clonedArticle.querySelectorAll('pre button[aria-label="Copy"]');
+        codeCopyButtons.forEach(button => {
+          const header = button.closest('div.grid');
+          if (header) {
+            header.remove();
+          } else {
+            button.remove();
+          }
+        });
+
         // Also remove by text content as fallback
         const allDivs = clonedArticle.querySelectorAll('div');
         allDivs.forEach(div => {
@@ -945,6 +1017,7 @@ function cleanResponse(response) {
   const codeBlockHeaders = [
     /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*Copy code\s*\n*/i,
     /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*/i,
+    /^Code\s*\n*/i,
     /^Copy code\s*\n*/i,
   ];
 

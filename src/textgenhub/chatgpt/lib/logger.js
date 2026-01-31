@@ -48,6 +48,10 @@ export class Logger extends EventEmitter {
     this.log('response_received', { responseLength: response.length });
   }
 
+  rateLimit(trial, maxTrials) {
+    this.log('rate_limit', { trial, maxTrials, message: "Rate limit detected. Waiting 5 minutes before retry." });
+  }
+
   sessionInvalid() {
     this.log('session_invalid', {});
   }

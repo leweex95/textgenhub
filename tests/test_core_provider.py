@@ -101,7 +101,7 @@ class TestSimpleProviderAsk:
         result = provider.ask("test", headless=True)
         assert result == "headless true"
 
-        # For the attach-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
+        # For the session-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
         call_args = mock_popen.call_args[0][0]
         assert "--timeout" in call_args
         assert "--headless" not in call_args
@@ -119,7 +119,7 @@ class TestSimpleProviderAsk:
         result = provider.ask("test", headless=False)
         assert result == "headless false"
 
-        # For the attach-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
+        # For the session-based chatgpt CLI we no longer pass --headless or --remove-cache; ensure timeout present
         call_args = mock_popen.call_args[0][0]
         assert "--timeout" in call_args
         assert "--headless" not in call_args
@@ -141,7 +141,7 @@ class TestSimpleProviderAsk:
                     result = provider.ask("test", headless, remove_cache, debug)
                     assert result == "flag response"
 
-                    # Verify command line arguments for chatgpt attach-based CLI
+                    # Verify command line arguments for chatgpt session-based CLI
                     call_args = mock_popen.call_args[0][0]
                     assert "--timeout" in call_args
                     assert "--headless" not in call_args
@@ -239,7 +239,7 @@ class TestSimpleProviderCommandBuilding:
         assert call_args[0] == "node"
         assert "--prompt" in call_args
         assert "my prompt" in call_args
-        # New attach-based CLI does not accept --headless/--remove-cache
+        # New session-based CLI does not accept --headless/--remove-cache
         assert "--headless" not in call_args
         assert "--remove-cache" not in call_args
         assert "--timeout" in call_args
@@ -256,7 +256,7 @@ class TestSimpleProviderCommandBuilding:
         provider.ask("test", debug=True)
 
         call_args = mock_popen.call_args[0][0]
-        # For attach-based chatgpt CLI debug is a flag (no value)
+        # For session-based chatgpt CLI debug is a flag (no value)
         assert "--debug" in call_args
         assert "true" not in call_args
 

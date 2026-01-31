@@ -45,7 +45,7 @@ class TestSimpleProviderInitialization:
 
 
 class TestSimpleProviderChatGPTCommandBuilding:
-    """Test command building specifically for ChatGPT (attach-based) provider"""
+    """Test command building specifically for ChatGPT (session-based) provider"""
 
     @patch("subprocess.Popen")
     def test_chatgpt_command_with_prompt_only(self, mock_popen):
@@ -106,7 +106,7 @@ class TestSimpleProviderChatGPTCommandBuilding:
 
         call_args = mock_popen.call_args[0][0]
         assert "--debug" in call_args
-        # For attach-based, debug is just a flag, not --debug true
+        # For session-based, debug is just a flag, not --debug true
         debug_index = call_args.index("--debug")
         # Next element should not be "true"
         if debug_index + 1 < len(call_args):

@@ -22,10 +22,10 @@ def _get_default_chatgpt_user_data_dir() -> str:
     if os.name == "nt":
         user_profile = os.environ.get("USERPROFILE")
         if user_profile:
-            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt")
+            return str(Path(user_profile) / "AppData" / "Local" / "chromium-chatgpt-sessions")
 
     home = os.environ.get("HOME") or str(Path.home())
-    return str(Path(home) / ".config" / "chromium-chatgpt")
+    return str(Path(home) / ".config" / "chromium-chatgpt-sessions")
 
 
 def _get_central_sessions_dir() -> str:
@@ -38,7 +38,40 @@ def _get_central_sessions_dir() -> str:
     return str(Path(home) / ".config" / "chromium-chatgpt-sessions")
 
 
+def _get_sessions_file_path() -> Path:
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            central_path = Path(local_app_data) / "textgenhub" / "sessions.json"
+        else:
+            user_profile = os.environ.get("USERPROFILE")
+            if user_profile:
+                central_path = Path(user_profile) / "AppData" / "Local" / "textgenhub" / "sessions.json"
+            else:
+                home = os.environ.get("HOME") or str(Path.home())
+                central_path = Path(home) / ".local" / "share" / "textgenhub" / "sessions.json"
+    else:
+        home = os.environ.get("HOME") or str(Path.home())
+        central_path = Path(home) / ".local" / "share" / "textgenhub" / "sessions.json"
+
+    # Migration logic: if local sessions.json exists but central doesn't, migrate it
+    local_path = Path("sessions.json")
+    if local_path.exists() and not central_path.exists():
+        try:
+            central_path.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(local_path, central_path)
+            # Rename local to avoid confusion
+            local_path.rename("sessions.json.migrated")
+            print(f"[INFO] Migrated local sessions.json to {central_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARNING] Failed to migrate local sessions.json: {e}", file=sys.stderr)
+
+    return central_path
+
+
 def _bootstrap_sessions_json(sessions_path: Path) -> dict:
+    sessions_path.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now().isoformat()
     data = {
         "sessions": [
@@ -135,24 +168,24 @@ def get_error_message(error_type: str) -> dict:
 
 def run_provider_old(
     provider: str,
-    prompt: str,
+    prompt: str | None,
     headless: bool = True,
     output_format: str = "json",
     timeout: int = 120,
     typing_speed: float | None = None,
     session_index: int | None = None,
     close: bool = False,
+    max_trials: int = 10,
 ):
-    """Run using the old headless browser method for any provider"""
-    provider_map = {"chatgpt": "chatgpt", "chatgpt_old": "chatgpt_old", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
+    """Run using the headless browser method for any provider"""
+    provider_map = {"chatgpt": "chatgpt", "deepseek": "deepseek", "perplexity": "perplexity", "grok": "grok"}
 
     if provider not in provider_map:
         raise ValueError(f"Unknown provider: {provider}")
 
     root = Path(__file__).parent
-    # Use .cjs extension for old CommonJS scripts, .js for new ES modules
-    script_ext = ".cjs" if provider == "chatgpt_old" else ".js"
-    script_name = f"{provider_map[provider]}_cli{script_ext}"
+    # Use .js for ES modules
+    script_name = f"{provider_map[provider]}_cli.js"
     script = root / provider_map[provider] / script_name
 
     if not script.exists():
@@ -161,12 +194,16 @@ def run_provider_old(
     cmd = [
         "node",
         str(script),
-        "--prompt",
-        prompt,
     ]
 
-    # Only add provider-specific flags (not for the new chatgpt attach module)
+    if prompt is not None:
+        cmd.extend(["--prompt", prompt])
+
+    # Only add provider-specific flags (not for the new chatgpt session-based module)
     if provider != "chatgpt":
+        if prompt is None:
+            raise ValueError(f"Prompt is required for provider: {provider}")
+
         if headless:
             cmd.append("--headless")
 
@@ -181,8 +218,9 @@ def run_provider_old(
         # Force disable debug output for clean CLI output
         cmd.extend(["--debug", "false"])
     else:
-        # For the new chatgpt (attach module), only use supported flags
+        # For the new chatgpt (session-based module), only use supported flags
         cmd.extend(["--timeout", str(timeout)])
+        cmd.extend(["--max-trials", str(max_trials)])
         if output_format == "html":
             cmd.append("--html")
         elif output_format == "raw":
@@ -197,7 +235,7 @@ def run_provider_old(
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
     if result.returncode != 0:
-        raise Exception(f"{provider.capitalize()} old method failed:\n{result.stderr}")
+        raise Exception(f"{provider.capitalize()} method failed:\n{result.stderr}")
 
     # Try to extract JSON from stdout, ignoring debug output
     stdout_content = (result.stdout or "").strip()
@@ -246,11 +284,6 @@ def run_provider_old(
         return stdout_content, ""
 
 
-def run_chatgpt_old(prompt: str, headless: bool = True, output_format: str = "json"):
-    """Run ChatGPT using the old headless browser method"""
-    return run_provider_old("chatgpt_old", prompt, headless, output_format)
-
-
 def main():
     parser = argparse.ArgumentParser(description="TextGenHub CLI - Unified interface for LLM providers", prog="textgenhub")
     subparsers = parser.add_subparsers(dest="provider", help="LLM provider")
@@ -259,15 +292,16 @@ def main():
     sessions_parser = subparsers.add_parser("sessions", help="Manage ChatGPT browser sessions")
     sessions_subparsers = sessions_parser.add_subparsers(dest="action", help="sessions action")
     sessions_subparsers.add_parser("list", help="List available sessions")
+    sessions_subparsers.add_parser("path", help="Show the path to the central sessions.json file")
     init_parser = sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
     init_parser.add_argument("--index", type=int, help="Specific session index to create or regenerate")
 
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
     chatgpt_parser.add_argument("--prompt", required=False, help="Prompt to send to ChatGPT (uses rotating questions if not provided)")
-    chatgpt_parser.add_argument("--old", action="store_true", help="Use old headless browser method instead of extension")
     chatgpt_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (extension mode only)")
-    chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless (old mode only)")
+    chatgpt_parser.add_argument("--max-trials", type=int, default=10, help="Maximum number of retries on rate limit (default: 10)")
+    chatgpt_parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
     chatgpt_parser.add_argument("--output-format", choices=["json", "html", "raw"], default="json", help="Output format (default: json)")
     chatgpt_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
     chatgpt_parser.add_argument("--session", type=int, help="Explicit session index to use")
@@ -304,10 +338,16 @@ def main():
         timestamp = datetime.now().isoformat()
 
         if args.provider == "sessions":
-            repo_root = Path(__file__).resolve().parents[2]
-            sessions_path = repo_root / "sessions.json"
+            sessions_path = _get_sessions_file_path()
+
+            if args.action == "path":
+                print(str(sessions_path))
+                sys.exit(0)
 
             if args.action == "list":
+                print("=" * 60, file=sys.stderr)
+                print(f"CENTRAL SESSIONS FILE: {sessions_path}", file=sys.stderr)
+                print("=" * 60 + "\n", file=sys.stderr)
                 if not sessions_path.exists():
                     sessions_data = _bootstrap_sessions_json(sessions_path)
                 else:
@@ -348,6 +388,9 @@ def main():
             if args.prompt is not None:
                 actual_prompt = args.prompt
                 print(f"[ChatGPT] Using provided prompt: {actual_prompt[:60]}...", file=sys.stderr)
+            elif args.close:
+                actual_prompt = None
+                print("[ChatGPT] Closing session...", file=sys.stderr)
             else:
                 # Load questions from JSON file and cycle through them
                 questions_file = Path(__file__).parent / "questions.json"
@@ -372,23 +415,19 @@ def main():
                     print("[ChatGPT] Please create questions.json with sophisticated prompts about visiting Ukraine during the war", file=sys.stderr)
                     sys.exit(1)
 
-            if args.old:
-                log_info("Using old headless method...")
-                response_text, html_content = run_chatgpt_old(actual_prompt, args.headless, args.output_format)
-                method = "headless-old"
-            else:
-                # Default to new user-data-persisting browser provider
-                response_text, html_content = run_provider_old(
-                    "chatgpt",
-                    actual_prompt,
-                    args.headless,
-                    args.output_format,
-                    args.timeout,
-                    args.typing_speed,
-                    session_index=args.session,
-                    close=args.close,
-                )
-                method = "headless"
+            # Default to new user-data-persisting browser provider
+            response_text, html_content = run_provider_old(
+                "chatgpt",
+                actual_prompt,
+                args.headless,
+                args.output_format,
+                args.timeout,
+                args.typing_speed,
+                session_index=args.session,
+                close=args.close,
+                max_trials=args.max_trials,
+            )
+            method = "headless"
 
             if args.output_format == "html":
                 # For HTML format, use response_text if it contains HTML, otherwise use html_content
