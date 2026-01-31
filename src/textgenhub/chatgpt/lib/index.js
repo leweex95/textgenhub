@@ -886,6 +886,30 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         const feedbackElements = clonedArticle.querySelectorAll('div.text-token-text-secondary.flex.items-center.justify-center.gap-4.px-4.py-2\\.5.text-sm.whitespace-nowrap');
         feedbackElements.forEach(el => el.remove());
 
+        // Remove code block header labels (e.g., "Code") and copy controls
+        const codeLabelCandidates = clonedArticle.querySelectorAll('div');
+        codeLabelCandidates.forEach(div => {
+          const text = (div.textContent || div.innerText || '').trim();
+          if (text === 'Code' && typeof div.className === 'string' && div.className.includes('text-token-text-tertiary')) {
+            const header = div.closest('div.grid');
+            if (header) {
+              header.remove();
+            } else {
+              div.remove();
+            }
+          }
+        });
+
+        const codeCopyButtons = clonedArticle.querySelectorAll('pre button[aria-label="Copy"]');
+        codeCopyButtons.forEach(button => {
+          const header = button.closest('div.grid');
+          if (header) {
+            header.remove();
+          } else {
+            button.remove();
+          }
+        });
+
         // Also remove by text content as fallback
         const allDivs = clonedArticle.querySelectorAll('div');
         allDivs.forEach(div => {
@@ -993,6 +1017,7 @@ function cleanResponse(response) {
   const codeBlockHeaders = [
     /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*Copy code\s*\n*/i,
     /^(?:json|javascript|python|bash|html|css|sql|xml|yaml|markdown|text|plain)\s*\n*/i,
+    /^Code\s*\n*/i,
     /^Copy code\s*\n*/i,
   ];
 
