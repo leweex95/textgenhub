@@ -302,6 +302,116 @@ function waitForUserInput() {
   });
 }
 
+async function getArticleCount(page) {
+  return page.evaluate(() => {
+    const articles = document.querySelectorAll('article');
+    return articles.length;
+  });
+}
+
+async function prepareComposerAndSubmit(page, prompt, debug, typingSpeed) {
+  const composerSelectors = [
+    '[contenteditable="true"]#prompt-textarea',
+    '[contenteditable="true"][data-testid="composerInput"]',
+    '[contenteditable="true"][role="textbox"]',
+    'textarea'
+  ];
+  if (debug) console.log(`[DEBUG] Waiting for composer selectors: ${composerSelectors.join(', ')}`);
+
+  // Ensure page is interactive before proceeding
+  try {
+    await page.bringToFront();
+    await page.waitForFunction(() => document.visibilityState === 'visible', { timeout: 5000 });
+  } catch (visibilityError) {
+    if (debug) console.log(`[DEBUG] Page visibility check failed: ${visibilityError.message}`);
+    // Try to bring to front again
+    await page.bringToFront();
+  }
+
+  await page.waitForFunction((selectors) => {
+    return selectors.some((sel) => document.querySelector(sel));
+  }, { timeout: 10000 }, composerSelectors);
+
+  const activeComposerSelector = await page.evaluate((selectors) => {
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && !(el.offsetParent === null && el.getAttribute('aria-hidden') === 'true')) {
+        try {
+          el.focus();
+        } catch (focusError) {
+          // Ignore focus errors and continue trying
+        }
+        return selector;
+      }
+    }
+    return null;
+  }, composerSelectors);
+
+  if (!activeComposerSelector) {
+    throw new Error('ChatGPT composer input not found');
+  }
+
+  if (debug) console.log(`[DEBUG] Focused composer: ${activeComposerSelector}`);
+
+  // Check for pre-existing content in both textarea and contenteditable div
+  const preExisting = await page.evaluate(() => {
+    const textarea = document.querySelector('textarea');
+    const editableDiv = document.querySelector('[contenteditable="true"]');
+    let textareaContent = textarea ? textarea.value : '';
+    let divContent = editableDiv ? editableDiv.innerText : '';
+    return { textareaContent, divContent };
+  });
+
+  const hasTextareaContent = preExisting.textareaContent && preExisting.textareaContent.trim().length > 0;
+  const hasDivContent = preExisting.divContent && preExisting.divContent.trim().length > 0;
+
+  if (hasTextareaContent || hasDivContent) {
+    if (hasDivContent) {
+      console.warn('[WARNING] There was an unsubmitted query in the textbox. Clearing it before typing new prompt.');
+    } else if (debug) {
+      console.log('[DEBUG] Clearing stale hidden textarea content before typing new prompt.');
+    }
+
+    if (debug && hasTextareaContent) console.log(`[DEBUG] Pre-existing textarea content: "${preExisting.textareaContent}"`);
+    if (debug && hasDivContent) console.log(`[DEBUG] Pre-existing contenteditable div content: "${preExisting.divContent}"`);
+
+    // Clear textarea
+    await page.evaluate(() => {
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.value = '';
+        const event = new Event('input', { bubbles: true });
+        textarea.dispatchEvent(event);
+      }
+    });
+    // Clear contenteditable div
+    await page.evaluate(() => {
+      const editableDiv = document.querySelector('[contenteditable="true"]');
+      if (editableDiv) {
+        editableDiv.innerText = '';
+        editableDiv.textContent = '';
+        const event = new Event('input', { bubbles: true });
+        editableDiv.dispatchEvent(event);
+      }
+    });
+  }
+
+  try {
+    await page.focus(activeComposerSelector);
+  } catch (focusError) {
+    if (debug) console.log(`[DEBUG] Puppeteer focus failed: ${focusError.message}`);
+  }
+
+  await typeWithDelay(page, prompt, activeComposerSelector, typingSpeed);
+  if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
+
+  await page.keyboard.press('Enter');
+  if (debug) console.log('[DEBUG] Pressed Enter');
+
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  if (debug) console.log('[DEBUG] Waited 2s, starting polling');
+}
+
 export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 120, progressCallback = null, typingSpeed = null, maxTrials = 10) {
   try {
     globalLogger.promptSent(prompt);
@@ -309,10 +419,7 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     await ensureLoggedIn(page);
 
     // Get the initial count of articles before sending the prompt
-    const initialArticleCount = await page.evaluate(() => {
-      const articles = document.querySelectorAll('article');
-      return articles.length;
-    });
+    let initialArticleCount = await getArticleCount(page);
     if (debug) console.log(`[DEBUG] Initial article count: ${initialArticleCount}`);
 
     // Check if there's a stuck streaming request (stop button instead of submit button)
@@ -375,108 +482,7 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
       await ensureLoggedIn(page);
     }
 
-    const composerSelectors = [
-      '[contenteditable="true"]#prompt-textarea',
-      '[contenteditable="true"][data-testid="composerInput"]',
-      '[contenteditable="true"][role="textbox"]',
-      'textarea'
-    ];
-    if (debug) console.log(`[DEBUG] Waiting for composer selectors: ${composerSelectors.join(', ')}`);
-
-    // Ensure page is interactive before proceeding
-    try {
-      await page.bringToFront();
-      await page.waitForFunction(() => document.visibilityState === 'visible', { timeout: 5000 });
-    } catch (visibilityError) {
-      if (debug) console.log(`[DEBUG] Page visibility check failed: ${visibilityError.message}`);
-      // Try to bring to front again
-      await page.bringToFront();
-    }
-
-    await page.waitForFunction((selectors) => {
-      return selectors.some((sel) => document.querySelector(sel));
-    }, { timeout: 10000 }, composerSelectors);
-
-    const activeComposerSelector = await page.evaluate((selectors) => {
-      for (const selector of selectors) {
-        const el = document.querySelector(selector);
-        if (el && !(el.offsetParent === null && el.getAttribute('aria-hidden') === 'true')) {
-          try {
-            el.focus();
-          } catch (focusError) {
-            // Ignore focus errors and continue trying
-          }
-          return selector;
-        }
-      }
-      return null;
-    }, composerSelectors);
-
-    if (!activeComposerSelector) {
-      throw new Error('ChatGPT composer input not found');
-    }
-
-    if (debug) console.log(`[DEBUG] Focused composer: ${activeComposerSelector}`);
-
-
-
-  // Check for pre-existing content in both textarea and contenteditable div
-  const preExisting = await page.evaluate(() => {
-    const textarea = document.querySelector('textarea');
-    const editableDiv = document.querySelector('[contenteditable="true"]');
-    let textareaContent = textarea ? textarea.value : '';
-    let divContent = editableDiv ? editableDiv.innerText : '';
-    return { textareaContent, divContent };
-  });
-
-  const hasTextareaContent = preExisting.textareaContent && preExisting.textareaContent.trim().length > 0;
-  const hasDivContent = preExisting.divContent && preExisting.divContent.trim().length > 0;
-
-  if (hasTextareaContent || hasDivContent) {
-    if (hasDivContent) {
-      console.warn('[WARNING] There was an unsubmitted query in the textbox. Clearing it before typing new prompt.');
-    } else if (debug) {
-      console.log('[DEBUG] Clearing stale hidden textarea content before typing new prompt.');
-    }
-
-    if (debug && hasTextareaContent) console.log(`[DEBUG] Pre-existing textarea content: "${preExisting.textareaContent}"`);
-    if (debug && hasDivContent) console.log(`[DEBUG] Pre-existing contenteditable div content: "${preExisting.divContent}"`);
-
-    // Clear textarea
-    await page.evaluate(() => {
-      const textarea = document.querySelector('textarea');
-      if (textarea) {
-        textarea.value = '';
-        const event = new Event('input', { bubbles: true });
-        textarea.dispatchEvent(event);
-      }
-    });
-    // Clear contenteditable div
-    await page.evaluate(() => {
-      const editableDiv = document.querySelector('[contenteditable="true"]');
-      if (editableDiv) {
-        editableDiv.innerText = '';
-        editableDiv.textContent = '';
-        const event = new Event('input', { bubbles: true });
-        editableDiv.dispatchEvent(event);
-      }
-    });
-  }
-
-  try {
-    await page.focus(activeComposerSelector);
-  } catch (focusError) {
-    if (debug) console.log(`[DEBUG] Puppeteer focus failed: ${focusError.message}`);
-  }
-
-  await typeWithDelay(page, prompt, activeComposerSelector, typingSpeed);
-  if (debug) console.log(`[DEBUG] Typed prompt: ${prompt}`);
-
-    await page.keyboard.press('Enter');
-    if (debug) console.log(`[DEBUG] Pressed Enter`);
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    if (debug) console.log(`[DEBUG] Waited 2s, starting polling`);
+    await prepareComposerAndSubmit(page, prompt, debug, typingSpeed);
 
     let response = null;
     let attempts = 0;
@@ -487,6 +493,9 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
     const maxStableCount = 3; // Quit if response length doesn't change for 3 consecutive polls
     let growingCount = 0;
     const maxGrowingTime = 30; // Allow up to 30 seconds of continuous growth before considering complete
+
+    let pulseRetryCount = 0;
+    const maxPulseRetries = 2;
 
     while (!response && attempts < maxAttempts) {
       if (debug) console.log(`[DEBUG] Polling attempt ${attempts + 1}/${maxAttempts}`);
@@ -536,6 +545,40 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
             console.error("!".repeat(80) + "\n");
             throw new Error(`ChatGPT rate limit reached and max trials (${maxTrials}) exceeded.`);
           }
+        }
+
+        const pulseIndicator = await page.evaluate((initialCount) => {
+          const articles = document.querySelectorAll('article');
+          const newArticles = Array.from(articles).slice(initialCount);
+          if (newArticles.length === 0) {
+            return false;
+          }
+          const lastArticle = newArticles[newArticles.length - 1];
+          return !!lastArticle.querySelector('div.result-streaming.pulse.aria-busy');
+        }, initialArticleCount);
+
+        if (pulseIndicator) {
+          pulseRetryCount += 1;
+          if (debug) console.log(`[DEBUG] Detected stalled streaming pulse (attempt ${pulseRetryCount}/${maxPulseRetries})`);
+
+          if (pulseRetryCount > maxPulseRetries) {
+            throw new Error('ChatGPT response stalled with pulsing indicator after refresh retries.');
+          }
+
+          if (debug) console.log('[DEBUG] Refreshing page and resubmitting prompt due to stalled pulse indicator');
+          await page.reload({ waitUntil: 'networkidle2' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await ensureLoggedIn(page);
+          initialArticleCount = await getArticleCount(page);
+          if (debug) console.log(`[DEBUG] Reset article count after refresh: ${initialArticleCount}`);
+
+          await prepareComposerAndSubmit(page, prompt, debug, typingSpeed);
+
+          attempts = 0;
+          lastResponseLength = 0;
+          stableCount = 0;
+          growingCount = 0;
+          continue;
         }
 
         if (debug) console.log(`[DEBUG] Calling scrapeResponse...`);
