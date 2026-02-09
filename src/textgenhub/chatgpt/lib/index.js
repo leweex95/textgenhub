@@ -557,28 +557,36 @@ export async function sendPrompt(page, prompt, debug = false, timeoutSeconds = 1
           return !!lastArticle.querySelector('div.result-streaming.pulse.aria-busy');
         }, initialArticleCount);
 
-        if (pulseIndicator) {
-          pulseRetryCount += 1;
-          if (debug) console.log(`[DEBUG] Detected stalled streaming pulse (attempt ${pulseRetryCount}/${maxPulseRetries})`);
+        if (pulseIndicator && attempts >= 30) {
+          // Only refresh if we've waited at least 30 seconds and no response text is appearing yet
+          const currentResponse = await scrapeResponse(page, initialArticleCount, debug);
+          const hasResponse = currentResponse && currentResponse.trim().length > 0;
 
-          if (pulseRetryCount > maxPulseRetries) {
-            throw new Error('ChatGPT response stalled with pulsing indicator after refresh retries.');
+          if (!hasResponse) {
+            pulseRetryCount += 1;
+            if (debug) console.log(`[DEBUG] Detected stalled streaming pulse after 30s (attempt ${pulseRetryCount}/${maxPulseRetries})`);
+
+            if (pulseRetryCount > maxPulseRetries) {
+              throw new Error('ChatGPT response stalled with pulsing indicator after refresh retries.');
+            }
+
+            if (debug) console.log('[DEBUG] Refreshing page and resubmitting prompt due to stalled pulse indicator');
+            await page.reload({ waitUntil: 'networkidle2' });
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await ensureLoggedIn(page);
+            initialArticleCount = await getArticleCount(page);
+            if (debug) console.log(`[DEBUG] Reset article count after refresh: ${initialArticleCount}`);
+
+            await prepareComposerAndSubmit(page, prompt, debug, typingSpeed);
+
+            attempts = 0;
+            lastResponseLength = 0;
+            stableCount = 0;
+            growingCount = 0;
+            continue;
+          } else {
+            if (debug) console.log(`[DEBUG] Pulse indicator present but response already started (length: ${currentResponse.length}), not refreshing`);
           }
-
-          if (debug) console.log('[DEBUG] Refreshing page and resubmitting prompt due to stalled pulse indicator');
-          await page.reload({ waitUntil: 'networkidle2' });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          await ensureLoggedIn(page);
-          initialArticleCount = await getArticleCount(page);
-          if (debug) console.log(`[DEBUG] Reset article count after refresh: ${initialArticleCount}`);
-
-          await prepareComposerAndSubmit(page, prompt, debug, typingSpeed);
-
-          attempts = 0;
-          lastResponseLength = 0;
-          stableCount = 0;
-          growingCount = 0;
-          continue;
         }
 
         if (debug) console.log(`[DEBUG] Calling scrapeResponse...`);
