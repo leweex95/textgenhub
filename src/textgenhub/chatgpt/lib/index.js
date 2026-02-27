@@ -105,6 +105,9 @@ export async function launchControlledChromium({
       '--disable-hang-monitor',
       '--disable-background-networking',
       '--disable-features=VizDisplayCompositor',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-blink-features=AutomationControlled',
       '--window-size=1200,800',
       '--window-position=100,900'  // Initial position, will be adjusted by JS
     ];
