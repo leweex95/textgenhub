@@ -1,4 +1,4 @@
-from .chatgpt import ask, close
+from .chatgpt import ask, close, check_sessions, reinit_session
 
 
 class ChatGPT:
@@ -10,5 +10,11 @@ class ChatGPT:
     def close(self, session: int | None = None) -> None:
         return close(session)
 
+    def check_sessions(self, session: int | None = None) -> list:
+        return check_sessions(session)
 
-__all__ = ["ask", "ChatGPT"]
+    def reinit_session(self, session: int) -> None:
+        return reinit_session(session)
+
+
+__all__ = ["ask", "close", "check_sessions", "reinit_session", "ChatGPT"]

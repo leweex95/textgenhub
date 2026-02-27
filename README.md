@@ -178,9 +178,57 @@ poetry run textgenhub sessions init
 poetry run textgenhub sessions init --index 0
 poetry run textgenhub sessions init --index 2
 
+# Health-check all sessions (verifies browser is running and user is logged in)
+poetry run textgenhub sessions check
+
+# Health-check a specific session
+poetry run textgenhub sessions check --index 0
+
+# Re-initialise a broken session (opens browser for fresh login)
+poetry run textgenhub sessions reinit --index 0
+
 # Get help on available session commands
 poetry run textgenhub sessions --help
 poetry run textgenhub sessions init --help
+```
+
+##### Session health-check
+
+The `sessions check` command connects to each session's browser via its debug port,
+navigates to ChatGPT, and verifies whether the user is still logged in.  The
+`loginStatus` field in `sessions.json` is updated with the live result.
+
+Possible statuses returned by the check:
+
+| Status | Meaning |
+|-|-|
+| `logged_in` | Session is active and ready to use |
+| `logged_out` | Browser is running but user was logged out (needs re-init) |
+| `browser_not_running` | No browser found on the debug port (needs launch or re-init) |
+| `error` | An unexpected error occurred during the check |
+
+###### Programmatic usage (Python)
+
+```python
+from textgenhub.chatgpt import check_sessions, reinit_session
+
+# Check all sessions
+results = check_sessions()
+for r in results:
+    print(f"Session {r['index']}: {r['loginStatus']}")
+
+# Check a specific session
+results = check_sessions(session=0)
+status = results[0]["loginStatus"]
+if status != "logged_in":
+    print(f"Session 0 is {status}, re-initialising...")
+    reinit_session(0)
+
+# Also available via the ChatGPT class
+from textgenhub.chatgpt import ChatGPT
+gpt = ChatGPT()
+results = gpt.check_sessions()
+gpt.reinit_session(0)
 ```
 
 The ChatGPT provider supports browser profile isolation with intelligent session management. Sessions maintain conversation continuity and can be explicitly targeted with `--session INDEX`.
@@ -238,7 +286,10 @@ poetry run textgenhub chatgpt --prompt "Explain quantum computing" --typing-spee
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --session 1
 
 # Regenerate session 0 if it's broken
-poetry run textgenhub sessions init --index 0
+poetry run textgenhub sessions reinit --index 0
+
+# Check which sessions are healthy before sending prompts
+poetry run textgenhub sessions check
 
 # ChatGPT with automatic closing after receiving the response
 poetry run textgenhub chatgpt --prompt "Explain quantum computing" --close

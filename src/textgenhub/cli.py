@@ -295,6 +295,10 @@ def main():
     sessions_subparsers.add_parser("path", help="Show the path to the central sessions.json file")
     init_parser = sessions_subparsers.add_parser("init", help="Create a new session (opens browser for login)")
     init_parser.add_argument("--index", type=int, help="Specific session index to create or regenerate")
+    check_parser = sessions_subparsers.add_parser("check", help="Health-check sessions (verify browser running and login status)")
+    check_parser.add_argument("--index", type=int, help="Specific session index to check (default: all)")
+    reinit_parser = sessions_subparsers.add_parser("reinit", help="Re-initialise a broken session (opens browser for login)")
+    reinit_parser.add_argument("--index", type=int, required=True, help="Session index to re-initialise")
 
     # ChatGPT subcommand
     chatgpt_parser = subparsers.add_parser("chatgpt", help="ChatGPT via OpenAI")
@@ -377,6 +381,70 @@ def main():
                 cmd = ["node", str(script)]
                 if hasattr(args, 'index') and args.index is not None:
                     cmd.extend(["--index", str(args.index)])
+                result = subprocess.run(cmd, text=True, cwd=root, encoding="utf-8", errors="replace")
+                sys.exit(result.returncode)
+
+            if args.action == "check":
+                root = Path(__file__).parent
+                script = root / "chatgpt" / "check_session.js"
+                if not script.exists():
+                    raise FileNotFoundError(f"Script not found: {script}")
+
+                cmd = ["node", str(script)]
+                if hasattr(args, 'index') and args.index is not None:
+                    cmd.extend(["--index", str(args.index)])
+                proc = subprocess.run(cmd, capture_output=True, text=True, cwd=root, encoding="utf-8", errors="replace")
+                # Print stderr (progress info) to stderr
+                if proc.stderr:
+                    print(proc.stderr.rstrip(), file=sys.stderr)
+                # Parse and display results
+                stdout = (proc.stdout or "").strip()
+                json_line = None
+                for line in stdout.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("{"):
+                        json_line = stripped
+                if json_line:
+                    data = json.loads(json_line)
+                    results = data.get("results", [])
+                    print("=" * 60, file=sys.stderr)
+                    print("SESSION HEALTH CHECK", file=sys.stderr)
+                    print("=" * 60, file=sys.stderr)
+                    any_broken = False
+                    for r in results:
+                        status_icon = "OK" if r["loginStatus"] == "logged_in" else "FAIL"
+                        if r["loginStatus"] != "logged_in":
+                            any_broken = True
+                        print(
+                            f"  [{status_icon}] session {r['index']}\t"
+                            f"browser={'running' if r['browserRunning'] else 'stopped'}\t"
+                            f"login={r['loginStatus']}\t"
+                            f"port={r['debugPort']}",
+                            file=sys.stderr,
+                        )
+                        if r.get("error"):
+                            print(f"        error: {r['error']}", file=sys.stderr)
+                    print("=" * 60, file=sys.stderr)
+                    if any_broken:
+                        print("Some sessions need attention. Re-init with: poetry run textgenhub sessions reinit --index <N>", file=sys.stderr)
+                    else:
+                        print("All sessions are healthy.", file=sys.stderr)
+                    # Also output raw JSON to stdout for programmatic use
+                    print(json.dumps(data, indent=2))
+                else:
+                    print(f"check_session.js produced no JSON output. stdout: {stdout}", file=sys.stderr)
+                    sys.exit(1)
+                sys.exit(0)
+
+            if args.action == "reinit":
+                idx = args.index
+                root = Path(__file__).parent
+                script = root / "chatgpt" / "init_session.js"
+                if not script.exists():
+                    raise FileNotFoundError(f"Script not found: {script}")
+
+                print(f"[INFO] Re-initialising session {idx}...", file=sys.stderr)
+                cmd = ["node", str(script), "--index", str(idx)]
                 result = subprocess.run(cmd, text=True, cwd=root, encoding="utf-8", errors="replace")
                 sys.exit(result.returncode)
 
