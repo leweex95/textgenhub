@@ -415,15 +415,25 @@ def main():
                         status_icon = "OK" if r["loginStatus"] == "logged_in" else "FAIL"
                         if r["loginStatus"] != "logged_in":
                             any_broken = True
+                        
+                        # Map internal loginStatus to more human-friendly descriptions for CLI
+                        status_map = {
+                            "logged_in": "Active Session",
+                            "logged_out": "Logged Out (Needs Login)",
+                            "browser_not_running": "Offline (Browser Not Running)",
+                            "not_created": "Unknown (Does not yet exist)",
+                            "error": "Error during check",
+                        }
+                        display_status = status_map.get(r['loginStatus'], r['loginStatus'])
+
                         print(
-                            f"  [{status_icon}] session {r['index']}\t"
-                            f"browser={'running' if r['browserRunning'] else 'stopped'}\t"
-                            f"login={r['loginStatus']}\t"
-                            f"port={r['debugPort']}",
+                            f"  [{status_icon}] Session {r['index']}\t"
+                            f"status={display_status}\t"
+                            f"port={r['debugPort'] or 'N/A'}",
                             file=sys.stderr,
                         )
-                        if r.get("error"):
-                            print(f"        error: {r['error']}", file=sys.stderr)
+                        if r.get("error") and r['loginStatus'] != 'not_created':
+                            print(f"        Details: {r['error']}", file=sys.stderr)
                     print("=" * 60, file=sys.stderr)
                     if any_broken:
                         print("Some sessions need attention. Re-init with: poetry run textgenhub sessions reinit --index <N>", file=sys.stderr)

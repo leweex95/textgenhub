@@ -145,9 +145,20 @@ function parseArgs() {
   if (requestedIndex !== null) {
     const match = sessions.find((s) => s.index === requestedIndex);
     if (!match) {
-      const output = { results: [], error: `Session index ${requestedIndex} not found.` };
-      console.log(JSON.stringify(output));
-      process.exit(1);
+      // If a specific index is requested but does not exist, return a "not_created" result
+      // instead of exiting with error, to allow programmatic handling.
+      const result = {
+        index: requestedIndex,
+        id: `chatgpt-session-${requestedIndex}-not-found`,
+        name: null,
+        debugPort: null,
+        browserRunning: false,
+        loginStatus: 'not_created',
+        error: `Session index ${requestedIndex} has not been initialized yet.`,
+        checkedAt: new Date().toISOString()
+      };
+      console.log(JSON.stringify({ results: [result] }));
+      process.exit(0);
     }
     toCheck = [match];
   } else {
