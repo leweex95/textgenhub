@@ -60,15 +60,6 @@ poetry run textgenhub sessions list
 | **Logged Out** ❌ | Run `reinit` to log back in. |
 | **Offline** ❌ | Browser process is closed; will auto-launch on next `ask()`. |
 
-### Programmatic Health Check (Python)
-```python
-from textgenhub.chatgpt import check_sessions, reinit_session
-
-for s in check_sessions():
-    if s["loginStatus"] != "logged_in":
-        reinit_session(s["index"])
-```
-
 ---
 
 ## 🛠️ Advanced Usage
@@ -81,12 +72,40 @@ for s in check_sessions():
 - `--close`: Close browser immediately after response.
 
 ### Storage Location
-Sessions are stored centrally at `%LOCALAPPDATA%\textgenhub\sessions.json` (Windows) or `~/.local/share/textgenhub\sessions.json` (Linux) to ensure consistency across all your local projects.
+Sessions are stored centrally at `%LOCALAPPDATA%\textgenhub\sessions.json` to ensure consistency across all your local projects.
 
----
+## 📋 CLI Command Reference
 
-## 🤝 Development
-- **Node.js**: Interaction engine using Puppeteer + Stealth.
-- **Python**: High-level wrapper for easy integration.
+### Main Commands
 
-When modifying dependencies, ensure you update both root `package.json` and `src/textgenhub/package.json`.
+```bash
+# ChatGPT
+poetry run textgenhub chatgpt --prompt "Your question" [--session <index>] [--output-format json|html|raw] [--typing-speed <sec>] [--timeout <sec>] [--max-trials <num>] [--close] [--debug]
+
+# DeepSeek
+poetry run textgenhub deepseek --prompt "Your question" [--headless] [--output-format json|html] [--typing-speed <sec>]
+
+# Perplexity
+poetry run textgenhub perplexity --prompt "Your question" [--headless] [--output-format json|html] [--typing-speed <sec>]
+
+# Grok
+poetry run textgenhub grok --prompt "Your question" [--headless] [--output-format json|html] [--typing-speed <sec>]
+
+# Session Management
+poetry run textgenhub sessions list
+poetry run textgenhub sessions check [--index <session>] [--debug]
+poetry run textgenhub sessions init [--index <session>]
+poetry run textgenhub sessions reinit --index <session>
+poetry run textgenhub sessions path
+```
+
+### Flag Descriptions
+- `--prompt`: Text prompt to send to the LLM (required for most providers)
+- `--session <index>`: Use a specific browser session/profile (ChatGPT only)
+- `--output-format`: Output format (`json`, `html`, `raw`)
+- `--typing-speed <sec>`: Simulate human typing speed (seconds per character)
+- `--timeout <sec>`: Timeout for response (ChatGPT only)
+- `--max-trials <num>`: Maximum retries on rate limit (ChatGPT only)
+- `--close`: Close browser after response (ChatGPT only)
+- `--headless`: Run browser in headless mode (default: true)
+- `--debug`: Enable debug output
