@@ -54,3 +54,6 @@ logs/
 
 # ChatGPT session artifacts
 sessions.json
+
+# Graphify (derived code graph, regenerate with graphify update .)
+graphify-out/
