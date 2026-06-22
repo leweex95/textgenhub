@@ -10,9 +10,9 @@ from ..utils.scrape_response import extract_response_json
 class SimpleProvider:
     """Simple base class for all text generation providers"""
 
-    def __init__(self, provider_name: str, cli_script: str):
+    def __init__(self, provider_name: str, cli_script: str, script_dir: Path):
         self.provider_name = provider_name
-        self.cli_script = Path(__file__).parent.parent / provider_name / cli_script
+        self.cli_script = script_dir / cli_script
         self.node_path = "node"
 
     def ask(

@@ -30,9 +30,9 @@ poetry run textgenhub ollama --prompt "Hello, world!"
 Same CLI, different provider:
 
 ```powershell
-poetry run textgenhub ollama --prompt "hi"                         # local model
-poetry run textgenhub deepseek-api --prompt "hi"                   # cloud API
-poetry run textgenhub chatgpt --prompt "hi"                        # browser automation
+poetry run textgenhub ollama --prompt "hi"                         # local model
+poetry run textgenhub deepseek-api --prompt "hi"                   # cloud API
+poetry run textgenhub chatgpt --prompt "hi"                        # browser automation
 ```
 
 ## Docs
