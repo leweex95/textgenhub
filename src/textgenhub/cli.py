@@ -193,7 +193,7 @@ def run_provider_old(
         raise ValueError(f"Unknown provider: {provider}")
 
     root = Path(__file__).parent
-    # All web UI provider scripts now live under webui/<name>
+    # All web UI provider scripts now live under webui/<name>/
     script_name = f"{provider_map[provider]}_cli.js"
     script = root / "webui" / provider_map[provider] / script_name
 

@@ -1,14 +1,14 @@
 // Export ChatGPT functionality (new session-based method - recommended)
-const ChatGPT = require('./src/textgenhub/chatgpt/chatgpt.js');
+const ChatGPT = require('./src/textgenhub/webui/chatgpt/chatgpt.js');
 
 // Export DeepSeek functionality
-const DeepSeek = require('./src/textgenhub/deepseek/deepseek.js');
+const DeepSeek = require('./src/textgenhub/webui/deepseek/deepseek.js');
 
 // Export Perplexity functionality
-const Perplexity = require('./src/textgenhub/perplexity/perplexity.js');
+const Perplexity = require('./src/textgenhub/webui/perplexity/perplexity.js');
 
 // Export Grok functionality
-const Grok = require('./src/textgenhub/grok/grok.js');
+const Grok = require('./src/textgenhub/webui/grok/grok.js');
 
 // Export any base provider or utility functions
 const BaseProvider = require('./src/textgenhub/core/base-provider.js');
