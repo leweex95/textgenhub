@@ -501,6 +501,57 @@ def main():
                 result = {"provider": "grok", "method": "headless", "timestamp": timestamp, "prompt": args.prompt, "response": response_text, "html": html_content}
                 print(json.dumps(result, indent=2))
 
+        elif args.provider == "ollama":
+            from textgenhub.local.ollama import ask as ollama_ask
+
+            print("[Ollama] Sending prompt to local Ollama instance...", file=sys.stderr)
+            response_text = ollama_ask(
+                args.prompt,
+                model=args.model,
+                host=args.host,
+                port=args.port,
+                timeout=args.timeout,
+                system_prompt=args.system_prompt,
+            )
+            if args.output_format == "raw":
+                print(response_text)
+            else:
+                result = {
+                    "provider": "ollama",
+                    "method": "api",
+                    "timestamp": timestamp,
+                    "prompt": args.prompt,
+                    "response": response_text,
+                    "html": "",
+                }
+                print(json.dumps(result, indent=2))
+
+        elif args.provider == "deepseek-api":
+            from textgenhub.api.deepseek import ask as deepseek_api_ask
+
+            print("[DeepSeek API] Sending prompt via DeepSeek API...", file=sys.stderr)
+            response_text = deepseek_api_ask(
+                args.prompt,
+                api_key=args.api_key,
+                model=args.model,
+                timeout=args.timeout,
+                system_prompt=args.system_prompt,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+            )
+            if args.output_format == "raw":
+                print(response_text)
+            else:
+                result = {
+                    "provider": "deepseek-api",
+                    "method": "api",
+                    "timestamp": timestamp,
+                    "prompt": args.prompt,
+                    "response": response_text,
+                    "html": "",
+                }
+                print(json.dumps(result, indent=2))
+
     except Exception as e:
         # Categorize and handle error
         error_type = categorize_error(str(e))

@@ -1,6 +1,5 @@
 """
 Simple base provider for all text generation services.
-No overengineering, just the essentials.
 """
 from pathlib import Path
 import subprocess
