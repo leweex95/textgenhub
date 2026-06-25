@@ -1,4 +1,4 @@
-﻿﻿"""
+"""
 ChatGPT provider (web UI automation) - thin wrapper over chatgpt-session CLI
 """
 from pathlib import Path
