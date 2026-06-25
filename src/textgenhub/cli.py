@@ -124,6 +124,10 @@ def categorize_error(error_message: str) -> str:
         return "network"
     elif "json" in error_lower or "parse" in error_lower:
         return "parsing"
+    elif "api key" in error_lower or "authentication failed" in error_lower:
+        return "authentication"
+    elif "rate limit" in error_lower:
+        return "rate_limit"
     else:
         return "unknown"
 
@@ -156,6 +160,11 @@ def get_error_message(error_type: str) -> dict:
             "description": "Failed to parse response data.",
             "recovery": "This might be a temporary issue. Try again or contact support."
         },
+        "rate_limit": {
+            "title": "Rate Limit Exceeded",
+            "description": "The API rate limit was exceeded.",
+            "recovery": "Wait a moment and try again, or check your API plan limits."
+        },
         "unknown": {
             "title": "Unknown Error",
             "description": "An unexpected error occurred.",
@@ -184,9 +193,9 @@ def run_provider_old(
         raise ValueError(f"Unknown provider: {provider}")
 
     root = Path(__file__).parent
-    # Use .js for ES modules
+    # All web UI provider scripts now live under webui/<name>/
     script_name = f"{provider_map[provider]}_cli.js"
-    script = root / provider_map[provider] / script_name
+    script = root / "webui" / provider_map[provider] / script_name
 
     if not script.exists():
         raise FileNotFoundError(f"Script not found: {script}")
@@ -328,6 +337,27 @@ def main():
     grok_parser.add_argument("--output-format", choices=["json", "html"], default="json", help="Output format (default: json)")
     grok_parser.add_argument("--typing-speed", type=float, default=None, help="Typing speed in seconds per character (default: None for instant paste, > 0 for character-by-character typing)")
 
+    # Ollama subcommand
+    ollama_parser = subparsers.add_parser("ollama", help="Ollama locally-hosted LLM")
+    ollama_parser.add_argument("--prompt", required=True, help="Prompt to send to Ollama")
+    ollama_parser.add_argument("--model", type=str, default=None, help="Ollama model name (default: $OLLAMA_MODEL or llama3)")
+    ollama_parser.add_argument("--host", type=str, default=None, help="Ollama host (default: $OLLAMA_HOST or localhost)")
+    ollama_parser.add_argument("--port", type=int, default=None, help="Ollama port (default: $OLLAMA_PORT or 11434)")
+    ollama_parser.add_argument("--system-prompt", type=str, default=None, help="Optional system prompt")
+    ollama_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
+    ollama_parser.add_argument("--output-format", choices=["json", "raw"], default="json", help="Output format")
+
+    # DeepSeek API subcommand
+    deepseek_api_parser = subparsers.add_parser("deepseek-api", help="DeepSeek LLM via official API key")
+    deepseek_api_parser.add_argument("--prompt", required=True, help="Prompt to send to DeepSeek API")
+    deepseek_api_parser.add_argument("--api-key", type=str, default=None, help="DeepSeek API key (default: $DEEPSEEK_API_KEY)")
+    deepseek_api_parser.add_argument("--model", type=str, default=None, help="DeepSeek model (default: $DEEPSEEK_MODEL or deepseek-chat)")
+    deepseek_api_parser.add_argument("--system-prompt", type=str, default=None, help="Optional system prompt")
+    deepseek_api_parser.add_argument("--temperature", type=float, default=None, help="Sampling temperature")
+    deepseek_api_parser.add_argument("--max-tokens", type=int, default=None, help="Max output tokens")
+    deepseek_api_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
+    deepseek_api_parser.add_argument("--output-format", choices=["json", "raw"], default="json", help="Output format")
+
     args = parser.parse_args()
 
     if not args.provider:
@@ -370,7 +400,7 @@ def main():
 
             if args.action == "init":
                 root = Path(__file__).parent
-                script = root / "chatgpt" / "init_session.js"
+                script = root / "webui" / "chatgpt" / "init_session.js"
                 if not script.exists():
                     raise FileNotFoundError(f"Script not found: {script}")
 
@@ -469,6 +499,57 @@ def main():
                 print(html_content)
             else:
                 result = {"provider": "grok", "method": "headless", "timestamp": timestamp, "prompt": args.prompt, "response": response_text, "html": html_content}
+                print(json.dumps(result, indent=2))
+
+        elif args.provider == "ollama":
+            from textgenhub.local.ollama import ask as ollama_ask
+
+            print("[Ollama] Sending prompt to local Ollama instance...", file=sys.stderr)
+            response_text = ollama_ask(
+                args.prompt,
+                model=args.model,
+                host=args.host,
+                port=args.port,
+                timeout=args.timeout,
+                system_prompt=args.system_prompt,
+            )
+            if args.output_format == "raw":
+                print(response_text)
+            else:
+                result = {
+                    "provider": "ollama",
+                    "method": "api",
+                    "timestamp": timestamp,
+                    "prompt": args.prompt,
+                    "response": response_text,
+                    "html": "",
+                }
+                print(json.dumps(result, indent=2))
+
+        elif args.provider == "deepseek-api":
+            from textgenhub.api.deepseek import ask as deepseek_api_ask
+
+            print("[DeepSeek API] Sending prompt via DeepSeek API...", file=sys.stderr)
+            response_text = deepseek_api_ask(
+                args.prompt,
+                api_key=args.api_key,
+                model=args.model,
+                timeout=args.timeout,
+                system_prompt=args.system_prompt,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+            )
+            if args.output_format == "raw":
+                print(response_text)
+            else:
+                result = {
+                    "provider": "deepseek-api",
+                    "method": "api",
+                    "timestamp": timestamp,
+                    "prompt": args.prompt,
+                    "response": response_text,
+                    "html": "",
+                }
                 print(json.dumps(result, indent=2))
 
     except Exception as e:

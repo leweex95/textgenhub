@@ -1,7 +1,8 @@
-﻿"""
-ChatGPT provider (new) - thin wrapper over chatgpt-session CLI
 """
-from ..core.provider import SimpleProvider
+ChatGPT provider (web UI automation) - thin wrapper over chatgpt-session CLI
+"""
+from pathlib import Path
+from ...core.provider import SimpleProvider
 
 
 def ask(
@@ -32,7 +33,7 @@ def ask(
     Returns:
         str: The response from ChatGPT
     """
-    provider = SimpleProvider("chatgpt", "chatgpt_cli.js")
+    provider = SimpleProvider("chatgpt", "chatgpt_cli.js", script_dir=Path(__file__).parent)
     return provider.ask(
         prompt,
         headless=headless,
@@ -53,5 +54,5 @@ def close(session: int | None = None) -> None:
     Args:
         session (int | None): Specific session index to close (default: last used)
     """
-    provider = SimpleProvider("chatgpt", "chatgpt_cli.js")
+    provider = SimpleProvider("chatgpt", "chatgpt_cli.js", script_dir=Path(__file__).parent)
     provider.ask(None, session=session, close=True)

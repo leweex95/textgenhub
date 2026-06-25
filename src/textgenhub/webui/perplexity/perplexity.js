@@ -5,7 +5,7 @@
 'use strict';
 
 import path from 'path';
-import BaseLLMProvider from '../core/base-provider.js';
+import BaseLLMProvider from '../../core/base-provider.js';
 
 class PerplexityProvider extends BaseLLMProvider {
   constructor(config = {}) {
@@ -41,7 +41,7 @@ class PerplexityProvider extends BaseLLMProvider {
   async initialize() {
     try {
       this.logger?.info('Initializing Perplexity provider...');
-      const BrowserManager = (await import('../core/browser-manager.cjs')).default;
+      const BrowserManager = (await import('../../core/browser-manager.cjs')).default;
       const browserConfig = {
         headless: this.config.headless,
         timeout: this.config.timeout,

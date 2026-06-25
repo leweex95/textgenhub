@@ -18,7 +18,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import BaseLLMProvider from '../core/base-provider.js';class GrokProvider extends BaseLLMProvider {
+import BaseLLMProvider from '../../core/base-provider.js';class GrokProvider extends BaseLLMProvider {
 
   /**
    * Save current HTML page as artifact for debugging
