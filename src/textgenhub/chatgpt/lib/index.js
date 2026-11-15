@@ -233,12 +233,21 @@ export async function ensureLoggedIn(page) {
       );
     }
 
-    const chatInputExists = await page.evaluate(() => {
-      return !!document.querySelector('textarea');
-    });
+    const composerSelectors = [
+      '[contenteditable="true"]#prompt-textarea',
+      '[contenteditable="true"][data-testid="composerInput"]',
+      '[contenteditable="true"][role="textbox"]',
+      'textarea'
+    ];
+    const chatInputExists = await page.evaluate((selectors) => {
+      return selectors.some((selector) => {
+        const element = document.querySelector(selector);
+        return element && element.getAttribute('aria-hidden') !== 'true';
+      });
+    }, composerSelectors);
 
     if (!chatInputExists) {
-      globalLogger.debug('Chat input not found in DOM');
+      globalLogger.debug('Chat composer not found yet; it may still be loading');
     }
 
     return true;
@@ -305,7 +314,15 @@ function waitForUserInput() {
 async function getArticleCount(page) {
   return page.evaluate(() => {
     const articles = document.querySelectorAll('article');
-    return articles.length;
+    if (articles.length > 0) {
+      return articles.length;
+    }
+
+    // The current ChatGPT conversation UI renders message headings instead
+    // of <article> elements. Count assistant turns to isolate new responses.
+    return Array.from(document.querySelectorAll('h4')).filter((heading) =>
+      (heading.innerText || heading.textContent || '').trim() === 'ChatGPT said:'
+    ).length;
   });
 }
 
@@ -886,7 +903,27 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         debug.containers.found = !!container;
 
         if (!container) {
-          debug.error = 'No container found';
+          // Current ChatGPT pages no longer expose the legacy thread
+          // container or <article> message markup. Use accessible turn labels.
+          const assistantHeadings = Array.from(document.querySelectorAll('h4')).filter((heading) =>
+            (heading.innerText || heading.textContent || '').trim() === 'ChatGPT said:'
+          );
+          debug.containers.assistantHeadingCount = assistantHeadings.length;
+          const newAssistantHeadings = assistantHeadings.slice(initialCount);
+          debug.containers.newAssistantHeadingCount = newAssistantHeadings.length;
+
+          if (newAssistantHeadings.length === 0) {
+            debug.error = 'No new assistant responses found since prompt was sent';
+            return debug;
+          }
+
+          const latestHeading = newAssistantHeadings[newAssistantHeadings.length - 1];
+          const messageText = latestHeading.parentElement
+            ? (latestHeading.parentElement.innerText || latestHeading.parentElement.textContent || '').trim()
+            : '';
+          const responseText = messageText.replace(/^ChatGPT said:\s*/, '').trim();
+          debug.text = responseText;
+          debug.valid = responseText.length > 0;
           return debug;
         }
 
@@ -894,6 +931,24 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         debug.containers.articlesCount = articles.length;
 
         if (articles.length === 0) {
+          const assistantHeadings = Array.from(document.querySelectorAll('h4')).filter((heading) =>
+            (heading.innerText || heading.textContent || '').trim() === 'ChatGPT said:'
+          );
+          debug.containers.assistantHeadingCount = assistantHeadings.length;
+          const newAssistantHeadings = assistantHeadings.slice(initialCount);
+          debug.containers.newAssistantHeadingCount = newAssistantHeadings.length;
+
+          if (newAssistantHeadings.length > 0) {
+            const latestHeading = newAssistantHeadings[newAssistantHeadings.length - 1];
+            const messageText = latestHeading.parentElement
+              ? (latestHeading.parentElement.innerText || latestHeading.parentElement.textContent || '').trim()
+              : '';
+            const responseText = messageText.replace(/^ChatGPT said:\s*/, '').trim();
+            debug.text = responseText;
+            debug.valid = responseText.length > 0;
+            return debug;
+          }
+
           const containerText = (container.innerText || container.textContent || '').trim();
           debug.text = containerText;
           return debug;
@@ -982,7 +1037,7 @@ export async function scrapeResponse(page, initialArticleCount = 0, debug = fals
         debug.error = e.message;
         return debug;
       }
-    });
+    }, initialArticleCount);
 
     // Log debug info in Node.js
     if (debug) {

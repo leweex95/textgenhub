@@ -1,6 +1,6 @@
 {
     "name": "textgenhub",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "description": "Text generation hub supporting multiple LLM providers",
     "main": "index.js",
     "scripts": {
@@ -23,8 +23,9 @@
         "yargs": "^17.7.2"
     },
     "files": [
+        "CHANGELOG.md",
         "index.js",
-        "src/textgenhub/chatgpt/*.js",
+        "src/textgenhub/chatgpt/**/*.js",
         "src/textgenhub/claude/*.js",
         "src/textgenhub/core/*.js",
         "src/textgenhub/deepseek/*.js",
