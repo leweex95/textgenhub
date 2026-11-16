@@ -23,6 +23,10 @@ def test_ask_success_and_errors():
     with mock_popen(b"just logs"), pytest.raises(RuntimeError, match="did not produce JSON"):
         _make_provider().ask("hi")
 
+    pretty_response = b'Browser log\n{\n  "response": "hello",\n  "html": ""\n}'
+    with mock_popen(pretty_response):
+        assert _make_provider().ask("hi") == "hello"
+
     with mock_popen(stdout_none=True), pytest.raises(RuntimeError, match="stdout is None"):
         _make_provider().ask("hi")
 

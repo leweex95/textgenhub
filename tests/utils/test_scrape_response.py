@@ -16,6 +16,11 @@ def test_ignores_non_json_lines():
     assert extract_response_json(stdout) == "answer"
 
 
+def test_extracts_pretty_printed_response_after_logs():
+    stdout = 'debug output\n{\n  "response": "answer",\n  "html": "<main>unused</main>"\n}\n'
+    assert extract_response_json(stdout) == "answer"
+
+
 def test_raises_when_no_json():
     with pytest.raises(ValueError):
         extract_response_json("no json here")

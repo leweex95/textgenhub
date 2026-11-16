@@ -83,21 +83,17 @@ class SimpleProvider:
                 cmd.append("--debug")
                 cmd.append("true")
 
-        stdout_json_line = None
-
         with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.cli_script.parent) as proc:
             if proc.stdout is not None:
                 raw_bytes = proc.stdout.read()
                 try:
-                    text = raw_bytes.decode("utf-8")
+                    stdout_text = raw_bytes.decode("utf-8")
                 except UnicodeDecodeError as e:
                     print(f"UnicodeDecodeError at byte {e.start}, replacing invalid bytes")
-                    text = raw_bytes.decode("utf-8", errors="replace")
+                    stdout_text = raw_bytes.decode("utf-8", errors="replace")
 
-                for line in text.splitlines():
+                for line in stdout_text.splitlines():
                     print(line)  # shows all Node logs live
-                    if line.strip().startswith('{"response":'):
-                        stdout_json_line = line.strip()
             else:
                 raise RuntimeError("Subprocess stdout is None. Failed to capture output.")
 
@@ -106,7 +102,7 @@ class SimpleProvider:
         if prompt is None and close:
             return ""
 
-        if not stdout_json_line:
-            raise RuntimeError(f"{self.provider_name} script did not produce JSON response")
-
-        return extract_response_json(stdout_json_line)
+        try:
+            return extract_response_json(stdout_text)
+        except ValueError as e:
+            raise RuntimeError(f"{self.provider_name} script did not produce JSON response") from e
