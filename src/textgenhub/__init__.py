@@ -26,18 +26,37 @@ def _ensure_node_deps():
 # Automatically install Node dependencies on first import
 _ensure_node_deps()
 
-# Import providers to make them available at package level
+# Web UI (browser-automation) providers
 try:
-    from . import chatgpt  # noqa: F401
-    from . import deepseek  # noqa: F401
-    from . import perplexity  # noqa: F401
+    from . import webui  # noqa: F401
+    from .webui import chatgpt, deepseek, grok, perplexity  # noqa: F401
+    from .webui import ChatGPT, DeepSeek, Perplexity  # noqa: F401
 
-    # Import classes
-    from .chatgpt import ChatGPT  # noqa: F401
-    from .deepseek import DeepSeek  # noqa: F401
-    from .perplexity import Perplexity  # noqa: F401
-
-    __all__ = ["chatgpt", "deepseek", "perplexity", "ChatGPT", "DeepSeek", "Perplexity"]
+    _webui_exports = ["webui", "chatgpt", "deepseek", "grok", "perplexity", "ChatGPT", "DeepSeek", "Perplexity"]
 except ImportError as e:
-    print(f"Warning: Could not import some providers: {e}", file=sys.stderr)
-    __all__ = []
+    print(f"Warning: Could not import web UI providers: {e}", file=sys.stderr)
+    _webui_exports = []
+
+# API-key providers (no Node.js required)
+try:
+    from . import api  # noqa: F401
+    from .api import deepseek  # noqa: F401
+    from .api.deepseek import DeepSeekAPI  # noqa: F401
+
+    _api_exports = ["api", "deepseek", "DeepSeekAPI"]
+except ImportError as e:
+    print(f"Warning: Could not import api providers: {e}", file=sys.stderr)
+    _api_exports = []
+
+# Local inference providers (no Node.js required)
+try:
+    from . import local  # noqa: F401
+    from .local import ollama  # noqa: F401
+    from .local.ollama import Ollama  # noqa: F401
+
+    _local_exports = ["local", "ollama", "Ollama"]
+except ImportError as e:
+    print(f"Warning: Could not import local providers: {e}", file=sys.stderr)
+    _local_exports = []
+
+__all__ = _webui_exports + _api_exports + _local_exports

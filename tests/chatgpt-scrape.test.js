@@ -9,7 +9,7 @@ describe('ChatGPT response scraping', function () {
   let scrapeResponse;
 
   before(async function () {
-    ({ scrapeResponse } = await import('../src/textgenhub/chatgpt/lib/index.js'));
+    ({ scrapeResponse } = await import('../src/textgenhub/webui/chatgpt/lib/index.js'));
     browser = await puppeteer.launch({ headless: true });
     page = await browser.newPage();
   });

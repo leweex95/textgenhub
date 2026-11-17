@@ -1,7 +1,8 @@
 """
 Perplexity provider - Simple and clean implementation
 """
-from ..core.provider import SimpleProvider
+from pathlib import Path
+from ...core.provider import SimpleProvider
 
 
 def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bool = False, timeout: int = 120, typing_speed: float | None = None) -> str:
@@ -19,7 +20,7 @@ def ask(prompt: str, headless: bool = True, remove_cache: bool = True, debug: bo
     Returns:
         str: The response from Perplexity
     """
-    provider = SimpleProvider("perplexity", "perplexity_cli.js")
+    provider = SimpleProvider("perplexity", "perplexity_cli.js", script_dir=Path(__file__).parent)
     return provider.ask(prompt, headless, remove_cache, debug, timeout, typing_speed)
 
 

@@ -49,7 +49,10 @@ jobs:
   integration-test:
     runs-on: textgenhub-self-hosted
     needs: test
-    if: success()
+    # Browser-session integration checks are deliberately manual and stay on
+    # the trusted, repository-scoped runner. Do not leave every PR check queued
+    # waiting for that offline runner.
+    if: github.event_name == 'workflow_dispatch' && success()
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4

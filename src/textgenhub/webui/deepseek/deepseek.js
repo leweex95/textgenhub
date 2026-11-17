@@ -6,7 +6,7 @@
 'use strict';
 
 import path from 'path';
-import BaseLLMProvider from '../core/base-provider.js';class DeepSeekProvider extends BaseLLMProvider {
+import BaseLLMProvider from '../../core/base-provider.js';class DeepSeekProvider extends BaseLLMProvider {
   /**
    * Save current HTML page as artifact for debugging
    * @param {string} reason - Reason for saving artifact
