@@ -12,6 +12,10 @@ permissions:
 jobs:
   check-npm-deps:
     runs-on: ubuntu-latest
+    # Dependabot updates root and src package.json in separate PRs, so a single
+    # PR legitimately has mismatched dependency versions between the two files.
+    # Skip this check for Dependabot PRs so they can auto-merge.
+    if: github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
