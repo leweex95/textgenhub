@@ -1,0 +1,417 @@
+{
+  "index.js": {
+    "mtime": 1782045643.5882633,
+    "ast_hash": "60e94bc9af3e371fc0297c29f0ef443c",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1782045785.4285314,
+    "ast_hash": "00f150ce67a983fe641f9a6fbbf0b816",
+    "semantic_hash": ""
+  },
+  "pyproject.toml": {
+    "mtime": 1782045804.6403968,
+    "ast_hash": "6476e0755d41af5b72d76477f2ddc77b",
+    "semantic_hash": ""
+  },
+  "setup.ps1": {
+    "mtime": 1782046582.6661468,
+    "ast_hash": "5538d5b149f8ce2127ceaab803747792",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/__init__.py": {
+    "mtime": 1782045643.5892644,
+    "ast_hash": "8ffff0a3872de902688e047c13e06eb8",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/api/__init__.py": {
+    "mtime": 1782045683.124637,
+    "ast_hash": "6b3f0bb6c673db294f4a7a644aa0735e",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/api/deepseek/__init__.py": {
+    "mtime": 1782045683.124637,
+    "ast_hash": "2e3967408006d710e47f84f4190abd8b",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/api/deepseek/deepseek.py": {
+    "mtime": 1782045683.125637,
+    "ast_hash": "c32a9fdd269c6dcddde3ed34f418df74",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/chatgpt/__init__.py": {
+    "mtime": 1782045643.5902617,
+    "ast_hash": "9086c6a3be5ace3a76bdd9d9654fec44",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/chatgpt/chatgpt.py": {
+    "mtime": 1782045643.5912619,
+    "ast_hash": "4963b21504ecf68614d2d9f1dfa70de9",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/chatgpt/chatgpt_cli.js": {
+    "mtime": 1782045643.5922654,
+    "ast_hash": "6727025a67c6a1b207bb746072547590",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/chatgpt/init_session.js": {
+    "mtime": 1782045643.5932622,
+    "ast_hash": "cddab3b9e2065952b3c7b85fa2775212",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/cli.py": {
+    "mtime": 1782040651.0004792,
+    "ast_hash": "cecacb471ea6e9532183458252c93d8c",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/core/base-provider.js": {
+    "mtime": 1766415962.2292073,
+    "ast_hash": "483b75a9974e8701069ffade84fb2f4b",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/core/provider.py": {
+    "mtime": 1782045643.5982628,
+    "ast_hash": "6abb83665daa4fa315a4b5c042775eb6",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/deepseek/__init__.py": {
+    "mtime": 1782045643.5992618,
+    "ast_hash": "acae1493549d4ac630dfc4aeec09bbd7",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/deepseek/deepseek.js": {
+    "mtime": 1782045643.6002638,
+    "ast_hash": "647ed0d6dfc07603e365f8acd4c976f6",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/deepseek/deepseek.py": {
+    "mtime": 1782045643.6002638,
+    "ast_hash": "7e18d1e3f76730f764cbd098ba2f2ac8",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/deepseek/deepseek_cli.js": {
+    "mtime": 1782045643.602263,
+    "ast_hash": "f6ad9303e7f8969dd589e12966e4a798",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/grok/__init__.py": {
+    "mtime": 1782045643.6032627,
+    "ast_hash": "391e28cc5b21ebca06e585f9d1617979",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/grok/grok.js": {
+    "mtime": 1782045643.6042628,
+    "ast_hash": "66fbb0023e6f6e8cc36a3308172af8c0",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/grok/grok.py": {
+    "mtime": 1782045643.6052628,
+    "ast_hash": "de82e716e9b5013179fd0e35a09b5847",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/grok/grok_cli.js": {
+    "mtime": 1782045643.6062627,
+    "ast_hash": "bc7eceb6ebf927b4a51a62f1376f4ccb",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/local/__init__.py": {
+    "mtime": 1782045683.1266372,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/local/ollama/__init__.py": {
+    "mtime": 1782045683.1266372,
+    "ast_hash": "729a03cab3d40190aec4ce33ba13f2b5",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/local/ollama/ollama.py": {
+    "mtime": 1782045683.127637,
+    "ast_hash": "80b1f46c993014f18f9908060d2ca3d7",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/package.json": {
+    "mtime": 1782045791.57229,
+    "ast_hash": "8ffdee96cb1d02f221331bdac6fec0b9",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/perplexity/__init__.py": {
+    "mtime": 1782045643.6062627,
+    "ast_hash": "d3560770c7d96da55110e49271908e46",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/perplexity/perplexity.js": {
+    "mtime": 1782045643.6082616,
+    "ast_hash": "b9ea13a513b138b70661db0b8ecb0b2b",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/perplexity/perplexity.py": {
+    "mtime": 1782045643.6082616,
+    "ast_hash": "c09ab01934ccc3976b0d36ca92db4b1d",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/perplexity/perplexity_cli.js": {
+    "mtime": 1782045643.609277,
+    "ast_hash": "52dc2fbb71ab4790f1ec5ed5d0354b7c",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/utils/__init__.py": {
+    "mtime": 1765639293.0212696,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/utils/browser_utils.py": {
+    "mtime": 1765660386.4034598,
+    "ast_hash": "67715d2591da15cab91b8ade4b97692c",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/utils/scrape_response.py": {
+    "mtime": 1765660386.4048657,
+    "ast_hash": "54c30123d873ecf95c3ab5b62974d7b4",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/__init__.py": {
+    "mtime": 1782045683.128476,
+    "ast_hash": "464832f122abd4747317486f9cfe6e6b",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/chatgpt/__init__.py": {
+    "mtime": 1782045683.128476,
+    "ast_hash": "9086c6a3be5ace3a76bdd9d9654fec44",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/chatgpt/chatgpt.py": {
+    "mtime": 1782045683.1291566,
+    "ast_hash": "31a6f5f35d3660f5a8663ece740ead94",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/chatgpt/chatgpt_cli.js": {
+    "mtime": 1782045683.1291566,
+    "ast_hash": "6727025a67c6a1b207bb746072547590",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/chatgpt/init_session.js": {
+    "mtime": 1782045683.130158,
+    "ast_hash": "cddab3b9e2065952b3c7b85fa2775212",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/deepseek/__init__.py": {
+    "mtime": 1782045683.130158,
+    "ast_hash": "acae1493549d4ac630dfc4aeec09bbd7",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/deepseek/deepseek.js": {
+    "mtime": 1782045683.131277,
+    "ast_hash": "b351690c5aadd06f77ee5f410ac10ac1",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/deepseek/deepseek.py": {
+    "mtime": 1782045683.1321568,
+    "ast_hash": "3b5f5dda6122d04fa012bc5218a43671",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/deepseek/deepseek_cli.js": {
+    "mtime": 1782045683.1321568,
+    "ast_hash": "f6ad9303e7f8969dd589e12966e4a798",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/grok/__init__.py": {
+    "mtime": 1782045683.1333795,
+    "ast_hash": "391e28cc5b21ebca06e585f9d1617979",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/grok/grok.js": {
+    "mtime": 1782045683.1333795,
+    "ast_hash": "57f106e7bd6fd1717119497a87013579",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/grok/grok.py": {
+    "mtime": 1782045683.1341584,
+    "ast_hash": "d00a22fff60e101b0c78b43f9031e297",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/grok/grok_cli.js": {
+    "mtime": 1782045683.1341584,
+    "ast_hash": "bc7eceb6ebf927b4a51a62f1376f4ccb",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/perplexity/__init__.py": {
+    "mtime": 1782045683.135154,
+    "ast_hash": "d3560770c7d96da55110e49271908e46",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/perplexity/perplexity.js": {
+    "mtime": 1782045683.135154,
+    "ast_hash": "58e737091077e65c17115811db6cb764",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/perplexity/perplexity.py": {
+    "mtime": 1782045683.136158,
+    "ast_hash": "7fdb18e5d75bee6767320e63a08858ad",
+    "semantic_hash": ""
+  },
+  "src/textgenhub/webui/perplexity/perplexity_cli.js": {
+    "mtime": 1782045683.136158,
+    "ast_hash": "52dc2fbb71ab4790f1ec5ed5d0354b7c",
+    "semantic_hash": ""
+  },
+  "tests/__init__.py": {
+    "mtime": 1765660386.4059074,
+    "ast_hash": "dfa84890f2311a290b30085232a710c4",
+    "semantic_hash": ""
+  },
+  "tests/api/__init__.py": {
+    "mtime": 1782045683.1371572,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/api/deepseek/__init__.py": {
+    "mtime": 1782045683.137297,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/api/deepseek/test_deepseek.py": {
+    "mtime": 1782045683.1378138,
+    "ast_hash": "c7eaeb94a765328d5c31f57eb52e144e",
+    "semantic_hash": ""
+  },
+  "tests/conftest.py": {
+    "mtime": 1782045643.6102624,
+    "ast_hash": "2a7bbe60a569767c0e7e7fc12d1f8e05",
+    "semantic_hash": ""
+  },
+  "tests/core/__init__.py": {
+    "mtime": 1782045683.1383328,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/core/test_provider.py": {
+    "mtime": 1782045683.1383328,
+    "ast_hash": "2e991a9c353e7160ad8928bb3c830448",
+    "semantic_hash": ""
+  },
+  "tests/local/__init__.py": {
+    "mtime": 1782045683.139332,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/local/ollama/__init__.py": {
+    "mtime": 1782045683.139332,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/local/ollama/test_ollama.py": {
+    "mtime": 1782045683.1403334,
+    "ast_hash": "a7efa92ccf49dfaa550ad09081337e6c",
+    "semantic_hash": ""
+  },
+  "tests/test_chatgpt.py": {
+    "mtime": 1782045643.6112645,
+    "ast_hash": "20113b49dd395cb62c304f66546cc064",
+    "semantic_hash": ""
+  },
+  "tests/test_cli.py": {
+    "mtime": 1782045643.6112645,
+    "ast_hash": "ebd9e0fe2bd4f7858c51a5269b4d3b7e",
+    "semantic_hash": ""
+  },
+  "tests/test_core_provider.py": {
+    "mtime": 1782045643.613263,
+    "ast_hash": "9e9408838981cffd50c22c4388dd956b",
+    "semantic_hash": ""
+  },
+  "tests/test_integration.py": {
+    "mtime": 1782045643.613263,
+    "ast_hash": "abbdd326b7ae74f24fbca2b45dcfd291",
+    "semantic_hash": ""
+  },
+  "tests/test_provider_comprehensive.py": {
+    "mtime": 1782045643.6142633,
+    "ast_hash": "3c1dd91e72eb081fb4ea82abee0ca9eb",
+    "semantic_hash": ""
+  },
+  "tests/utils/__init__.py": {
+    "mtime": 1782045683.1403334,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/utils/test_scrape_response.py": {
+    "mtime": 1782045683.1413326,
+    "ast_hash": "c9700291e4c8db901fcd9cf3f66e88f0",
+    "semantic_hash": ""
+  },
+  "tests/webui/__init__.py": {
+    "mtime": 1782045683.1413326,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "tests/webui/test_webui_providers.py": {
+    "mtime": 1782045683.1421373,
+    "ast_hash": "20f58943d8e2089fe81824ce55d8f08d",
+    "semantic_hash": ""
+  },
+  ".github/copilot-instructions.md": {
+    "mtime": 1765660386.3136146,
+    "ast_hash": "07e6c4c93d3bd750f1248caed63cfad2",
+    "semantic_hash": ""
+  },
+  ".github/workflows/dependency-version-sync.yml": {
+    "mtime": 1765660386.3161337,
+    "ast_hash": "097ed9cb51cba19d05e47905260961b7",
+    "semantic_hash": ""
+  },
+  ".github/workflows/dist-cleanup.yml": {
+    "mtime": 1765660386.318233,
+    "ast_hash": "b429edd2edde9efe73236df019efaed2",
+    "semantic_hash": ""
+  },
+  ".github/workflows/nightly-regression-test.yml": {
+    "mtime": 1765660386.3199334,
+    "ast_hash": "56f174b254df120a72ad18ac483d8caa",
+    "semantic_hash": ""
+  },
+  ".github/workflows/tests.yml": {
+    "mtime": 1766415962.1745727,
+    "ast_hash": "5f9181ce147c91e23a1cb804858a4966",
+    "semantic_hash": ""
+  },
+  ".pre-commit-config.yaml": {
+    "mtime": 1766415962.1769514,
+    "ast_hash": "3614278da849b3ecdf04f63192db2edf",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1782045683.1206338,
+    "ast_hash": "82a56713860a42585dff023981ddf08d",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1782045643.587263,
+    "ast_hash": "0fb94a912cd942babd37628008f27161",
+    "semantic_hash": ""
+  },
+  "docs/cli.md": {
+    "mtime": 1782045683.1216347,
+    "ast_hash": "37e0228dd92e4350829d852d078a92ea",
+    "semantic_hash": ""
+  },
+  "docs/development.md": {
+    "mtime": 1782045683.1216347,
+    "ast_hash": "c1f71a092d04401dacc2d48d0265bf71",
+    "semantic_hash": ""
+  },
+  "docs/nodejs.md": {
+    "mtime": 1782045683.1227334,
+    "ast_hash": "43d91713e520793d401eb90f1691b758",
+    "semantic_hash": ""
+  },
+  "docs/python.md": {
+    "mtime": 1782045683.1227334,
+    "ast_hash": "ae0f6b6a2d2c9e5b61b35c87b224ab8c",
+    "semantic_hash": ""
+  },
+  "docs/sessions.md": {
+    "mtime": 1782045683.1236374,
+    "ast_hash": "5f3c5d05642cbd3410a5e28c5ff4681b",
+    "semantic_hash": ""
+  }
+}

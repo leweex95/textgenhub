@@ -1,6 +1,6 @@
 {
     "name": "textgenhub",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "type": "module",
     "main": "base-provider.js",
     "scripts": {
@@ -12,7 +12,7 @@
     "description": "",
     "dependencies": {
         "fs-extra": "^11.3.2",
-        "puppeteer": "^24.22.0",
+        "puppeteer": "^25.19.0",
         "puppeteer-extra": "^3.3.6",
         "puppeteer-extra-plugin-stealth": "^2.11.2",
         "yargs": "^17.7.2"

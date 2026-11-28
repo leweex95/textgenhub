@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "textgenhub"
-version = "1.2.2"
+version = "1.2.3"
 description = "My personal LLM hub to connect to web-based LLMs"
 readme = "README.md"
 authors = ["Levente Csibi <csibi.levente14@gmail.com>"]
@@ -30,7 +30,7 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = ">=3.13"
-requests = "^2.31.0"
+requests = "^2.33.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4,<10.0"
